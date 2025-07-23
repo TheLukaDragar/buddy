@@ -1,6 +1,6 @@
 import { Image } from "expo-image";
-import { router, useFocusEffect } from 'expo-router';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { router } from 'expo-router';
+import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SystemBars } from 'react-native-edge-to-edge';
 import { Avatar } from 'react-native-paper';
@@ -12,6 +12,7 @@ import ReanimatedAnimated, {
 } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { nucleus } from '../../Buddy_variables';
+import chatbotService from '../../services/chatbotService';
 
 // Message interface
 interface Message {
@@ -92,8 +93,8 @@ export default function ChatScreen() {
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   
-  // Sample messages with timestamps - you can make this dynamic later
-  const messages: Message[] = [
+    // Messages state - now dynamic
+  const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
       text: "Hey! I'm here whenever you need me. How can I help you today? 😊",
@@ -108,114 +109,66 @@ export default function ChatScreen() {
       timestamp: new Date(Date.now() + 2000), // 2 seconds later
       sender: 'Buddy'
     },
-    {
-      id: '3',
-      text: "Hi Buddy! I'm really excited to start my fitness journey with you. Can you help me plan a good workout for today?",
-      isUser: true,
-      timestamp: new Date(Date.now() + 60000), // 1 minute later
-    },
-    {
-      id: '4',
-      text: "That's awesome! I love your enthusiasm. Let's create a perfect workout plan tailored just for you. What type of workout are you most interested in?",
-      isUser: false,
-      timestamp: new Date(Date.now() + 120000), // 2 minutes later
-      sender: 'Buddy'
-    },
-    {
-      id: '5',
-      text: "I'm thinking maybe something with strength training and cardio mixed together? I want to build muscle but also improve my endurance.",
-      isUser: true,
-      timestamp: new Date(Date.now() + 180000), // 3 minutes later
-    },
-    {
-      id: '6',
-      text: "Perfect choice! A combination of strength and cardio is excellent for overall fitness. I'll design a circuit-style workout that builds muscle while keeping your heart rate up.",
-      isUser: false,
-      timestamp: new Date(Date.now() + 240000), // 4 minutes later
-      sender: 'Buddy'
-    },
-    {
-      id: '7',
-      text: "How long should the workout be? I have about 45 minutes today.",
-      isUser: true,
-      timestamp: new Date(Date.now() + 300000), // 5 minutes later
-    },
-    {
-      id: '8',
-      text: "45 minutes is perfect! That gives us enough time for a proper warm-up, main workout, and cool-down. Let me put together something great for you.",
-      isUser: false,
-      timestamp: new Date(Date.now() + 360000), // 6 minutes later
-      sender: 'Buddy'
+    
+  ]);
+
+  // Auto-scroll when messages change
+  useEffect(() => {
+    if (messages.length > 0) {
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 100);
     }
-  ];
+  }, [messages]);
 
-  // Trigger animation every time the screen comes into focus
-  useFocusEffect(
-    useCallback(() => {
-      // Immediately set to off-screen position (no animation)
-      translateY.value = 800;
-      opacity.value = 0;
-      
-      // Reset message animations
-      firstMessageOpacity.setValue(0);
-      firstMessageTranslateY.setValue(20);
-      secondMessageOpacity.setValue(0);
-      secondMessageTranslateY.setValue(20);
-      
-      // Start animation on next frame to ensure reset is complete
-      const animationTimer = requestAnimationFrame(() => {
-        translateY.value = withTiming(0, {
-          duration: 600,
-          easing: Easing.out(Easing.exp),
-        });
-        opacity.value = withTiming(1, {
-          duration: 600,
-          easing: Easing.out(Easing.exp),
-        });
-        
-        // Animate messages after main animation completes
-        setTimeout(() => {
-          Animated.parallel([
-            Animated.timing(firstMessageOpacity, {
-              toValue: 1,
-              duration: 800,
-              useNativeDriver: true,
-            }),
-            Animated.timing(firstMessageTranslateY, {
-              toValue: 0,
-              duration: 800,
-              useNativeDriver: true,
-            }),
-          ]).start();
+  // Trigger animation only on first mount
+  useEffect(() => {
+    // Start animation immediately on mount
+    translateY.value = withTiming(0, {
+      duration: 600,
+      easing: Easing.out(Easing.exp),
+    });
+    opacity.value = withTiming(1, {
+      duration: 600,
+      easing: Easing.out(Easing.exp),
+    });
+    
+    // Animate messages after main animation completes
+    setTimeout(() => {
+      Animated.parallel([
+        Animated.timing(firstMessageOpacity, {
+          toValue: 1,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(firstMessageTranslateY, {
+          toValue: 0,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+      ]).start();
 
+      setTimeout(() => {
+        Animated.parallel([
+          Animated.timing(secondMessageOpacity, {
+            toValue: 1,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+          Animated.timing(secondMessageTranslateY, {
+            toValue: 0,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+        ]).start(() => {
+          // Auto-scroll to bottom after all animations complete
           setTimeout(() => {
-            Animated.parallel([
-              Animated.timing(secondMessageOpacity, {
-                toValue: 1,
-                duration: 800,
-                useNativeDriver: true,
-              }),
-              Animated.timing(secondMessageTranslateY, {
-                toValue: 0,
-                duration: 800,
-                useNativeDriver: true,
-              }),
-            ]).start(() => {
-              // Auto-scroll to bottom after all animations complete
-              setTimeout(() => {
-                scrollViewRef.current?.scrollToEnd({ animated: true });
-              }, 500);
-            });
-          }, 1200);
-        }, 400);
-      });
-      
-      return () => {
-        // Clear timers on cleanup
-        cancelAnimationFrame(animationTimer);
-      };
-    }, [])
-  );
+            scrollViewRef.current?.scrollToEnd({ animated: true });
+          }, 500);
+        });
+      }, 1200);
+    }, 400);
+  }, []); // Empty dependency array - runs only once on mount
   
   // Keyboard listeners
   useEffect(() => {
@@ -236,6 +189,10 @@ export default function ChatScreen() {
       () => {
         setKeyboardHeight(0);
         setIsKeyboardVisible(false);
+        // Auto scroll to bottom when keyboard hides
+        setTimeout(() => {
+          scrollViewRef.current?.scrollToEnd({ animated: true });
+        }, 300); // Slightly longer delay for keyboard hide animation
       }
     );
 
@@ -347,11 +304,67 @@ export default function ChatScreen() {
     return renderedItems;
   };
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (inputText.trim()) {
-      // Handle sending message logic here
-      console.log('Sending message:', inputText);
+      // Create new user message
+      const newMessage: Message = {
+        id: Date.now().toString(),
+        text: inputText.trim(),
+        isUser: true,
+        timestamp: new Date(),
+      };
+      
+      // Add message to chat
+      setMessages(prevMessages => [...prevMessages, newMessage]);
+      const currentInput = inputText.trim();
       setInputText('');
+      
+      // Auto scroll to bottom after sending
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+
+      // Get Buddy's response
+      try {
+        const buddyResponse = await chatbotService.getBuddyResponse(currentInput);
+        
+        // Add Buddy's response after a short delay
+        setTimeout(() => {
+          const buddyMessage: Message = {
+            id: (Date.now() + 1).toString(),
+            text: buddyResponse.text,
+            isUser: false,
+            timestamp: new Date(),
+            sender: 'Buddy'
+          };
+          
+          setMessages(prevMessages => [...prevMessages, buddyMessage]);
+          
+          // Auto scroll to bottom after Buddy responds
+          setTimeout(() => {
+            scrollViewRef.current?.scrollToEnd({ animated: true });
+          }, 100);
+        }, 1000); // 1 second delay for natural conversation flow
+        
+      } catch (error) {
+        console.error('Error getting Buddy response:', error);
+        // Add fallback response if service fails
+        setTimeout(() => {
+          const fallbackMessage: Message = {
+            id: (Date.now() + 1).toString(),
+            text: "Sorry, I'm having trouble responding right now. But I'm here for you! Try asking me about workouts, nutrition, or motivation! 💪",
+            isUser: false,
+            timestamp: new Date(),
+            sender: 'Buddy'
+          };
+          
+          setMessages(prevMessages => [...prevMessages, fallbackMessage]);
+          
+          setTimeout(() => {
+            scrollViewRef.current?.scrollToEnd({ animated: true });
+          }, 100);
+        }, 1000);
+      }
     }
   };
 
@@ -380,12 +393,12 @@ export default function ChatScreen() {
         <KeyboardAvoidingView 
           style={styles.mainContent}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
+          keyboardVerticalOffset={0}
         >
           <ScrollView 
             ref={scrollViewRef}
             style={styles.scrollContainer}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[styles.scrollContent, { paddingBottom: isKeyboardVisible ? 20 : 80 }]}
             showsVerticalScrollIndicator={false}
             scrollEventThrottle={16}
             decelerationRate="normal"
@@ -414,7 +427,7 @@ export default function ChatScreen() {
           </ScrollView>
 
           {/* Input Area */}
-          <View style={styles.inputContainer}>
+          <View style={[styles.inputContainer, { paddingBottom: isKeyboardVisible ? 16 : 0 }]}>
             <View style={styles.inputWrapper}>
               <TouchableOpacity style={styles.keyboardIconButton}>
                 <Image
@@ -654,8 +667,8 @@ const styles = StyleSheet.create({
 
    inputContainer: {
      paddingHorizontal: 16,
-     paddingTop: 16,
-     paddingBottom: 16,
+     paddingTop: 8,
+     paddingBottom: 0,
    },
    inputWrapper: {
      flexDirection: 'row',

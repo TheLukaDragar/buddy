@@ -18,9 +18,9 @@ import Animated, {
     withSpring,
     withTiming,
 } from 'react-native-reanimated';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
-const SHEET_HEIGHT = SCREEN_HEIGHT * 0.8;
 
 // Mock data for pagination (you can replace with your actual screens)
 const screens = [1, 2, 3, 4]; // Replace with your actual screen data
@@ -47,6 +47,9 @@ interface SwipeableIntroProps {
 }
 
 export default function SwipeableIntro({ visible, onDismiss }: SwipeableIntroProps) {
+  const insets = useSafeAreaInsets();
+  const SHEET_HEIGHT = 579 + insets.bottom;
+  
   const translateY = useSharedValue(SHEET_HEIGHT);
   const skipOpacity = useSharedValue(1);
   const [activeScreen, setActiveScreen] = useState(0);
@@ -57,7 +60,7 @@ export default function SwipeableIntro({ visible, onDismiss }: SwipeableIntroPro
     } else {
       translateY.value = withSpring(SHEET_HEIGHT, { damping: 20, stiffness: 200 });
     }
-  }, [visible]);
+  }, [visible, SHEET_HEIGHT]);
 
   const gestureHandler = useAnimatedGestureHandler({
     onStart: (_, context: { startY: number }) => {
@@ -110,6 +113,7 @@ export default function SwipeableIntro({ visible, onDismiss }: SwipeableIntroPro
 
   if (!visible) return null;
 
+
   return (
     <View style={styles.overlay}>
       <Animated.View style={[styles.backdrop, animatedBackdropStyle]} />
@@ -119,165 +123,167 @@ export default function SwipeableIntro({ visible, onDismiss }: SwipeableIntroPro
         activeOffsetY={20}
         failOffsetX={[-10, 10]}
       >
-        <Animated.View style={[styles.sheet, animatedSheetStyle]}>
-          <View style={styles.header}>
-            <View style={styles.handle} />
-          </View>
+        <Animated.View style={[styles.sheet, animatedSheetStyle, { height: SHEET_HEIGHT }]}>
+          <SafeAreaView style={styles.safeContainer} edges={['bottom']}>
+            <View style={styles.header}>
+              <View style={styles.handle} />
+            </View>
 
-          <View style={styles.topBar}>
-            <Animated.Text 
-              style={[
-                styles.skipText, 
-                animatedSkipStyle
-              ]}
-            >
-              Skip
-            </Animated.Text>
-          </View>
-
-          <ScrollView
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            onMomentumScrollEnd={handleScroll}
-            scrollEventThrottle={16}
-            style={styles.scrollView}
-          >
-            {screens.map((_, index) => (
-              <View key={index} style={styles.screenContainer}>
-                
-                  {index === 0 && (
-                    <>
-                    <View style={styles.contentView}>
-                    <View style={styles.imageContainer}>
-                        <Image source={require('@/assets/login/logo.png')} style={styles.logoImage} />
-
-                    </View>
-                      <Text style={styles.screenTitle}>👋 Meet Buddy — your personal training guide</Text>
-                      <Text style={styles.screenDescription}>Always available. Always adapting. Buddy is here to coach, guide, and motivate you — wherever and whenever you train.</Text>
-                    </View>
-                    </>
-                  )}
-                  {index === 1 && (
-                    <>
-                    <View style={styles.contentView2}>
-                        <Image source={require('@/assets/AI.png')} style={styles.logoImage2} />
-
-                      <Text style={styles.screenTitle2}>Why Buddy {'>'} a personal trainer?</Text>
-                      <View style={styles.screenTexts}>
-                        <View style={styles.screenTextItem}>
-                         <Image source={require('@/assets/check.png')} style={styles.checkImage} />
-                         <Text style={styles.screenTextItemText}>Available 24/7</Text>
-                        </View>
-                        <View style={styles.screenTextItem}>
-                         <Image source={require('@/assets/check.png')} style={styles.checkImage} />
-                         <Text style={styles.screenTextItemText}>Tracks your mood and progress</Text>
-                        </View>
-                        <View style={styles.screenTextItem}>
-                         <Image source={require('@/assets/check.png')} style={styles.checkImage} />
-                         <Text style={[styles.screenTextItemText,{width: 274}]}>Supports you at home, in the gym, or outdoors</Text>
-                        </View>
-                        <View style={styles.screenTextItem}>
-                         <Image source={require('@/assets/check.png')} style={styles.checkImage} />
-                         <Text style={[styles.screenTextItemText,{width: 262}]}>Much more affordable — no strings attached</Text>
-                        </View>
-                      </View>
-                    </View>
-                    </>
-                  )}
-                  {index === 2 && (
-                    <>
-                     <View style={styles.contentView}>
-                    <View style={styles.imageContainer}>
-                        <Image source={require('@/assets/AI2.png')} style={styles.logoImage3} />
-
-                    </View>
-                      <Text style={styles.screenTitle}>Small steps, real change.</Text>
-                      <View style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'flex-start',
-                        gap: 8,
-                      }}>
-
-                     
-                      <Text style={styles.screenDescription3}>Stick with Buddy for just a few weeks and you’ll:{'\n'}• Build stronger habits{'\n'}• Feel more confident in your body{'\n'}• Stay consistent without pressure</Text>
-                      </View>
-                    </View>
-                    </>
-                  )}
-                  {index === 3 && (
-                    <>
-                    <View style={styles.contentView}>
-                    <View style={styles.imageContainer}>
-                        <Image source={require('@/assets/login/logo.png')} style={styles.logoImage} />
-
-                    </View>
-                      <Text style={styles.screenTitle}>Time to get to know you.</Text>
-                      <View style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'flex-start',
-                        gap: 8,
-                      }}>
-                      <Text style={styles.screenDescription4}>Buddy will ask you a few quick questions to tailor everything to you. {'\n'} (You can always adjust later.)</Text>
-                      </View>
-                    </View>
-                    </>
-                  )}
-                </View>
-            ))}
-          </ScrollView>
-
-          <Animated.View layout={Layout.duration(300).easing(Easing.out(Easing.cubic))} style={styles.bottomSection}>
-            <Pagination count={screens.length} activeIndex={activeScreen} />
-            {activeScreen < screens.length - 1 && (
+            <View style={styles.topBar}>
               <Animated.Text 
-                entering={FadeIn.duration(250).easing(Easing.out(Easing.quad))}
-                exiting={FadeOut.duration(80).easing(Easing.in(Easing.quad))}
-                layout={Layout.duration(200).easing(Easing.out(Easing.cubic))}
-                style={styles.swipeText}
+                style={[
+                  styles.skipText, 
+                  animatedSkipStyle
+                ]}
               >
-                Swipe to Explore
+                Skip
               </Animated.Text>
-            )}
-            {activeScreen === screens.length - 1 && (
-              <Animated.View 
-                entering={FadeIn.duration(300).delay(50).easing(Easing.out(Easing.quad))}
-                exiting={FadeOut.duration(150).easing(Easing.in(Easing.quad))}
-                layout={Layout.duration(250).easing(Easing.out(Easing.cubic))}
-                style={{
-                  display: 'flex',
-                  padding: 16,
-                  flexDirection: 'column',
-                  justifyContent: 'flex-end',
-                  alignItems: 'center',
-                  gap: 10,
-                  alignSelf: 'stretch',
-                }}
-              >
-                <Pressable 
-                  style={({ pressed, hovered }) => [
-                    styles.getStartedButton,
-                    {
-                      backgroundColor: pressed 
-                        ? nucleus.light.global.blue[80]
-                        : hovered 
-                        ? nucleus.light.global.blue[50]
-                        : nucleus.light.global.blue[70]
-                    }
-                  ]}
-                  onPress={() => {
-                    setActiveScreen(0); // Reset state
-                    onDismiss();
-                    router.push('/onboarding');
+            </View>
+
+            <ScrollView
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              onMomentumScrollEnd={handleScroll}
+              scrollEventThrottle={16}
+              style={styles.scrollView}
+            >
+              {screens.map((_, index) => (
+                <View key={index} style={styles.screenContainer}>
+                  
+                    {index === 0 && (
+                      <>
+                      <View style={styles.contentView}>
+                      <View style={styles.imageContainer}>
+                          <Image source={require('@/assets/login/logo.png')} style={styles.logoImage} />
+
+                      </View>
+                        <Text style={styles.screenTitle}>👋 Meet Buddy — your personal training guide</Text>
+                        <Text style={styles.screenDescription}>Always available. Always adapting. Buddy is here to coach, guide, and motivate you — wherever and whenever you train.</Text>
+                      </View>
+                      </>
+                    )}
+                    {index === 1 && (
+                      <>
+                      <View style={styles.contentView2}>
+                          <Image source={require('@/assets/AI.png')} style={styles.logoImage2} />
+
+                        <Text style={styles.screenTitle2}>Why Buddy {'>'} a personal trainer?</Text>
+                        <View style={styles.screenTexts}>
+                          <View style={styles.screenTextItem}>
+                           <Image source={require('@/assets/check.png')} style={styles.checkImage} />
+                           <Text style={styles.screenTextItemText}>Available 24/7</Text>
+                          </View>
+                          <View style={styles.screenTextItem}>
+                           <Image source={require('@/assets/check.png')} style={styles.checkImage} />
+                           <Text style={styles.screenTextItemText}>Tracks your mood and progress</Text>
+                          </View>
+                          <View style={styles.screenTextItem}>
+                           <Image source={require('@/assets/check.png')} style={styles.checkImage} />
+                           <Text style={[styles.screenTextItemText,{width: 274}]}>Supports you at home, in the gym, or outdoors</Text>
+                          </View>
+                          <View style={styles.screenTextItem}>
+                           <Image source={require('@/assets/check.png')} style={styles.checkImage} />
+                           <Text style={[styles.screenTextItemText,{width: 262}]}>Much more affordable — no strings attached</Text>
+                          </View>
+                        </View>
+                      </View>
+                      </>
+                    )}
+                    {index === 2 && (
+                      <>
+                       <View style={styles.contentView}>
+                      <View style={styles.imageContainer}>
+                          <Image source={require('@/assets/AI2.png')} style={styles.logoImage3} />
+
+                      </View>
+                        <Text style={styles.screenTitle}>Small steps, real change.</Text>
+                        <View style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'flex-start',
+                          gap: 8,
+                        }}>
+
+                       
+                        <Text style={styles.screenDescription3}>Stick with Buddy for just a few weeks and you'll:{'\n'}• Build stronger habits{'\n'}• Feel more confident in your body{'\n'}• Stay consistent without pressure</Text>
+                        </View>
+                      </View>
+                      </>
+                    )}
+                    {index === 3 && (
+                      <>
+                      <View style={styles.contentView}>
+                      <View style={styles.imageContainer}>
+                          <Image source={require('@/assets/login/logo.png')} style={styles.logoImage} />
+
+                      </View>
+                        <Text style={styles.screenTitle}>Time to get to know you.</Text>
+                        <View style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'flex-start',
+                          gap: 8,
+                        }}>
+                        <Text style={styles.screenDescription4}>Buddy will ask you a few quick questions to tailor everything to you. {'\n'} (You can always adjust later.)</Text>
+                        </View>
+                      </View>
+                      </>
+                    )}
+                  </View>
+              ))}
+            </ScrollView>
+
+            <Animated.View layout={Layout.duration(300).easing(Easing.out(Easing.cubic))} style={styles.bottomSection}>
+              <Pagination count={screens.length} activeIndex={activeScreen} />
+              {activeScreen < screens.length - 1 && (
+                <Animated.Text 
+                  entering={FadeIn.duration(250).easing(Easing.out(Easing.quad))}
+                  exiting={FadeOut.duration(80).easing(Easing.in(Easing.quad))}
+                  layout={Layout.duration(200).easing(Easing.out(Easing.cubic))}
+                  style={styles.swipeText}
+                >
+                  Swipe to Explore
+                </Animated.Text>
+              )}
+              {activeScreen === screens.length - 1 && (
+                <Animated.View 
+                  entering={FadeIn.duration(300).delay(50).easing(Easing.out(Easing.quad))}
+                  exiting={FadeOut.duration(150).easing(Easing.in(Easing.quad))}
+                  layout={Layout.duration(250).easing(Easing.out(Easing.cubic))}
+                  style={{
+                    display: 'flex',
+                    padding: 16,
+                    flexDirection: 'column',
+                    justifyContent: 'flex-end',
+                    alignItems: 'center',
+                    gap: 10,
+                    alignSelf: 'stretch',
                   }}
                 >
-                  <Text style={styles.buttonLabel}>Get Started</Text>
-                </Pressable>
-              </Animated.View>
-            )}
-          </Animated.View>
+                  <Pressable 
+                    style={({ pressed, hovered }) => [
+                      styles.getStartedButton,
+                      {
+                        backgroundColor: pressed 
+                          ? nucleus.light.global.blue[80]
+                          : hovered 
+                          ? nucleus.light.global.blue[50]
+                          : nucleus.light.global.blue[70]
+                      }
+                    ]}
+                    onPress={() => {
+                      setActiveScreen(0); // Reset state
+                      onDismiss();
+                      router.push('/onboarding');
+                    }}
+                  >
+                    <Text style={styles.buttonLabel}>Get Started</Text>
+                  </Pressable>
+                </Animated.View>
+              )}
+            </Animated.View>
+          </SafeAreaView>
         </Animated.View>
       </PanGestureHandler>
     </View>
@@ -298,7 +304,6 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: 579,
     backgroundColor: nucleus.light.semantic.bg.subtle,
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
@@ -545,5 +550,8 @@ const styles = StyleSheet.create({
     letterSpacing: 0,
     marginVertical: 0,
     includeFontPadding: false,
+  },
+  safeContainer: {
+    flex: 1,
   },
 });

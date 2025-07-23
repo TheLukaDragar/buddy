@@ -2,9 +2,11 @@ import SwipeableIntro from '@/components/SwipeableIntro';
 import { BuddyLightTheme } from '@/constants/BuddyTheme';
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
+import * as NavigationBar from 'expo-navigation-bar';
 import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { Platform } from 'react-native';
+import { SystemBars } from 'react-native-edge-to-edge';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { PaperProvider } from 'react-native-paper';
 import 'react-native-reanimated';
@@ -45,6 +47,14 @@ const BuddyNavigationTheme = {
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const [showIntro, setShowIntro] = useState(false);
+  
+  // Configure Android navigation bar for edge-to-edge
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      // Set navigation bar style for edge-to-edge
+      NavigationBar.setStyle('dark');
+    }
+  }, []);
   
   const [loaded] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
@@ -109,7 +119,7 @@ export default function RootLayout() {
 
               <Stack.Screen name="+not-found" />
             </Stack>
-            <StatusBar style="dark" />
+            <SystemBars style="dark" />
             
             {/* Global SwipeableIntro - renders above everything */}
             <SwipeableIntro 

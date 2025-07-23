@@ -1,7 +1,7 @@
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import * as React from "react";
-import { StatusBar, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { Button } from "react-native-paper";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { nucleus } from "../Buddy_variables.js";
@@ -17,7 +17,6 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: nucleus.light.global.blue["20"] }]} edges={['bottom']}>
-      <StatusBar barStyle="dark-content" backgroundColor={nucleus.light.global.blue["20"]} />
       
      
         <View style={styles.logoContainer}>
