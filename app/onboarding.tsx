@@ -46,10 +46,15 @@ export default function OnboardingScreen() {
   const [showTextInput, setShowTextInput] = React.useState(false);
   const [customAnswer, setCustomAnswer] = React.useState('');
   const [showCompletion, setShowCompletion] = React.useState(false);
+  // Add processing state to prevent double-clicks
+  const [isProcessingAnswer, setIsProcessingAnswer] = React.useState(false);
   
   // Keyboard state tracking
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  
+  // Prevent double navigation
+  const [isNavigating, setIsNavigating] = React.useState(false);
   
   const questionMessageOpacity = useRef(new Animated.Value(0)).current;
   const questionMessageTranslateY = useRef(new Animated.Value(20)).current;
@@ -159,6 +164,11 @@ export default function OnboardingScreen() {
   const currentQuestion = questions[currentQuestionIndex];
   
   const handleAnswerSelect = (answer: string) => {
+    // Prevent double-clicks - if already processing, ignore this click
+    if (isProcessingAnswer) {
+      return;
+    }
+
     // Check if user clicked an "Other" option
     if (answer.includes('🖊️ Other') || answer.includes('🙈 Prefer to skip') || answer.includes('⚡ Prefer to skip')) {
       // Show text input for custom answer
@@ -170,6 +180,14 @@ export default function OnboardingScreen() {
     processAnswer(answer);
   };
   const processAnswer = (answer: string) => {
+    // Prevent concurrent processing
+    if (isProcessingAnswer) {
+      return;
+    }
+    
+    // Set processing flag immediately
+    setIsProcessingAnswer(true);
+    
     // Store the answer
     const newAnswers = [...userAnswers, answer];
     setUserAnswers(newAnswers);
@@ -239,6 +257,8 @@ export default function OnboardingScreen() {
                   // Check if current question should auto-show text input
                   if (questions[currentQuestionIndex + 1]?.autoTextInput) {
                     setShowTextInput(true);
+                    // Clear processing state when text input is shown
+                    setIsProcessingAnswer(false);
                   } else {
                     Animated.parallel([
                       Animated.timing(buttonsOpacity, {
@@ -251,7 +271,10 @@ export default function OnboardingScreen() {
                         duration: 400,
                         useNativeDriver: true,
                       }),
-                    ]).start();
+                    ]).start(() => {
+                      // Clear processing state when buttons are shown
+                      setIsProcessingAnswer(false);
+                    });
                   }
                 }, 100); // Slightly longer pause for better pacing
               });
@@ -277,6 +300,8 @@ export default function OnboardingScreen() {
                   // Scroll to show the completion messages
                   setTimeout(() => {
                     scrollViewRef.current?.scrollToEnd({ animated: true });
+                    // Clear processing state when completion animation is done
+                    setIsProcessingAnswer(false);
                   }, 200);
                 });
               });
@@ -288,12 +313,18 @@ export default function OnboardingScreen() {
   };
 
   const handleCustomAnswerSubmit = () => {
-    if (customAnswer.trim()) {
-      processAnswer(customAnswer.trim());
+    // Prevent double submissions
+    if (isProcessingAnswer || !customAnswer.trim()) {
+      return;
     }
+    processAnswer(customAnswer.trim());
   };
 
   const handleSkip = () => {
+    // Prevent double skips
+    if (isProcessingAnswer) {
+      return;
+    }
     // Insert "Skip" as the user's answer
     processAnswer("Skip");
   };
@@ -470,7 +501,7 @@ export default function OnboardingScreen() {
             onPress={() => router.back()}
             style={styles.backButton}
           />
-          a
+          
           {/* Show Buddy text when not in questions mode */}
           {!questionsStarted && (
             <Animated.View style={{ opacity: buddyTextOpacity }}>
@@ -701,6 +732,7 @@ export default function OnboardingScreen() {
                   <Pressable
                     key={answerIndex}
                     onPress={() => handleAnswerSelect(answer)}
+                    disabled={isProcessingAnswer}
                     style={({ pressed }: { pressed: boolean }) => [
                       styles.goalButton,
                       { backgroundColor: pressed ? nucleus.light.global.blue["10"] : 'transparent' }
@@ -738,7 +770,7 @@ export default function OnboardingScreen() {
                   style={[
                     styles.submitButton,
                     { 
-                      backgroundColor: customAnswer.trim() 
+                      backgroundColor: customAnswer.trim() && !isProcessingAnswer
                         ? nucleus.light.global.blue["70"] 
                         : nucleus.light.semantic.bg.muted 
                     }
@@ -775,6 +807,12 @@ export default function OnboardingScreen() {
                     }
                   ]}
                   onPress={() => {
+                    // Prevent double navigation
+                    if (isNavigating) {
+                      return;
+                    }
+                    setIsNavigating(true);
+                    
                     // Navigate to main app or next screen
                     console.log('Starting app with answers:', userAnswers);
                     router.push('/(tabs)')
