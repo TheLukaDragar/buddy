@@ -157,11 +157,11 @@ export default function OnboardingScreen() {
     setShowTextInput(false);
     setCustomAnswer('');
     
-    // Stage 1: Show user response bubble
+    // Stage 1: Show user response bubble (keep quick for responsiveness)
     userMessageOpacity.setValue(0);
     Animated.timing(userMessageOpacity, {
       toValue: 1,
-      duration: 150,
+      duration: 200, // Slightly slower for smoother fade in
       useNativeDriver: true,
     }).start(() => {
       // Stage 2: Scroll after user message appears
@@ -177,10 +177,10 @@ export default function OnboardingScreen() {
         // Stage 3: Proceed after scroll
         setTimeout(() => {
           if (currentQuestionIndex < questions.length - 1) {
-            // Hide current buttons FIRST
+            // Hide current buttons (slower for smoother fade out)
             Animated.timing(buttonsOpacity, {
               toValue: 0,
-              duration: 200,
+              duration: 300, // Slower for smoother disappearance
               useNativeDriver: true,
             }).start(() => {
               // ONLY NOW change the question index (after buttons are hidden)
@@ -190,16 +190,16 @@ export default function OnboardingScreen() {
               questionMessageOpacity.setValue(0);
               questionMessageTranslateY.setValue(20);
               
-              // Animate the new question message
+              // Animate the new question message (slower for more elegant appearance)
               Animated.parallel([
                 Animated.timing(questionMessageOpacity, {
                   toValue: 1,
-                  duration: 250,
+                  duration: 400, // Slower for more elegant text appearance
                   useNativeDriver: true,
                 }),
                 Animated.timing(questionMessageTranslateY, {
                   toValue: 0,
-                  duration: 250,
+                  duration: 400, // Slower for smoother slide up
                   useNativeDriver: true,
                 }),
               ]).start(() => {
@@ -215,17 +215,17 @@ export default function OnboardingScreen() {
                     Animated.parallel([
                       Animated.timing(buttonsOpacity, {
                         toValue: 1,
-                        duration: 250,
+                        duration: 350, // Slower for smoother button appearance
                         useNativeDriver: true,
                       }),
                       Animated.timing(buttonsTranslateY, {
                         toValue: 0,
-                        duration: 250,
+                        duration: 350, // Slower for smoother slide up
                         useNativeDriver: true,
                       }),
                     ]).start();
                   }
-                }, 50);
+                }, 100); // Slightly longer pause for better pacing
               });
             });
           } else {
@@ -234,23 +234,23 @@ export default function OnboardingScreen() {
               console.log('All answers:', newAnswers);
               Animated.timing(buttonsOpacity, {
                 toValue: 0,
-                duration: 200,
+                duration: 300, // Slower for final fade out
                 useNativeDriver: true,
               }).start(() => {
                 setQuestionsStarted(false);
                 setShowCompletion(true);
                 
-                // Animate completion screen
+                // Animate completion screen (slower for dramatic effect)
                 Animated.timing(completionOpacity, {
                   toValue: 1,
-                  duration: 400,
+                  duration: 600, // Slower for more impactful completion
                   useNativeDriver: true,
                 }).start();
               });
-            }, 200);
+            }, 250); // Slightly longer pause before completion
           }
-        }, 200);
-      }, 100);
+        }, 250); // Longer pause for better pacing
+      }, 150); // Slightly longer pause after user message
     });
   };
 
