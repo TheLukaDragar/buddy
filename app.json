@@ -9,6 +9,7 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
+      "bundleIdentifier": "com.theluka.buddy",
       "supportsTablet": true,
       "runtimeVersion": {
         "policy": "appVersion"
