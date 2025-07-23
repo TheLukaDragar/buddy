@@ -14,11 +14,13 @@ on:
           - production
   push:
     branches:
+      - master
       - main
       - development
       - dev
   pull_request:
     branches:
+      - master
       - main
       - development
 
@@ -60,7 +62,7 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             echo "channel=${{ github.event.inputs.channel }}" >> $GITHUB_OUTPUT
-          elif [ "${{ github.ref }}" == "refs/heads/main" ]; then
+          elif [ "${{ github.ref }}" == "refs/heads/main" ] || [ "${{ github.ref }}" == "refs/heads/master" ]; then
             echo "channel=production" >> $GITHUB_OUTPUT
           elif [ "${{ github.ref }}" == "refs/heads/development" ] || [ "${{ github.ref }}" == "refs/heads/dev" ]; then
             echo "channel=development" >> $GITHUB_OUTPUT

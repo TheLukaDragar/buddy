@@ -22,11 +22,13 @@ on:
           - preview
   push:
     branches:
+      - master
+      - main
       - development
       - dev
-      - main
   pull_request:
     branches:
+      - master
       - main
       - development
 
