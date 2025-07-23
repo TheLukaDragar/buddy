@@ -1,9 +1,9 @@
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import * as React from "react";
-import { ScrollView, StatusBar, StyleSheet, View } from "react-native";
-import { Button, Text, useTheme } from "react-native-paper";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { StatusBar, StyleSheet, Text, View } from "react-native";
+import { Button } from "react-native-paper";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { nucleus } from "../Buddy_variables.js";
 
 // Logo and character images
@@ -13,17 +13,13 @@ const FacebookIcon = require("../assets/login/fb.png");
 const GoogleIcon = require("../assets/login/google.png");
 
 export default function LoginScreen() {
-  const theme = useTheme();
+  const insets = useSafeAreaInsets();
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: nucleus.light.global.blue["20"] }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: nucleus.light.global.blue["20"] }]} edges={['bottom']}>
       <StatusBar barStyle="dark-content" backgroundColor={nucleus.light.global.blue["20"]} />
       
-      <ScrollView 
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Character Logo */}
+     
         <View style={styles.logoContainer}>
           <Image
             source={CharacterImage}
@@ -35,14 +31,12 @@ export default function LoginScreen() {
         {/* Header Text */}
         <View style={styles.headerContainer}>
           <Text 
-            variant="displaySmall" 
-            style={[styles.titleText, { color: nucleus.light.global.blue["80"] }]}
+            style={[styles.titleText]}
           >
             Train better
           </Text>
           <Text 
-            variant="bodyLarge" 
-            style={[styles.descriptionText, { color: nucleus.light.global.blue["100"] }]}
+            style={[styles.descriptionText]}
           >
             Join over 100 million people who use Nucleus to design better UI.
           </Text>
@@ -58,6 +52,7 @@ export default function LoginScreen() {
             contentStyle={styles.buttonContent}
             onPress={() => router.push("/explore")}
             compact={false}
+            hitSlop={{ top: 0, bottom: 0, left: 0, right: 0 }}
           >
             Continue with email
           </Button>
@@ -69,7 +64,7 @@ export default function LoginScreen() {
             labelStyle={[styles.buttonLabel, { color: nucleus.light.semantic.fg.onContrast }]}
             contentStyle={styles.buttonContent}
             compact={false}
-            icon={() => (
+                        icon={() => (
               <Image
                 source={AppleIcon}
                 style={styles.socialIcon}
@@ -123,8 +118,7 @@ export default function LoginScreen() {
         {/* Terms and Privacy */}
         <View style={styles.termsContainer}>
           <Text 
-            variant="bodySmall" 
-            style={[styles.termsText, { color: nucleus.light.global.blue["100"] }]}
+            style={[styles.termsText]}
           >
             By continuing you agree to our{" "}
             <Text style={styles.linkText}>Terms of Use</Text>
@@ -132,7 +126,6 @@ export default function LoginScreen() {
             <Text style={styles.linkText}>Privacy Policy</Text>
           </Text>
         </View>
-      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -140,66 +133,82 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: 16,
-    paddingTop: 40,
-    paddingBottom: 32,
-    justifyContent: 'center',
-  },
-  logoContainer: {
+    padding: 32,
+    flexDirection: 'column',
+    justifyContent: 'flex-end',
     alignItems: 'center',
-    marginBottom: 24,
-    height: 280,
+    gap: 24,
+    alignSelf: 'stretch',
+  },
+
+  logoContainer: {
+    flex: 1,
+    width: 173,
+    height: 293,
     justifyContent: 'center',
+    alignItems: 'center',
+    gap: 10,
   },
   characterImage: {
-    width: 180,
-    height: 260,
+    width: '100%', // Set width to 100% of the container
+    height: '100%',
+    alignSelf: 'center',
   },
   headerContainer: {
+    flexDirection: 'column',
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 32,
-    paddingHorizontal: 16,
+    gap: 8,
+    alignSelf: 'stretch',
   },
   titleText: {
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 32,
-    lineHeight: 38.4, // 120% of 32px
+    lineHeight: 38.4,
     letterSpacing: 0,
     textAlign: 'center',
-    marginBottom: 8,
+    color: nucleus.light.global.blue["80"],
+    alignSelf: 'stretch',
   },
   descriptionText: {
-    fontFamily: 'PlusJakartaSans-Regular',
+    width:  327,
+    fontFamily: 'PlusJakartaSans',
     textAlign: 'center',
     lineHeight: 24,
     fontSize: 16,
+    color: nucleus.light.global.blue["100"],
   },
   buttonsContainer: {
+
+    flexDirection: 'column',
+    justifyContent: 'center',
+    alignItems: 'center',
     gap: 16,
-    marginBottom: 24,
+    alignSelf: 'stretch',
   },
   button: {
-    borderRadius: 48,
     minHeight: 48,
-    justifyContent: 'center',
+    borderRadius: 48,
+    alignSelf: 'stretch',
   },
   buttonContent: {
     minHeight: 48,
     paddingHorizontal: 24,
     paddingVertical: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   buttonLabel: {
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 16,
-    lineHeight: 20,
-    marginVertical: 0,
-    includeFontPadding: false,
+    lineHeight: 24, // Increased line height for better spacing
+    textAlign: 'center',
+    color: nucleus.light.global.blue["10"],
   },
   googleButton: {
     borderWidth: 1,
+    
   },
   socialIcon: {
     width: 24,
@@ -207,14 +216,21 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   termsContainer: {
-    alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 16,
+    alignItems: 'center',
+    gap: 10,
+   
+    
   },
   termsText: {
-    fontFamily: 'PlusJakartaSans-Regular',
+    color: nucleus.light.global.blue["100"],
     textAlign: 'center',
+    fontFamily: 'PlusJakartaSans',
     fontSize: 12,
+    fontWeight: '400',
     lineHeight: 18,
+    letterSpacing: 0,
   },
   linkText: {
     textDecorationLine: 'underline',

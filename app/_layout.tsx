@@ -8,6 +8,7 @@ import { PaperProvider } from 'react-native-paper';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -42,6 +43,7 @@ export default function RootLayout() {
   const paperTheme = colorScheme === 'dark' ? BuddyDarkTheme : BuddyLightTheme;
 
   return (
+    <SafeAreaProvider> 
     <GestureHandlerRootView style={{ flex: 1 }}>
       <PaperProvider theme={paperTheme}>
         <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
@@ -65,5 +67,6 @@ export default function RootLayout() {
         </ThemeProvider>
       </PaperProvider>
     </GestureHandlerRootView>
+    </SafeAreaProvider>
   );
 }

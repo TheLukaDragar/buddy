@@ -274,7 +274,7 @@ export default function HomeScreen() {
             mode="contained" 
             icon="rocket-launch"
             contentStyle={styles.ctaButton}
-            onPress={() => router.push('/onboarding')}
+            onPress={() => router.push('/login')}
           >
             Try Login Screen
           </Button>
