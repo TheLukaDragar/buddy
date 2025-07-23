@@ -1,0 +1,259 @@
+# Buddy App - Cursor Rules
+
+## Project Overview
+This is a React Native Expo app called "Buddy" with custom theming, Plus Jakarta Sans fonts, and React Native Paper components. The app has a login screen and tab navigation structure.
+
+## 🎨 THEMING & STYLING RULES
+
+### Use BuddyTheme (CRITICAL)
+- **NEVER use `useTheme()` from react-native-paper**
+- **ALWAYS use `useBuddyTheme()` from '@/constants/BuddyTheme'**
+- **ALWAYS use `nucleus` design tokens from '../Buddy_variables.js'**
+
+```typescript
+// ✅ CORRECT
+import { useBuddyTheme } from '@/constants/BuddyTheme';
+import { nucleus } from '../Buddy_variables.js';
+
+const theme = useBuddyTheme();
+backgroundColor: nucleus.light.global.blue["20"]
+
+// ❌ WRONG
+import { useTheme } from 'react-native-paper';
+const theme = useTheme();
+```
+
+### Color System
+- Use `nucleus.light.global.*` for main colors
+- Use `nucleus.light.semantic.*` for semantic colors (social, accent, etc.)
+- Primary blue palette: `nucleus.light.global.blue["10"-"100"]`
+- Brand colors: `nucleus.light.global.brand["10"-"100"]`
+
+### Font System (CRITICAL)
+- **ALWAYS use the official Plus Jakarta Sans fonts (NOT Google Fonts version)**
+- Fonts are located in `assets/fonts/` and loaded in `app/_layout.tsx`
+- **Font family names:**
+  - `'PlusJakartaSans-Regular'` - for body text
+  - `'PlusJakartaSans-Bold'` - for headings/buttons
+  - `'PlusJakartaSans-Medium'` - for medium weight
+  - `'PlusJakartaSans-SemiBold'` - for semi-bold
+  - Available weights: ExtraLight, Light, Regular, Medium, SemiBold, Bold, ExtraBold
+  - All weights have italic variants (e.g., 'PlusJakartaSans-BoldItalic')
+
+## 📱 REACT NATIVE PAPER COMPONENTS
+
+### Button Guidelines
+- **ALWAYS add `compact={false}` to prevent text clipping**
+- Use proper styling to match Figma designs:
+
+```typescript
+<Button
+  mode="contained"
+  style={[styles.button, { backgroundColor: nucleus.light.global.blue["70"] }]}
+  labelStyle={[styles.buttonLabel, { color: nucleus.light.global.blue["10"] }]}
+  contentStyle={styles.buttonContent}
+  compact={false} // CRITICAL for preventing text clipping
+>
+  Button Text
+</Button>
+
+// Button styles:
+button: {
+  borderRadius: 48,
+  minHeight: 48,
+  justifyContent: 'center',
+},
+buttonContent: {
+  minHeight: 48,
+  paddingHorizontal: 24,
+  paddingVertical: 0,
+},
+buttonLabel: {
+  fontFamily: 'PlusJakartaSans-Bold',
+  fontSize: 16,
+  lineHeight: 20,
+  marginVertical: 0,
+  includeFontPadding: false,
+},
+```
+
+### Text Component Guidelines
+- Use React Native Paper's `Text` component with variants:
+  - `variant="displaySmall"` for main headings (32px)
+  - `variant="bodyLarge"` for descriptions (16px)
+  - `variant="bodySmall"` for small text (12px)
+- **ALWAYS specify fontFamily in styles** to override defaults
+- Use `includeFontPadding: false` to prevent Android text clipping
+
+## 🎯 DESIGN SYSTEM RULES
+
+### Typography Scale
+```typescript
+// Heading 1 (Train better title)
+titleText: {
+  fontFamily: 'PlusJakartaSans-Bold',
+  fontSize: 32,
+  lineHeight: 38.4, // 120% of 32px
+  letterSpacing: 0,
+  textAlign: 'center',
+},
+
+// Body text (descriptions)
+descriptionText: {
+  fontFamily: 'PlusJakartaSans-Regular',
+  fontSize: 16,
+  lineHeight: 24, // 150% of 16px
+},
+
+// Small text (terms, etc.)
+termsText: {
+  fontFamily: 'PlusJakartaSans-Regular',
+  fontSize: 12,
+  lineHeight: 18, // 150% of 12px
+},
+```
+
+### Spacing System
+- Use multiples of 8px for spacing: 8, 16, 24, 32, 40, 48
+- Standard padding: `paddingHorizontal: 16`
+- Button gaps: `gap: 16`
+- Container margins: `marginBottom: 24` or `marginBottom: 32`
+
+### Border Radius
+- Buttons: `borderRadius: 48` (fully rounded)
+- Cards/containers: Use `nucleus.light.cornerRadius.md` (8px)
+
+## 🖼️ IMAGE HANDLING
+
+### Icons and Images
+- Use `expo-image` for better performance:
+```typescript
+import { Image } from "expo-image";
+
+<Image
+  source={require("../assets/login/logo.png")}
+  style={styles.characterImage}
+  contentFit="contain"
+/>
+```
+
+### Social Icons
+- Located in `assets/login/`: apple.png, fb.png, google.png
+- Standard size: `width: 24, height: 24`
+- Use `marginRight: 8` for spacing from text
+
+## 🚀 NAVIGATION & ROUTING
+
+### Expo Router Structure
+- Use `expo-router` for navigation
+- Login screen: `app/login.tsx`
+- Tab navigation: `app/(tabs)/`
+- Navigation: `router.push("/explore")` from expo-router
+
+### Screen Layout
+```typescript
+export default function ScreenName() {
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: nucleus.light.global.blue["20"] }]}>
+      <StatusBar barStyle="dark-content" backgroundColor={nucleus.light.global.blue["20"]} />
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Content */}
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+```
+
+## 🎨 FIGMA DESIGN MATCHING
+
+### Login Screen Reference
+- Background: Light blue (`nucleus.light.global.blue["20"]` - #c5ddeb)
+- Character logo: Yellow cute character (180x260px)
+- Title: "Train better" in bold, 32px, blue
+- Buttons: 48px height, fully rounded, with proper spacing
+- Social auth: Apple (black), Facebook (blue), Google (light with border)
+
+### Button Colors
+- Email: `nucleus.light.global.blue["70"]` (#3c81a7)
+- Apple: `nucleus.light.semantic.social.apple.primary` (#131214)
+- Facebook: `nucleus.light.semantic.social.facebook.primary` (#0078ff)
+- Google: `nucleus.light.semantic.social.google.primary` (#f4f6f7) with border
+
+## 🛠️ COMMON PATTERNS
+
+### Safe Area Handling
+```typescript
+import { SafeAreaView } from "react-native-safe-area-context";
+// Use SafeAreaView as root container for all screens
+```
+
+### Scrollable Content
+```typescript
+const styles = StyleSheet.create({
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: 16,
+    paddingTop: 40,
+    paddingBottom: 32,
+    justifyContent: 'center',
+  },
+});
+```
+
+## ⚠️ CRITICAL FIXES TO REMEMBER
+
+### Text Clipping Prevention
+1. Add `compact={false}` to all React Native Paper buttons
+2. Use `includeFontPadding: false` in text styles
+3. Use `lineHeight` slightly larger than fontSize (e.g., 20 for 16px text)
+4. Use `minHeight` instead of fixed `height` for containers
+
+### Import Statements Order
+```typescript
+// 1. External libraries
+import { Image } from "expo-image";
+import { router } from "expo-router";
+import * as React from "react";
+
+// 2. React Native core
+import { ScrollView, StatusBar, StyleSheet, View } from "react-native";
+
+// 3. Third-party UI libraries
+import { Button, Text } from "react-native-paper";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+// 4. Local imports
+import { nucleus } from "../Buddy_variables.js";
+```
+
+## 🚫 THINGS TO AVOID
+
+1. **NEVER** use `useTheme()` from react-native-paper
+2. **NEVER** use Google Fonts version of Plus Jakarta Sans
+3. **NEVER** use fixed `height` on buttons (use `minHeight`)
+4. **NEVER** forget `compact={false}` on buttons
+5. **NEVER** use hardcoded colors (always use nucleus design tokens)
+6. **NEVER** use `fontWeight` with custom fonts (use specific font families)
+
+## 📋 CHECKLIST FOR NEW COMPONENTS
+
+- [ ] Uses `useBuddyTheme()` instead of `useTheme()`
+- [ ] Uses `nucleus` design tokens for colors
+- [ ] Uses official Plus Jakarta Sans font families
+- [ ] Buttons have `compact={false}`
+- [ ] Text styles include `includeFontPadding: false`
+- [ ] Uses proper SafeAreaView and StatusBar setup
+- [ ] Follows 8px spacing system
+- [ ] Images use `expo-image` component
+- [ ] Proper import order maintained
+
+## 🎯 QUALITY STANDARDS
+
+- **Design Accuracy**: Match Figma designs pixel-perfectly
+- **Performance**: Use `expo-image`, avoid unnecessary re-renders
+- **Accessibility**: Include proper accessibility props
+- **Cross-platform**: Test on both iOS and Android
+- **Theme Consistency**: Always use BuddyTheme and nucleus tokens 
