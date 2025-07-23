@@ -37,7 +37,7 @@ export default function TabLayout() {
         duration: 400,
         easing: Easing.out(Easing.cubic),
       });
-      tabBarTranslateY.value = withTiming(-30, { // Move background way up to hide completely
+      tabBarTranslateY.value = withTiming(-180, { // Move background way up to hide completely
         duration: 400,
         easing: Easing.out(Easing.cubic),
       });

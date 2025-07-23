@@ -1,8 +1,8 @@
-import { useBuddyTheme } from '@/constants/BuddyTheme';
 import { StyleSheet, View } from 'react-native';
 import { Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { nucleus } from '../../Buddy_variables.js';
+import { useBuddyTheme } from '../../constants/BuddyTheme';
 
 export default function ProfileScreen() {
   const theme = useBuddyTheme();
