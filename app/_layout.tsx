@@ -1,17 +1,51 @@
-import { BuddyDarkTheme, BuddyLightTheme } from '@/constants/BuddyTheme';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import SwipeableIntro from '@/components/SwipeableIntro';
+import { BuddyLightTheme } from '@/constants/BuddyTheme';
+import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import React, { createContext, useContext, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { PaperProvider } from 'react-native-paper';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { nucleus } from '../Buddy_variables.js';
+
+// Create context for intro state
+interface IntroContextType {
+  showIntro: boolean;
+  setShowIntro: (show: boolean) => void;
+}
+
+const IntroContext = createContext<IntroContextType | undefined>(undefined);
+
+export const useIntro = () => {
+  const context = useContext(IntroContext);
+  if (!context) {
+    throw new Error('useIntro must be used within IntroProvider');
+  }
+  return context;
+};
+
+// Custom navigation theme to prevent white flash
+const BuddyNavigationTheme = {
+  ...DefaultTheme,
+  colors: {
+    ...DefaultTheme.colors,
+    background: nucleus.light.semantic.bg.subtle, // Use your app's background color
+    card: nucleus.light.semantic.bg.canvas,
+    text: nucleus.light.semantic.fg.base,
+    border: nucleus.light.semantic.border.muted,
+    notification: nucleus.light.global.blue["70"],
+  },
+};
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+  const [showIntro, setShowIntro] = useState(false);
+  
   const [loaded] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
     // Official Plus Jakarta Sans fonts from Tokotype
@@ -39,31 +73,50 @@ export default function RootLayout() {
     return null;
   }
 
-  // Select the appropriate theme based on color scheme
-  const paperTheme = colorScheme === 'dark' ? BuddyDarkTheme : BuddyLightTheme;
+  // Force light theme throughout the app
+  const paperTheme = BuddyLightTheme;
+
+  const handleDismissIntro = () => {
+    setShowIntro(false);
+  };
 
   return (
     <SafeAreaProvider> 
     <GestureHandlerRootView style={{ flex: 1 }}>
       <PaperProvider theme={paperTheme}>
-        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-          <Stack>
-            <Stack.Screen name="login" options={{ headerShown: false }} />
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen 
-              name="onboarding" 
-              options={{ 
-                headerShown: false,
-                presentation: 'modal',
-                animation: 'slide_from_right',
-                animationDuration: 300,
-                gestureEnabled: true,
-                gestureDirection: 'horizontal',
-              }} 
+        <ThemeProvider value={BuddyNavigationTheme}>
+          <IntroContext.Provider value={{ showIntro, setShowIntro }}>
+            <Stack
+              screenOptions={{
+                contentStyle: { 
+                  backgroundColor: nucleus.light.semantic.bg.subtle 
+                },
+              }}
+            >
+              <Stack.Screen name="login" options={{ headerShown: false }} />
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen 
+                name="onboarding" 
+                options={{ 
+                  headerShown: false,
+                  presentation: 'modal',
+                  animation: 'slide_from_right',
+                  animationDuration: 300,
+                  gestureEnabled: true,
+                  gestureDirection: 'horizontal',
+                }} 
+              />
+
+              <Stack.Screen name="+not-found" />
+            </Stack>
+            <StatusBar style="dark" />
+            
+            {/* Global SwipeableIntro - renders above everything */}
+            <SwipeableIntro 
+              visible={showIntro}
+              onDismiss={handleDismissIntro}
             />
-            <Stack.Screen name="+not-found" />
-          </Stack>
-          <StatusBar style="auto" />
+          </IntroContext.Provider>
         </ThemeProvider>
       </PaperProvider>
     </GestureHandlerRootView>

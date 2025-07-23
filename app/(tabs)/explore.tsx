@@ -1,110 +1,405 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { useBuddyTheme } from '@/constants/BuddyTheme';
+import { router } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import {
+  Avatar,
+  Button,
+  Card,
+  Chip,
+  Divider,
+  FAB,
+  IconButton,
+  Surface,
+  Text,
+  TextInput
+} from 'react-native-paper';
+import { useIntro } from '../_layout';
 
-import { Collapsible } from '@/components/Collapsible';
-import { ExternalLink } from '@/components/ExternalLink';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
-import { IconSymbol } from '@/components/ui/IconSymbol';
+export default function HomeScreen() {
+  const [searchText, setSearchText] = useState('');
+  const { setShowIntro } = useIntro();
+  const theme = useBuddyTheme();
 
-export default function TabTwoScreen() {
+  // Show the intro popup when the screen loads
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowIntro(true);
+    }, 1000); // Show after 1 second delay
+
+    return () => clearTimeout(timer);
+  }, [setShowIntro]);
+
+
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
-      headerImage={
-        <IconSymbol
-          size={310}
-          color="#808080"
-          name="chevron.left.forwardslash.chevron.right"
-          style={styles.headerImage}
+    <>
+      <ScrollView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        {/* Header Section */}
+        <Surface style={[styles.header, { backgroundColor: theme.colors.primaryContainer }]}>
+          <View style={styles.headerContent}>
+            <View style={styles.headerTop}>
+              <Avatar.Text 
+                size={48} 
+                label="B" 
+                style={{ backgroundColor: theme.colors.primary }}
+                labelStyle={{ color: theme.colors.onPrimary, fontFamily: 'Plus Jakarta Sans', fontWeight: '700' }}
+              />
+              <View style={styles.headerActions}>
+                <IconButton 
+                  icon="bell-outline" 
+                  size={24}
+                  iconColor={theme.colors.onPrimaryContainer}
+                  onPress={() => alert('Notifications')}
+                />
+                <IconButton 
+                  icon="account-circle-outline" 
+                  size={24}
+                  iconColor={theme.colors.onPrimaryContainer}
+                  onPress={() => router.push('/login')}
+                />
+              </View>
+            </View>
+            
+            <Text 
+              variant="headlineLarge" 
+              style={[styles.welcomeText, { color: theme.colors.onPrimaryContainer }]}
+            >
+              Welcome to Buddy
+            </Text>
+            <Text 
+              variant="bodyLarge" 
+              style={[styles.subtitleText, { color: theme.colors.onPrimaryContainer }]}
+            >
+              Your personal companion app with beautiful design
+            </Text>
+          </View>
+        </Surface>
+
+        {/* Search Section */}
+        <View style={styles.searchSection}>
+          <TextInput
+            mode="outlined"
+            label="Search or ask Buddy..."
+            value={searchText}
+            onChangeText={setSearchText}
+            left={<TextInput.Icon icon="magnify" />}
+            right={<TextInput.Icon icon="microphone" onPress={() => alert('Voice search')} />}
+            style={styles.searchInput}
+          />
+        </View>
+
+        {/* Quick Actions */}
+        <View style={styles.section}>
+          <Text variant="titleLarge" style={[styles.sectionTitle, { color: theme.colors.onBackground }]}>
+            Quick Actions
+          </Text>
+          
+          <View style={styles.quickActions}>
+            <Card style={[styles.actionCard, { backgroundColor: theme.colors.secondaryContainer }]}>
+              <Card.Content style={styles.actionCardContent}>
+                <IconButton 
+                  icon="chat-outline" 
+                  size={32}
+                  iconColor={theme.colors.onSecondaryContainer}
+                />
+                <Text variant="labelLarge" style={{ color: theme.colors.onSecondaryContainer }}>
+                  Chat
+                </Text>
+              </Card.Content>
+            </Card>
+
+            <Card style={[styles.actionCard, { backgroundColor: theme.colors.tertiaryContainer }]}>
+              <Card.Content style={styles.actionCardContent}>
+                <IconButton 
+                  icon="calendar-outline" 
+                  size={32}
+                  iconColor={theme.colors.onTertiaryContainer}
+                />
+                <Text variant="labelLarge" style={{ color: theme.colors.onTertiaryContainer }}>
+                  Schedule
+                </Text>
+              </Card.Content>
+            </Card>
+
+            <Card 
+              style={[styles.actionCard, { backgroundColor: theme.colors.primaryContainer }]}
+              onPress={() => router.push('/login')}
+            >
+              <Card.Content style={styles.actionCardContent}>
+                <IconButton 
+                  icon="login" 
+                  size={32}
+                  iconColor={theme.colors.onPrimaryContainer}
+                />
+                <Text variant="labelLarge" style={{ color: theme.colors.onPrimaryContainer }}>
+                  Login
+                </Text>
+              </Card.Content>
+            </Card>
+
+            <Card 
+              style={[styles.actionCard, { backgroundColor: theme.colors.surface }]}
+              onPress={() => setShowIntro(true)}
+            >
+              <Card.Content style={styles.actionCardContent}>
+                <IconButton 
+                  icon="information-outline" 
+                  size={32}
+                  iconColor={theme.colors.onSurface}
+                />
+                <Text variant="labelLarge" style={{ color: theme.colors.onSurface }}>
+                  About
+                </Text>
+              </Card.Content>
+            </Card>
+          </View>
+        </View>
+
+        {/* Recent Activity */}
+        <View style={styles.section}>
+          <Text variant="titleLarge" style={[styles.sectionTitle, { color: theme.colors.onBackground }]}>
+            Recent Activity
+          </Text>
+          
+          <Card style={styles.activityCard}>
+            <Card.Content>
+              <View style={styles.activityItem}>
+                <Avatar.Icon 
+                  size={40} 
+                  icon="message-text" 
+                  style={{ backgroundColor: theme.colors.primary }}
+                />
+                <View style={styles.activityContent}>
+                  <Text variant="bodyMedium" style={{ fontWeight: '600' }}>
+                    New conversation started
+                  </Text>
+                  <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                    2 minutes ago
+                  </Text>
+                </View>
+              </View>
+              
+              <Divider style={styles.divider} />
+              
+              <View style={styles.activityItem}>
+                <Avatar.Icon 
+                  size={40} 
+                  icon="check-circle" 
+                  style={{ backgroundColor: theme.colors.tertiary }}
+                />
+                <View style={styles.activityContent}>
+                  <Text variant="bodyMedium" style={{ fontWeight: '600' }}>
+                    Task completed
+                  </Text>
+                  <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                    1 hour ago
+                  </Text>
+                </View>
+              </View>
+              
+              <Divider style={styles.divider} />
+              
+              <View style={styles.activityItem}>
+                <Avatar.Icon 
+                  size={40} 
+                  icon="calendar-plus" 
+                  style={{ backgroundColor: theme.colors.secondary }}
+                />
+                <View style={styles.activityContent}>
+                  <Text variant="bodyMedium" style={{ fontWeight: '600' }}>
+                    Event scheduled
+                  </Text>
+                  <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }}>
+                    3 hours ago
+                  </Text>
+                </View>
+              </View>
+            </Card.Content>
+          </Card>
+        </View>
+
+        {/* Theme Showcase */}
+        <View style={styles.section}>
+          <Text variant="titleLarge" style={[styles.sectionTitle, { color: theme.colors.onBackground }]}>
+            Design System
+          </Text>
+          
+          <Card style={styles.themeCard}>
+            <Card.Content>
+              <Text variant="titleMedium" style={styles.themeTitle}>
+                Custom Brand Theme
+              </Text>
+              <Text variant="bodyMedium" style={{ marginBottom: 16 }}>
+                Built with your Figma design tokens and Plus Jakarta Sans typography
+              </Text>
+              
+              <View style={styles.colorGrid}>
+                <View style={styles.colorItem}>
+                  <View style={[styles.colorSwatch, { backgroundColor: theme.colors.primary }]} />
+                  <Text variant="labelSmall">Primary</Text>
+                </View>
+                <View style={styles.colorItem}>
+                  <View style={[styles.colorSwatch, { backgroundColor: theme.colors.secondary }]} />
+                  <Text variant="labelSmall">Secondary</Text>
+                </View>
+                <View style={styles.colorItem}>
+                  <View style={[styles.colorSwatch, { backgroundColor: theme.colors.tertiary }]} />
+                  <Text variant="labelSmall">Tertiary</Text>
+                </View>
+                <View style={styles.colorItem}>
+                  <View style={[styles.colorSwatch, { backgroundColor: theme.colors.error }]} />
+                  <Text variant="labelSmall">Error</Text>
+                </View>
+              </View>
+              
+              <View style={styles.chipRow}>
+                <Chip icon="palette" mode="flat">Brand Colors</Chip>
+                <Chip icon="format-font" mode="outlined">Typography</Chip>
+              </View>
+            </Card.Content>
+          </Card>
+        </View>
+
+        {/* Call to Action */}
+        <View style={styles.ctaSection}>
+          <Button 
+            mode="contained" 
+            icon="rocket-launch"
+            contentStyle={styles.ctaButton}
+            onPress={() => router.push('/login')}
+          >
+            Try Login Screen
+          </Button>
+        </View>
+
+        {/* Floating Action Button */}
+        <FAB
+          icon="plus"
+          style={[styles.fab, { backgroundColor: theme.colors.primary }]}
+          onPress={() => setShowIntro(true)}
         />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Explore</ThemedText>
-      </ThemedView>
-      <ThemedText>This app includes example code to help you get started.</ThemedText>
-      <Collapsible title="File-based routing">
-        <ThemedText>
-          This app has two screens:{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/explore.tsx</ThemedText>
-        </ThemedText>
-        <ThemedText>
-          The layout file in <ThemedText type="defaultSemiBold">app/(tabs)/_layout.tsx</ThemedText>{' '}
-          sets up the tab navigator.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/router/introduction">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Android, iOS, and web support">
-        <ThemedText>
-          You can open this project on Android, iOS, and the web. To open the web version, press{' '}
-          <ThemedText type="defaultSemiBold">w</ThemedText> in the terminal running this project.
-        </ThemedText>
-      </Collapsible>
-      <Collapsible title="Images">
-        <ThemedText>
-          For static images, you can use the <ThemedText type="defaultSemiBold">@2x</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">@3x</ThemedText> suffixes to provide files for
-          different screen densities
-        </ThemedText>
-        <Image source={require('@/assets/images/react-logo.png')} style={{ alignSelf: 'center' }} />
-        <ExternalLink href="https://reactnative.dev/docs/images">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Custom fonts">
-        <ThemedText>
-          Open <ThemedText type="defaultSemiBold">app/_layout.tsx</ThemedText> to see how to load{' '}
-          <ThemedText style={{ fontFamily: 'SpaceMono' }}>
-            custom fonts such as this one.
-          </ThemedText>
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/versions/latest/sdk/font">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Light and dark mode components">
-        <ThemedText>
-          This template has light and dark mode support. The{' '}
-          <ThemedText type="defaultSemiBold">useColorScheme()</ThemedText> hook lets you inspect
-          what the user&apos;s current color scheme is, and so you can adjust UI colors accordingly.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Animations">
-        <ThemedText>
-          This template includes an example of an animated component. The{' '}
-          <ThemedText type="defaultSemiBold">components/HelloWave.tsx</ThemedText> component uses
-          the powerful <ThemedText type="defaultSemiBold">react-native-reanimated</ThemedText>{' '}
-          library to create a waving hand animation.
-        </ThemedText>
-        {Platform.select({
-          ios: (
-            <ThemedText>
-              The <ThemedText type="defaultSemiBold">components/ParallaxScrollView.tsx</ThemedText>{' '}
-              component provides a parallax effect for the header image.
-            </ThemedText>
-          ),
-        })}
-      </Collapsible>
-    </ParallaxScrollView>
+      </ScrollView>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  headerImage: {
-    color: '#808080',
-    bottom: -90,
-    left: -35,
-    position: 'absolute',
+  container: {
+    flex: 1,
   },
-  titleContainer: {
+  header: {
+    paddingTop: 60,
+    paddingBottom: 24,
+    paddingHorizontal: 20,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    elevation: 4,
+  },
+  headerContent: {
+    gap: 12,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  headerActions: {
+    flexDirection: 'row',
+  },
+  welcomeText: {
+    fontFamily: 'Plus Jakarta Sans',
+    fontWeight: '700',
+  },
+  subtitleText: {
+    fontFamily: 'Plus Jakarta Sans',
+    opacity: 0.8,
+  },
+  searchSection: {
+    padding: 20,
+    paddingTop: 24,
+  },
+  searchInput: {
+    backgroundColor: 'transparent',
+  },
+  section: {
+    paddingHorizontal: 20,
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontFamily: 'Plus Jakarta Sans',
+    fontWeight: '600',
+    marginBottom: 16,
+  },
+  quickActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  actionCard: {
+    flex: 1,
+    minWidth: 80,
+    maxWidth: 100,
+    elevation: 2,
+  },
+  actionCardContent: {
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  activityCard: {
+    elevation: 2,
+  },
+  activityItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 8,
+  },
+  activityContent: {
+    flex: 1,
+  },
+  divider: {
+    marginVertical: 12,
+  },
+  themeCard: {
+    elevation: 2,
+  },
+  themeTitle: {
+    fontFamily: 'Plus Jakarta Sans',
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  colorGrid: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: 16,
+  },
+  colorItem: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  colorSwatch: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    elevation: 2,
+  },
+  chipRow: {
     flexDirection: 'row',
     gap: 8,
+    flexWrap: 'wrap',
+  },
+  ctaSection: {
+    paddingHorizontal: 20,
+    paddingBottom: 110, // Extra space for custom tab bar
+  },
+  ctaButton: {
+    paddingVertical: 8,
+  },
+  fab: {
+    position: 'absolute',
+    margin: 16,
+    right: 0,
+    bottom: 104, // Above the custom tab bar
   },
 });

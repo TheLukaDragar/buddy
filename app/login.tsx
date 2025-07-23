@@ -50,7 +50,7 @@ export default function LoginScreen() {
             style={[styles.button, { backgroundColor: nucleus.light.global.blue["70"] }]}
             labelStyle={[styles.buttonLabel, { color: nucleus.light.global.blue["10"] }]}
             contentStyle={styles.buttonContent}
-            onPress={() => router.push("/explore")}
+            onPress={() => router.push("/(tabs)")}
             compact={false}
             hitSlop={{ top: 0, bottom: 0, left: 0, right: 0 }}
           >
