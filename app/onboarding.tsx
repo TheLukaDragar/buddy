@@ -1,20 +1,38 @@
 import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Animated, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SystemBars } from 'react-native-edge-to-edge';
 import { Avatar, IconButton, Text } from 'react-native-paper';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import ReanimatedAnimated, { Easing, FadeIn, Layout, SlideInRight } from 'react-native-reanimated';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { nucleus } from '../Buddy_variables';
 
+// Pagination component for question progress
+const Pagination = ({ activeIndex, count }: { activeIndex: number, count: number }) => (
+  <ReanimatedAnimated.View layout={Layout.duration(250).easing(Easing.out(Easing.cubic))} style={styles.pagination}>
+    {Array.from({ length: count }).map((_, index) => (
+      <ReanimatedAnimated.View 
+        key={index} 
+        layout={Layout.duration(200).delay(index * 30).easing(Easing.out(Easing.cubic))}
+        style={[
+          styles.dot, 
+          activeIndex === index ? styles.activeDot : styles.inactiveDot
+        ]} 
+      />
+    ))}
+  </ReanimatedAnimated.View>
+);
+
 export default function OnboardingScreen() {
+  const insets = useSafeAreaInsets();
+  
+  // React Native Animated values (existing animations)
   const firstMessageOpacity = useRef(new Animated.Value(0)).current;
   const firstMessageTranslateY = useRef(new Animated.Value(20)).current;
   const secondMessageOpacity = useRef(new Animated.Value(0)).current;
   const secondMessageTranslateY = useRef(new Animated.Value(20)).current;
   const buttonsOpacity = useRef(new Animated.Value(0)).current;
   const buttonsTranslateY = useRef(new Animated.Value(30)).current;
-  const headerOpacity = useRef(new Animated.Value(1)).current;
-  const headerTranslateY = useRef(new Animated.Value(0)).current;
   const buddyTextOpacity = useRef(new Animated.Value(0)).current;
   const scrollViewRef = useRef<ScrollView>(null);
   const [contentHeight, setContentHeight] = useState(0);
@@ -23,12 +41,15 @@ export default function OnboardingScreen() {
   // Simple questions system
   const [currentQuestionIndex, setCurrentQuestionIndex] = React.useState(0);
   const [userAnswers, setUserAnswers] = React.useState<string[]>([]);
-  const [headerVisible, setHeaderVisible] = React.useState(true);
   const [questionsStarted, setQuestionsStarted] = React.useState(false);
   const [showCurrentBuddy, setShowCurrentBuddy] = React.useState(false);
   const [showTextInput, setShowTextInput] = React.useState(false);
   const [customAnswer, setCustomAnswer] = React.useState('');
   const [showCompletion, setShowCompletion] = React.useState(false);
+  
+  // Keyboard state tracking
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   
   const questionMessageOpacity = useRef(new Animated.Value(0)).current;
   const questionMessageTranslateY = useRef(new Animated.Value(20)).current;
@@ -177,12 +198,19 @@ export default function OnboardingScreen() {
         // Stage 3: Proceed after scroll
         setTimeout(() => {
           if (currentQuestionIndex < questions.length - 1) {
-            // Hide current buttons (slower for smoother fade out)
-            Animated.timing(buttonsOpacity, {
-              toValue: 0,
-              duration: 300, // Slower for smoother disappearance
-              useNativeDriver: true,
-            }).start(() => {
+            // Hide current buttons with smooth fade out
+            Animated.parallel([
+              Animated.timing(buttonsOpacity, {
+                toValue: 0,
+                duration: 250,
+                useNativeDriver: true,
+              }),
+              Animated.timing(buttonsTranslateY, {
+                toValue: 20,
+                duration: 250,
+                useNativeDriver: true,
+              }),
+            ]).start(() => {
               // ONLY NOW change the question index (after buttons are hidden)
               setCurrentQuestionIndex(currentQuestionIndex + 1);
               
@@ -215,12 +243,12 @@ export default function OnboardingScreen() {
                     Animated.parallel([
                       Animated.timing(buttonsOpacity, {
                         toValue: 1,
-                        duration: 350, // Slower for smoother button appearance
+                        duration: 400,
                         useNativeDriver: true,
                       }),
                       Animated.timing(buttonsTranslateY, {
                         toValue: 0,
-                        duration: 350, // Slower for smoother slide up
+                        duration: 400,
                         useNativeDriver: true,
                       }),
                     ]).start();
@@ -237,15 +265,20 @@ export default function OnboardingScreen() {
                 duration: 300, // Slower for final fade out
                 useNativeDriver: true,
               }).start(() => {
-                setQuestionsStarted(false);
+                // Don't set questionsStarted to false - keep showing the history
                 setShowCompletion(true);
                 
-                // Animate completion screen (slower for dramatic effect)
+                // Animate completion screen with elegant fade-in
                 Animated.timing(completionOpacity, {
                   toValue: 1,
-                  duration: 600, // Slower for more impactful completion
+                  duration: 800,
                   useNativeDriver: true,
-                }).start();
+                }).start(() => {
+                  // Scroll to show the completion messages
+                  setTimeout(() => {
+                    scrollViewRef.current?.scrollToEnd({ animated: true });
+                  }, 200);
+                });
               });
             }, 250); // Slightly longer pause before completion
           }
@@ -258,6 +291,11 @@ export default function OnboardingScreen() {
     if (customAnswer.trim()) {
       processAnswer(customAnswer.trim());
     }
+  };
+
+  const handleSkip = () => {
+    // Insert "Skip" as the user's answer
+    processAnswer("Skip");
   };
 
   useEffect(() => {
@@ -290,49 +328,36 @@ export default function OnboardingScreen() {
         }),
       ]).start();
 
-      // Show buttons, hide header, and show buddy text with smoother timing
+      // Show buttons and buddy text with smoother timing, wait longer before starting questions
       setTimeout(() => {
         Animated.parallel([
-          // Hide header smoothly
-          Animated.timing(headerOpacity, {
-            toValue: 0,
-            duration: 800,
-            useNativeDriver: true,
-          }),
-          Animated.timing(headerTranslateY, {
-            toValue: -30,
-            duration: 800,
-            useNativeDriver: true,
-          }),
-          // Show buttons smoothly
+          // Show buttons smoothly with ease-out timing
           Animated.timing(buttonsOpacity, {
             toValue: 1,
-            duration: 800,
+            duration: 600,
             useNativeDriver: true,
           }),
           Animated.timing(buttonsTranslateY, {
             toValue: 0,
-            duration: 800,
+            duration: 600,
             useNativeDriver: true,
           }),
-          // Show buddy text smoothly
+          // Show buddy text smoothly with slight delay
           Animated.timing(buddyTextOpacity, {
             toValue: 1,
-            duration: 800,
+            duration: 500,
             useNativeDriver: true,
           }),
         ]).start(() => {
-          // Only remove header after animation completes
-          setHeaderVisible(false);
-          // Auto scroll to show buttons
+          // Auto scroll to show buttons with gentle timing
           setTimeout(() => {
             scrollViewRef.current?.scrollToEnd({ animated: true });
-          }, 200);
+          }, 300);
         });
-      }, 600);
+      }, 1200); // Wait a bit longer before showing buttons
     }, 1200); // Shorter delay between messages
 
-    // Start first question animation with smoother timing
+    // Start first question animation with smoother timing - wait longer for user to read header
     setTimeout(() => {
       setQuestionsStarted(true);
       setShowCurrentBuddy(true); // Show Buddy for first question
@@ -356,11 +381,42 @@ export default function OnboardingScreen() {
         if (questions[0]?.autoTextInput) {
           setShowTextInput(true);
         }
+        // Scroll to show the first question - smoother timing
+        setTimeout(() => {
+          if (scrollViewRef.current) {
+            scrollViewRef.current.scrollToEnd({ animated: true });
+          }
+        }, 500);
+      });
+    }, 4000); // Wait even longer for user to read the header
+  }, []);
+
+  // Cleanup keyboard listeners
+  useEffect(() => {
+    const keyboardWillShow = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (event) => {
+        setKeyboardHeight(event.endCoordinates.height);
+        setIsKeyboardVisible(true);
+        // Scroll to bottom when keyboard shows
         setTimeout(() => {
           scrollViewRef.current?.scrollToEnd({ animated: true });
-        }, 200);
-      });
-    }, 2200); // Adjusted timing
+        }, 100);
+      }
+    );
+
+    const keyboardWillHide = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardHeight(0);
+        setIsKeyboardVisible(false);
+      }
+    );
+
+    return () => {
+      keyboardWillShow.remove();
+      keyboardWillHide.remove();
+    };
   }, []);
 
   // Auto scroll when content changes
@@ -371,6 +427,16 @@ export default function OnboardingScreen() {
       }, 100);
     }
   }, [userAnswers, currentQuestionIndex, questionsStarted]);
+
+  // Auto scroll when text input appears (keyboard popup)
+  useEffect(() => {
+    if (showTextInput && scrollViewRef.current) {
+      // Wait a bit for keyboard animation to start
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 300);
+    }
+  }, [showTextInput]);
 
   const renderMessageText = (text: string) => {
     // Handle bold text marked with **text** and italic/custom text marked with *text*
@@ -388,38 +454,59 @@ export default function OnboardingScreen() {
   };
 
   return (
-    <View style={[styles.fullScreen, { backgroundColor: nucleus.light.semantic.bg.subtle }]}>
+    <ReanimatedAnimated.View 
+      entering={SlideInRight.duration(300).delay(100)}
+      style={[styles.fullScreen, { backgroundColor: nucleus.light.semantic.bg.subtle }]}
+    >
       <SystemBars style="dark" />
-      <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-        <View style={styles.topNav}>
+      <SafeAreaView style={[styles.container, { backgroundColor: nucleus.light.semantic.bg.subtle }]} edges={['bottom']}>
+        <ReanimatedAnimated.View 
+          entering={FadeIn.duration(400).delay(200)}
+          style={styles.topNav}
+        >
           <IconButton
             icon={require('../assets/back.png')}
             size={32}
             onPress={() => router.back()}
             style={styles.backButton}
           />
+          a
+          {/* Show Buddy text when not in questions mode */}
+          {!questionsStarted && (
+            <Animated.View style={{ opacity: buddyTextOpacity }}>
+              <Text style={styles.buddyText}>Buddy</Text>
+            </Animated.View>
+          )}
+          
+          {/* Show pagination dots when questions started */}
+          {questionsStarted && (
+            <ReanimatedAnimated.View 
+              entering={FadeIn.duration(300).delay(100)}
+              style={styles.paginationContainer}
+            >
+              <Pagination activeIndex={currentQuestionIndex} count={questions.length} />
+            </ReanimatedAnimated.View>
+          )}
+          
           <Animated.View style={{ opacity: buddyTextOpacity }}>
-            <Text style={styles.buddyText}>Buddy</Text>
+            <Pressable 
+              onPress={questionsStarted && !showCompletion ? handleSkip : undefined}
+              style={({ pressed }) => ({
+                opacity: pressed && questionsStarted && !showCompletion ? 0.7 : 1,
+              })}
+            >
+              <Text style={styles.skipText}>Skip</Text>
+            </Pressable>
           </Animated.View>
-          <Animated.View style={{ opacity: buddyTextOpacity }}>
-            <Text style={styles.skipText}>Skip</Text>
-          </Animated.View>
-        </View>
+        </ReanimatedAnimated.View>
 
-        <View style={styles.mainContent}>
+        <KeyboardAvoidingView 
+          style={styles.mainContent}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 120 : 20}
+          enabled={showTextInput}
+        >
           <View style={styles.content}>
-            {headerVisible && (
-              <Animated.View style={[styles.header, { 
-                opacity: headerOpacity,
-                transform: [{ translateY: headerTranslateY }]
-              }]}>
-                <Text style={styles.title}>Hey Otto, we're so happy you're here!</Text>
-                <Text style={styles.subtitle}>
-                  This is the start of something strong — literally.{'\n'}I'm your new AI workout buddy, built to fit you. Let's get personal 💬
-                </Text>
-              </Animated.View>
-            )}
-
             <ScrollView 
               ref={scrollViewRef}
               style={styles.scrollContainer}
@@ -437,6 +524,14 @@ export default function OnboardingScreen() {
                   styles.chatContainer,
                 ]}
               >
+                {/* Header - now inside scroll view */}
+                <View style={styles.headerInScroll}>
+                  <Text style={styles.title}>Hey Otto, we're so happy you're here!</Text>
+                  <Text style={styles.subtitle}>
+                    This is the start of something strong — literally.{'\n'}I'm your new AI workout buddy, built to fit you. Let's get personal 💬
+                  </Text>
+                </View>
+
                 {/* First message group */}
                 <Animated.View 
                   style={[
@@ -481,11 +576,11 @@ export default function OnboardingScreen() {
 
                 {/* Show all questions and answers for scrolling */}
                 {questionsStarted && questions.map((question, index) => {
-                  // Only show if this question has been asked (index <= currentQuestionIndex)
-                  if (index > currentQuestionIndex) return null;
+                  // Show all asked questions, or all questions if completion screen is shown
+                  if (!showCompletion && index > currentQuestionIndex) return null;
                   
                   const hasAnswer = userAnswers[index];
-                  const isCurrentQuestion = index === currentQuestionIndex;
+                  const isCurrentQuestion = index === currentQuestionIndex && !showCompletion;
                   
                   return (
                     <React.Fragment key={index}>
@@ -558,26 +653,26 @@ export default function OnboardingScreen() {
                 
                 {/* Completion Screen */}
                 {showCompletion && (
-                  <Animated.View style={[styles.completionContainer, { opacity: completionOpacity }]}>
-                    <View style={styles.buddyMessage}>
+                  <Animated.View style={{ opacity: completionOpacity }}>
+                    <View style={[styles.buddyMessage, { marginTop: 16 }]}>
                       <Avatar.Image size={40} source={require('../assets/avatar.png')} style={styles.avatar} />
                       <Text style={styles.buddyName}>Buddy</Text>
                     </View>
                     
-                    <View style={styles.messageBubble}>
+                    <View style={[styles.messageBubble, { marginTop: 8 }]}>
                       <Text style={styles.messageText}>
                         <Text style={styles.customText}>That's all I need for now — you crushed it!</Text>{'\n'}
                         Your first plan is loading… but don't worry, nothing is set in stone.
                       </Text>
                     </View>
                     
-                    <View style={styles.messageBubble}>
+                    <View style={[styles.messageBubble, { marginTop: 8 }]}>
                       <Text style={styles.messageText}>
                         You'll be able to tweak each workout based on your mood, time, or where you are.
                       </Text>
                     </View>
                     
-                    <View style={styles.messageBubble}>
+                    <View style={[styles.messageBubble, { marginTop: 8 }]}>
                       <Text style={styles.messageText}>
                         <Text style={styles.customText}>This is your journey — I'm just here to guide and hype you. Let's do this!</Text> 🚀
                       </Text>
@@ -591,7 +686,7 @@ export default function OnboardingScreen() {
 
           {/* Buttons container - positioned at bottom but within layout */}
           <View style={styles.buttonsArea}>
-            {questionsStarted && currentQuestionIndex < questions.length && !showTextInput && (
+            {questionsStarted && currentQuestionIndex < questions.length && !showTextInput && !showCompletion && (
               <Animated.View 
                 style={[
                   styles.buttonsContainer,
@@ -624,16 +719,19 @@ export default function OnboardingScreen() {
             )}
             
             {/* Text Input for "Other" responses */}
-            {showTextInput && (
+            {showTextInput && !showCompletion && (
               <View style={styles.textInputContainer}>
                 <TextInput
                   style={styles.textInput}
                   placeholder="Write your message"
                   placeholderTextColor={nucleus.light.semantic.fg.muted}
                   value={customAnswer}
-                  onChangeText={setCustomAnswer}
+                  onChangeText={(text) => {
+                    setCustomAnswer(text);
+                  }}
                   multiline
                   autoFocus
+                  blurOnSubmit={false}
                   onSubmitEditing={handleCustomAnswerSubmit}
                 />
                 <Pressable
@@ -666,7 +764,16 @@ export default function OnboardingScreen() {
             {showCompletion && (
               <Animated.View style={[styles.letsBeginContainer, { opacity: completionOpacity }]}>
                 <Pressable
-                  style={styles.letsBeginButton}
+                  style={({ pressed, hovered }) => [
+                    styles.letsBeginButton,
+                    {
+                      backgroundColor: pressed 
+                        ? nucleus.light.global.blue[80]
+                        : hovered 
+                        ? nucleus.light.global.blue[50]
+                        : nucleus.light.global.blue[70]
+                    }
+                  ]}
                   onPress={() => {
                     // Navigate to main app or next screen
                     console.log('Starting app with answers:', userAnswers);
@@ -678,9 +785,9 @@ export default function OnboardingScreen() {
               </Animated.View>
             )}
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </SafeAreaView>
-    </View>
+    </ReanimatedAnimated.View>
   );
 }
 
@@ -693,9 +800,10 @@ const styles = StyleSheet.create({
   },
   topNav: {
     display: 'flex',
-    height: 64,
+    height: 100, // Increased height to account for status bar area
     paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingTop: 50, // Fixed padding for status bar area
+    paddingBottom: 16,
     justifyContent: 'space-between',
     alignSelf: 'stretch',
     alignItems: 'center',
@@ -713,31 +821,25 @@ const styles = StyleSheet.create({
     flex: 1,
     display: 'flex',
     flexDirection: 'column',
-    justifyContent: 'space-between',
-    alignItems: 'stretch', // Change from 'flex-start' to 'stretch'
-    gap: 8,
-    width: '100%', // Add this
-
+    width: '100%',
   },
   content: {
-    display: 'flex',
+    flex: 1,
     paddingHorizontal: 16,
     paddingVertical: 0,
-    flexDirection: 'column',
-    alignItems: 'stretch', // Change from 'flex-start' to 'stretch'
-
-    gap: 8,
-    flex: 1,
-    maxHeight: '50%', // Limit chat to max 50% of screen
   },
   header: {
     marginTop: 16,
     gap: 8,
   },
+  headerInScroll: {
+    marginTop: 16,
+    marginBottom: 24,
+    gap: 8,
+  },
   title: {
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 24,
-    width: 286,
     fontWeight: '700',
     lineHeight: 28.8, // 120% of 24px
     letterSpacing: -1,
@@ -758,10 +860,9 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-     paddingHorizontal: 0,
-    paddingBottom: 20, // Minimal padding for visual spacing
-    width: '100%', // Make sure it takes full width
-    
+    paddingHorizontal: 0,
+    paddingBottom: 20,
+    width: '100%',
   },
   chatWrapper: {
     flex: 1,
@@ -809,10 +910,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: nucleus.light.semantic.border.muted,
     backgroundColor: nucleus.light.global.blue[80],
+    
 
   },
   messageText: {
-    width: 326,
     color: nucleus.light.global.blue["10"],
     fontFamily: 'PlusJakartaSans-Regular',
     fontSize: 14,
@@ -834,7 +935,7 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 18,
     fontWeight: '700',
-    lineHeight: 18,
+    lineHeight: 22, // 122% of 18px - prevents clipping of descenders
     color: '#131214',
     textAlign: 'right',
   },
@@ -893,7 +994,7 @@ const styles = StyleSheet.create({
       fontFamily: 'PlusJakartaSans',
       fontSize: 16,
       fontWeight: '700',
-      lineHeight: 16, // 100% of 16px
+      lineHeight: 20, // 125% of 16px - prevents clipping of descenders
       letterSpacing: 0,
       color: nucleus.light.global.blue["70"], // #3C81A7
       textAlign: 'center',
@@ -911,7 +1012,7 @@ const styles = StyleSheet.create({
       fontSize: 18,
       fontStyle: 'normal',
       fontWeight: '700',
-      lineHeight: 18, // 100% of 18px
+      lineHeight: 22, // 122% of 18px - prevents clipping of descenders
       letterSpacing: 0, // var(--typography-letter-spacing-none, 0px)
     },
     userMessageBubble: {
@@ -944,12 +1045,10 @@ const styles = StyleSheet.create({
       textAlign: 'left',
     },
     buttonsArea: {
-      width: '100%',
       paddingHorizontal: 16,
-      paddingBottom: 16,
-      minHeight: '50%', // Take up at least half the screen
-      justifyContent: 'flex-start', // Position buttons at top of their area
-      display: 'flex',
+      paddingBottom: Platform.OS === 'ios' ? 16 : 24,
+      paddingTop: 16,
+      backgroundColor: nucleus.light.semantic.bg.subtle,
     },
     textInputContainer: {
       display: 'flex',
@@ -962,6 +1061,7 @@ const styles = StyleSheet.create({
       borderWidth: 1,
       borderColor: nucleus.light.semantic.border.muted,
       backgroundColor: nucleus.light.semantic.bg.canvas, // #ffffff
+      marginBottom: Platform.OS === 'android' ? 10 : 0,
     },
     textInput: {
       fontFamily: 'PlusJakartaSans-Regular',
@@ -984,18 +1084,10 @@ const styles = StyleSheet.create({
       fontFamily: 'PlusJakartaSans',
       fontSize: 16,
       fontWeight: '700',
-      lineHeight: 16, // 100% of 16px
+      lineHeight: 20, // 125% of 16px - prevents clipping of descenders
       letterSpacing: 0,
     },
-    completionContainer: {
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'center',
-      alignItems: 'center',
-      gap: 16,
-      paddingVertical: 48,
-      paddingHorizontal: 16,
-    },
+
     letsBeginContainer: {
       width: '100%',
       alignItems: 'flex-end',
@@ -1008,14 +1100,35 @@ const styles = StyleSheet.create({
       borderRadius: 48,
       justifyContent: 'center',
       alignItems: 'center',
-      backgroundColor: nucleus.light.global.blue["70"],
     },
     letsBeginText: {
       fontFamily: 'PlusJakartaSans',
       fontSize: 16,
       fontWeight: '700',
-      lineHeight: 16, // 100% of 16px
+      lineHeight: 20, // 125% of 16px - prevents clipping of descenders
       letterSpacing: 0,
       color: nucleus.light.global.blue["10"],
+    },
+    pagination: {
+      display: 'flex',
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: 8,
+    },
+    dot: {
+      width: 8,
+      height: 8,
+      borderRadius: 8,
+    },
+    activeDot: {
+      backgroundColor: nucleus.light.semantic.accent.bold,
+    },
+    inactiveDot: {
+      backgroundColor: nucleus.light.global.blue[20],
+    },
+    paginationContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
     },
 }); 
