@@ -3,6 +3,7 @@ import type { ExtractedUserProfile } from '../prompts/generateUserProfile';
 import { setError, setExtractedProfile, setLoading } from '../store/slices/userSlice';
 import { generateAPIUrl } from '../utils';
 
+
 class UserProfileService {
   /**
    * Generate a user profile from onboarding answers by calling the API

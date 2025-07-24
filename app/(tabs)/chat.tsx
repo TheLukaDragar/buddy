@@ -20,6 +20,7 @@ import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { addMessage, clearMessages, setError, setInputCollapsed, setLoading, type ChatMessage } from '../../store/slices/chatSlice';
 import { generateAPIUrl } from '../../utils';
 
+
 // Date delimiter component
 const DateDelimiter = ({ date }: { date: string }) => (
   <View style={styles.dateDelimiter}>
