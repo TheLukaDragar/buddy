@@ -39,7 +39,7 @@ export default function ExploreScreen() {
         <View style={styles.greetingContainer}>
           <View style={ styles.greetingContent}>
             <View style={styles.morningRow}>
-              <Text onPress={() => router.push('/login')} style={styles.morningText}>Morning Otto,</Text>
+              <Text onPress={() => router.push('/graphql-demo')} style={styles.morningText}>Morning Otto,</Text>
             </View>
             <View style={styles.messageRow}>
               <Text style={styles.messageText}>

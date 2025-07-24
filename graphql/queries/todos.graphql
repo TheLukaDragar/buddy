@@ -1,0 +1,74 @@
+query GetTodos {
+  todosCollection {
+    edges {
+      node {
+        id
+        title
+        description
+        completed
+        created_at
+        updated_at
+      }
+    }
+  }
+}
+
+query GetTodoById($id: UUID!) {
+  todosCollection(filter: { id: { eq: $id } }) {
+    edges {
+      node {
+        id
+        title
+        description
+        completed
+        created_at
+        updated_at
+      }
+    }
+  }
+}
+
+mutation CreateTodo($title: String!, $description: String, $completed: Boolean) {
+  insertIntotodosCollection(objects: [{
+    title: $title
+    description: $description
+    completed: $completed
+  }]) {
+    records {
+      id
+      title
+      description
+      completed
+      created_at
+      updated_at
+    }
+  }
+}
+
+mutation UpdateTodo($id: UUID!, $title: String, $description: String, $completed: Boolean) {
+  updatetodosCollection(
+    set: {
+      title: $title
+      description: $description
+      completed: $completed
+    }
+    filter: { id: { eq: $id } }
+  ) {
+    records {
+      id
+      title
+      description
+      completed
+      created_at
+      updated_at
+    }
+  }
+}
+
+mutation DeleteTodo($id: UUID!) {
+  deleteFromtodosCollection(filter: { id: { eq: $id } }) {
+    records {
+      id
+    }
+  }
+} 

@@ -1,0 +1,97 @@
+type User {
+  id: ID!
+  email: String!
+  username: String!
+  firstName: String
+  lastName: String
+  avatar: String
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  
+  # Relationships
+  todos: [Todo!]! @relation(name: "UserTodos")
+  workouts: [Workout!]! @relation(name: "UserWorkouts")
+}
+
+type Todo {
+  id: ID!
+  title: String!
+  description: String
+  completed: Boolean!
+  priority: Priority!
+  dueDate: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  
+  # Relationships
+  user: User! @relation(name: "UserTodos")
+}
+
+type Workout {
+  id: ID!
+  title: String!
+  description: String
+  duration: Int # minutes
+  difficulty: Difficulty!
+  category: WorkoutCategory!
+  instructions: [String!]!
+  equipment: [Equipment!]!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  
+  # Relationships
+  user: User! @relation(name: "UserWorkouts")
+  exercises: [Exercise!]! @relation(name: "WorkoutExercises")
+}
+
+type Exercise {
+  id: ID!
+  name: String!
+  description: String
+  sets: Int
+  reps: Int
+  duration: Int # seconds
+  restTime: Int # seconds
+  instructions: [String!]!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  
+  # Relationships
+  workout: Workout! @relation(name: "WorkoutExercises")
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum Difficulty {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  EXPERT
+}
+
+enum WorkoutCategory {
+  CARDIO
+  STRENGTH
+  FLEXIBILITY
+  BALANCE
+  SPORTS
+  RECOVERY
+}
+
+enum Equipment {
+  BODYWEIGHT
+  DUMBBELLS
+  BARBELL
+  KETTLEBELL
+  RESISTANCE_BANDS
+  YOGA_MAT
+  PULL_UP_BAR
+  BENCH
+}
+
+scalar DateTime 

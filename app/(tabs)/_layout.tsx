@@ -160,6 +160,12 @@ export default function TabLayout() {
             title: 'Chat',
           }}
         />
+        <Tabs.Screen
+          name="graphql-demo"
+          options={{
+            title: 'GraphQL Demo',
+          }}
+        />
       </Tabs>
       
       {/* Custom centered tab bar with SafeAreaView */}
