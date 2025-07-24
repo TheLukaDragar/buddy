@@ -1,5 +1,6 @@
 import SwipeableIntro from '@/components/SwipeableIntro';
 import { BuddyLightTheme } from '@/constants/BuddyTheme';
+import '@/polyfills';
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import * as NavigationBar from 'expo-navigation-bar';
@@ -10,8 +11,11 @@ import { SystemBars } from 'react-native-edge-to-edge';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { PaperProvider } from 'react-native-paper';
 import 'react-native-reanimated';
+import { Provider } from 'react-redux';
+import { PersistGate } from 'redux-persist/integration/react';
 
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { persistor, store } from '@/store';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { nucleus } from '../Buddy_variables.js';
 
@@ -91,45 +95,49 @@ export default function RootLayout() {
   };
 
   return (
-    <SafeAreaProvider> 
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <PaperProvider theme={paperTheme}>
-        <ThemeProvider value={BuddyNavigationTheme}>
-          <IntroContext.Provider value={{ showIntro, setShowIntro }}>
-            <Stack
-              screenOptions={{
-                contentStyle: { 
-                  backgroundColor: nucleus.light.semantic.bg.subtle 
-                },
-              }}
-            >
-              <Stack.Screen name="login" options={{ headerShown: false }} />
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              <Stack.Screen 
-                name="onboarding" 
-                options={{ 
-                  headerShown: false,
-                  presentation: 'modal',
-                  animation: 'slide_from_right',
-                  animationDuration: 300,
-                  gestureEnabled: true,
-                  gestureDirection: 'horizontal',
-                }} 
-              />
+    <Provider store={store}>
+      <PersistGate loading={null} persistor={persistor}>
+        <SafeAreaProvider> 
+          <GestureHandlerRootView style={{ flex: 1 }}>
+            <PaperProvider theme={paperTheme}>
+              <ThemeProvider value={BuddyNavigationTheme}>
+                <IntroContext.Provider value={{ showIntro, setShowIntro }}>
+                  <Stack
+                    screenOptions={{
+                      contentStyle: { 
+                        backgroundColor: nucleus.light.semantic.bg.subtle 
+                      },
+                    }}
+                  >
+                    <Stack.Screen name="login" options={{ headerShown: false }} />
+                    <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                    <Stack.Screen 
+                      name="onboarding" 
+                      options={{ 
+                        headerShown: false,
+                        presentation: 'modal',
+                        animation: 'slide_from_right',
+                        animationDuration: 300,
+                        gestureEnabled: true,
+                        gestureDirection: 'horizontal',
+                      }} 
+                    />
 
-              <Stack.Screen name="+not-found" />
-            </Stack>
-            <SystemBars style="dark" />
-            
-            {/* Global SwipeableIntro - renders above everything */}
-            <SwipeableIntro 
-              visible={showIntro}
-              onDismiss={handleDismissIntro}
-            />
-          </IntroContext.Provider>
-        </ThemeProvider>
-      </PaperProvider>
-    </GestureHandlerRootView>
-    </SafeAreaProvider>
+                    <Stack.Screen name="+not-found" />
+                  </Stack>
+                  <SystemBars style="dark" />
+                  
+                  {/* Global SwipeableIntro - renders above everything */}
+                  <SwipeableIntro 
+                    visible={showIntro}
+                    onDismiss={handleDismissIntro}
+                  />
+                </IntroContext.Provider>
+              </ThemeProvider>
+            </PaperProvider>
+          </GestureHandlerRootView>
+        </SafeAreaProvider>
+      </PersistGate>
+    </Provider>
   );
 }

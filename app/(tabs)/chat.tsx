@@ -1,4 +1,8 @@
+import { generateAPIUrl } from '@/utils';
+import { useChat } from '@ai-sdk/react';
+import { DefaultChatTransport } from 'ai';
 import { Image } from "expo-image";
+import { fetch as expoFetch } from 'expo/fetch';
 import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -12,16 +16,8 @@ import ReanimatedAnimated, {
 } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { nucleus } from '../../Buddy_variables';
-import chatbotService from '../../services/chatbotService';
-
-// Message interface
-interface Message {
-  id: string;
-  text: string;
-  isUser: boolean;
-  timestamp: Date;
-  sender?: string;
-}
+import { useAppDispatch, useAppSelector } from '@/store/hooks';
+import { addMessage, setLoading, setError, type ChatMessage } from '@/store/slices/chatSlice';
 
 // Date delimiter component
 const DateDelimiter = ({ date }: { date: string }) => (
@@ -61,19 +57,23 @@ const formatDateForDelimiter = (date: Date) => {
 };
 
 // Helper function to check if we need a date delimiter
-const shouldShowDateDelimiter = (currentMessage: Message, previousMessage?: Message) => {
+const shouldShowDateDelimiter = (currentMessage: ChatMessage, previousMessage?: ChatMessage) => {
   if (!previousMessage) return true;
   
-  const currentDate = currentMessage.timestamp.toDateString();
-  const previousDate = previousMessage.timestamp.toDateString();
+  const currentDate = new Date(currentMessage.timestamp).toDateString();
+  const previousDate = new Date(previousMessage.timestamp).toDateString();
   
   return currentDate !== previousDate;
 };
 
 export default function ChatScreen() {
-  const translateY = useSharedValue(800); // Start much further off-screen at the bottom
+  const translateY = useSharedValue(800);
   const opacity = useSharedValue(0);
   const insets = useSafeAreaInsets();
+  
+  // Redux selectors and actions
+  const dispatch = useAppDispatch();
+  const { messages, isLoading, error } = useAppSelector(state => state.chat);
   
   // Message animation values
   const firstMessageOpacity = useRef(new Animated.Value(0)).current;
@@ -86,31 +86,37 @@ export default function ChatScreen() {
   const [contentHeight, setContentHeight] = useState(0);
   const [scrollViewHeight, setScrollViewHeight] = useState(0);
   
-  // Input state
-  const [inputText, setInputText] = useState('');
-  
   // Keyboard state
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   
-    // Messages state - now dynamic
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      text: "Hey! I'm here whenever you need me. How can I help you today? 😊",
-      isUser: false,
-      timestamp: new Date(),
-      sender: 'Buddy'
+  // Input state
+  const [inputText, setInputText] = useState('');
+
+  // AI SDK Chat Hook - now integrated with Redux
+  const { sendMessage } = useChat({
+    transport: new DefaultChatTransport({
+      fetch: expoFetch as unknown as typeof globalThis.fetch,
+      api: generateAPIUrl('/api/chat'),
+    }),
+    onError: (error) => {
+      console.error('Chat error:', error);
+      dispatch(setError(error.message));
+      dispatch(setLoading(false));
     },
-    {
-      id: '2',
-      text: "Feel free to ask me anything about your workouts, nutrition, or just chat!",
-      isUser: false,
-      timestamp: new Date(Date.now() + 2000), // 2 seconds later
-      sender: 'Buddy'
+    onFinish: (message) => {
+      // Add AI response to Redux store
+      const buddyMessage: ChatMessage = {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: message.message.parts?.map((part: any) => part.type === 'text' ? part.text : '').join('') || '',
+        timestamp: Date.now(),
+        parts: message.message.parts as Array<{ type: string; text: string }>,
+      };
+      dispatch(addMessage(buddyMessage));
+      dispatch(setLoading(false));
     },
-    
-  ]);
+  });
 
   // Auto-scroll when messages change
   useEffect(() => {
@@ -228,19 +234,20 @@ export default function ChatScreen() {
     
     messages.forEach((message, index) => {
       const previousMessage = messages[index - 1];
+      const isUser = message.role === 'user';
       
       // Add date delimiter if needed
       if (shouldShowDateDelimiter(message, previousMessage)) {
         renderedItems.push(
           <DateDelimiter 
             key={`delimiter-${message.id}`}
-            date={formatDateForDelimiter(message.timestamp)}
+            date={formatDateForDelimiter(new Date(message.timestamp))}
           />
         );
       }
       
       // Add message
-      if (message.isUser) {
+      if (isUser) {
         // User message
         renderedItems.push(
           <Animated.View 
@@ -254,13 +261,13 @@ export default function ChatScreen() {
             ]}
           >
             <Text style={styles.userMessageText}>
-              {renderMessageText(message.text)}
+              {renderMessageText(message.content)}
             </Text>
           </Animated.View>
         );
       } else {
         // Buddy message
-        const isFirstBuddyMessage = index === 0 || messages[index - 1]?.isUser;
+        const isFirstBuddyMessage = index === 0 || messages[index - 1]?.role === 'user';
         
         // Add buddy avatar/name only for first message in a group
         if (isFirstBuddyMessage) {
@@ -276,7 +283,7 @@ export default function ChatScreen() {
               ]}
             >
               <Avatar.Image size={40} source={require('../../assets/avatar.png')} style={styles.avatar} />
-              <Text style={styles.buddyName}>{message.sender}</Text>
+              <Text style={styles.buddyName}>Buddy</Text>
             </Animated.View>
           );
         }
@@ -294,7 +301,7 @@ export default function ChatScreen() {
             ]}
           >
             <Text style={styles.messageText}>
-              {renderMessageText(message.text)}
+              {renderMessageText(message.content)}
             </Text>
           </Animated.View>
         );
@@ -304,69 +311,35 @@ export default function ChatScreen() {
     return renderedItems;
   };
 
-  const handleSendMessage = async () => {
+  const handleSendMessage = () => {
     if (inputText.trim()) {
-      // Create new user message
-      const newMessage: Message = {
+      // Add user message to Redux store immediately
+      const userMessage: ChatMessage = {
         id: Date.now().toString(),
-        text: inputText.trim(),
-        isUser: true,
-        timestamp: new Date(),
+        role: 'user',
+        content: inputText.trim(),
+        timestamp: Date.now(),
       };
       
-      // Add message to chat
-      setMessages(prevMessages => [...prevMessages, newMessage]);
-      const currentInput = inputText.trim();
+      dispatch(addMessage(userMessage));
+      dispatch(setLoading(true));
+      dispatch(setError(null));
+      
+      // Send to AI
+      sendMessage({ text: inputText.trim() });
       setInputText('');
       
       // Auto scroll to bottom after sending
       setTimeout(() => {
         scrollViewRef.current?.scrollToEnd({ animated: true });
       }, 100);
-
-      // Get Buddy's response
-      try {
-        const buddyResponse = await chatbotService.getBuddyResponse(currentInput);
-        
-        // Add Buddy's response after a short delay
-        setTimeout(() => {
-          const buddyMessage: Message = {
-            id: (Date.now() + 1).toString(),
-            text: buddyResponse.text,
-            isUser: false,
-            timestamp: new Date(),
-            sender: 'Buddy'
-          };
-          
-          setMessages(prevMessages => [...prevMessages, buddyMessage]);
-          
-          // Auto scroll to bottom after Buddy responds
-          setTimeout(() => {
-            scrollViewRef.current?.scrollToEnd({ animated: true });
-          }, 100);
-        }, 1000); // 1 second delay for natural conversation flow
-        
-      } catch (error) {
-        console.error('Error getting Buddy response:', error);
-        // Add fallback response if service fails
-        setTimeout(() => {
-          const fallbackMessage: Message = {
-            id: (Date.now() + 1).toString(),
-            text: "Sorry, I'm having trouble responding right now. But I'm here for you! Try asking me about workouts, nutrition, or motivation! 💪",
-            isUser: false,
-            timestamp: new Date(),
-            sender: 'Buddy'
-          };
-          
-          setMessages(prevMessages => [...prevMessages, fallbackMessage]);
-          
-          setTimeout(() => {
-            scrollViewRef.current?.scrollToEnd({ animated: true });
-          }, 100);
-        }, 1000);
-      }
     }
   };
+
+  // Show error if API call fails
+  if (error) {
+    console.error('Chat error:', error);
+  }
 
   return (
     <ReanimatedAnimated.View 
@@ -423,6 +396,16 @@ export default function ChatScreen() {
               {/* Render messages with delimiters */}
               {renderMessages()}
               
+              {/* Show loading indicator when AI is responding */}
+              {isLoading && (
+                <View style={styles.loadingContainer}>
+                  <Avatar.Image size={40} source={require('../../assets/avatar.png')} style={styles.avatar} />
+                  <View style={styles.loadingBubble}>
+                    <Text style={styles.loadingText}>...</Text>
+                  </View>
+                </View>
+              )}
+              
             </Animated.View>
           </ScrollView>
 
@@ -451,7 +434,7 @@ export default function ChatScreen() {
                   { opacity: inputText.trim() ? 1 : 0.5 }
                 ]}
                 onPress={handleSendMessage}
-                disabled={!inputText.trim()}
+                disabled={!inputText.trim() || isLoading}
               >
                 <Text style={styles.sendButtonText}>Send</Text>
               </TouchableOpacity>
@@ -515,7 +498,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 16,
-    paddingBottom:80,
+    paddingBottom: 80,
   },
   chatContainer: {
     display: 'flex',
@@ -630,87 +613,117 @@ const styles = StyleSheet.create({
     letterSpacing: 0,
     textAlign: 'left',
   },
-     messageTimestamp: {
-     fontFamily: 'PlusJakartaSans-Regular',
-     fontSize: 12,
-     fontStyle: 'normal',
-     fontWeight: '400',
-     lineHeight: 18, // 150% of 12px
-     letterSpacing: 0,
-     color: '#6E7375',
-     alignSelf: 'flex-end',
-     marginTop: 4,
-   },
+  messageTimestamp: {
+    fontFamily: 'PlusJakartaSans-Regular',
+    fontSize: 12,
+    fontStyle: 'normal',
+    fontWeight: '400',
+    lineHeight: 18, // 150% of 12px
+    letterSpacing: 0,
+    color: '#6E7375',
+    alignSelf: 'flex-end',
+    marginTop: 4,
+  },
 
-   dateDelimiter: {
-     flexDirection: 'row',
-     alignItems: 'center',
-     justifyContent: 'center',
-     marginVertical: 16,
-     width: '100%',
-   },
-   delimiterLine: {
-     flex: 1,
-     height: 1,
-     backgroundColor: nucleus.light.global.grey["30"], // #daddde
-   },
-   delimiterText: {
-     fontFamily: 'PlusJakartaSans-Bold',
-     fontSize: 12,
-     fontStyle: 'normal',
-     fontWeight: '700',
-     lineHeight: 18, // 150% of 12px
-     letterSpacing: 0,
-     color: '#6E7375',
-     marginHorizontal: 16,
-   },
+  dateDelimiter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 16,
+    width: '100%',
+  },
+  delimiterLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: nucleus.light.global.grey["30"], // #daddde
+  },
+  delimiterText: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 12,
+    fontStyle: 'normal',
+    fontWeight: '700',
+    lineHeight: 18, // 150% of 12px
+    letterSpacing: 0,
+    color: '#6E7375',
+    marginHorizontal: 16,
+  },
 
-   inputContainer: {
-     paddingHorizontal: 16,
-     paddingTop: 8,
-     paddingBottom: 0,
-   },
-   inputWrapper: {
-     flexDirection: 'row',
-     alignItems: 'center',
-     backgroundColor: nucleus.light.semantic.bg.canvas,
-     borderRadius: 24,
-     paddingHorizontal: 12,
-     paddingVertical: 8,
-     gap: 8,
-     borderWidth: 1,
-     borderColor: nucleus.light.semantic.border.muted,
-   },
-   keyboardIconButton: {
-     padding: 8,
-   },
-   keyboardIcon: {
-     width: 24,
-     height: 24,
-   },
-   textInputField: {
-     flex: 1,
-     fontFamily: 'PlusJakartaSans-Regular',
-     fontSize: 14,
-     color: nucleus.light.semantic.fg.base,
-     paddingVertical: 0,
-     minHeight: 40,
-   },
-   sendButton: {
-     paddingHorizontal: 16,
-     paddingVertical: 12,
-     backgroundColor: nucleus.light.global.blue["70"],
-     borderRadius: 20,
-     alignItems: 'center',
-     justifyContent: 'center',
-   },
-   sendButtonText: {
-     color: nucleus.light.global.blue["10"],
-     fontFamily: 'PlusJakartaSans-Bold',
-     fontSize: 14,
-     fontWeight: '700',
-   },
-   mainContent: {
-     flex: 1,
-   },
+  loadingContainer: {
+    display: 'flex',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+  },
+  loadingBubble: {
+    display: 'flex',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flexDirection: 'column',
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: nucleus.light.semantic.border.muted,
+    backgroundColor: nucleus.light.global.blue[80],
+    maxWidth: '80%',
+  },
+  loadingText: {
+    color: nucleus.light.global.blue["10"],
+    fontFamily: 'PlusJakartaSans-Regular',
+    fontSize: 14,
+    fontStyle: 'italic',
+    fontWeight: '400',
+    lineHeight: 21,
+    letterSpacing: 0,
+  },
+
+  inputContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 0,
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: nucleus.light.semantic.bg.canvas,
+    borderRadius: 24,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: nucleus.light.semantic.border.muted,
+  },
+  keyboardIconButton: {
+    padding: 8,
+  },
+  keyboardIcon: {
+    width: 24,
+    height: 24,
+  },
+  textInputField: {
+    flex: 1,
+    fontFamily: 'PlusJakartaSans-Regular',
+    fontSize: 14,
+    color: nucleus.light.semantic.fg.base,
+    paddingVertical: 0,
+    minHeight: 40,
+  },
+  sendButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: nucleus.light.global.blue["70"],
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sendButtonText: {
+    color: nucleus.light.global.blue["10"],
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  mainContent: {
+    flex: 1,
+  },
 }); 
