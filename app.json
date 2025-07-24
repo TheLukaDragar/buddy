@@ -21,7 +21,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#c5ddeb"
       },
       "edgeToEdgeEnabled": true,
       "package": "com.theluka.buddy",
@@ -29,7 +29,7 @@
     },
     "web": {
       "bundler": "metro",
-      "output": "static",
+      "output": "server",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
@@ -41,7 +41,7 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#c5ddeb"
         }
       ],
       [
@@ -58,7 +58,11 @@
       "typedRoutes": true
     },
     "extra": {
-      "router": {},
+      "router": {
+        // Leave origin empty for automatic deployment
+        // The EXPO_UNSTABLE_DEPLOY_SERVER=1 environment variable
+        // will automatically set this during EAS builds
+      },
       "eas": {
         "projectId": "82097d94-4f98-4761-a22d-d926faf1997b"
       }

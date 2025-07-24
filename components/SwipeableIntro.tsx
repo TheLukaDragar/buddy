@@ -1,4 +1,3 @@
-import { nucleus } from '../Buddy_variables';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { Dimensions, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -19,6 +18,7 @@ import Animated, {
     withTiming,
 } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { nucleus } from '../Buddy_variables';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -135,6 +135,19 @@ export default function SwipeableIntro({ visible, onDismiss }: SwipeableIntroPro
                   styles.skipText, 
                   animatedSkipStyle
                 ]}
+                onPress={() => {
+
+                    //animate down
+                    translateY.value = withTiming(SHEET_HEIGHT, {
+                        duration: 250,
+                        easing: Easing.in(Easing.quad),
+                      }, (finished) => {
+                        if (finished) {
+                          runOnJS(onDismiss)();
+                        }
+                      });
+
+                }}
               >
                 Skip
               </Animated.Text>
