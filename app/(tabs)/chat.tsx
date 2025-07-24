@@ -1,9 +1,12 @@
+import { RootState } from '@/store';
+import { useAppDispatch, useAppSelector } from '@/store/hooks';
+import { addMessage, setError, setLoading, type ChatMessage } from '@/store/slices/chatSlice';
 import { generateAPIUrl } from '@/utils';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import { Image } from "expo-image";
-import { fetch as expoFetch } from 'expo/fetch';
 import { router } from 'expo-router';
+import { fetch as expoFetch } from 'expo/fetch';
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SystemBars } from 'react-native-edge-to-edge';
@@ -16,8 +19,6 @@ import ReanimatedAnimated, {
 } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { nucleus } from '../../Buddy_variables';
-import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { addMessage, setLoading, setError, type ChatMessage } from '@/store/slices/chatSlice';
 
 // Date delimiter component
 const DateDelimiter = ({ date }: { date: string }) => (
@@ -73,8 +74,9 @@ export default function ChatScreen() {
   
   // Redux selectors and actions
   const dispatch = useAppDispatch();
-  const { messages, isLoading, error } = useAppSelector(state => state.chat);
-  
+  const { messages, isLoading, error } = useAppSelector((state: RootState) => (state as any).chat);
+  const userProfile = useAppSelector((state: RootState) => (state as any).user?.extractedProfile);
+
   // Message animation values
   const firstMessageOpacity = useRef(new Animated.Value(0)).current;
   const firstMessageTranslateY = useRef(new Animated.Value(20)).current;
@@ -98,6 +100,9 @@ export default function ChatScreen() {
     transport: new DefaultChatTransport({
       fetch: expoFetch as unknown as typeof globalThis.fetch,
       api: generateAPIUrl('/api/chat'),
+      body: {
+        userProfile: userProfile, // Include user profile in requests
+      },
     }),
     onError: (error) => {
       console.error('Chat error:', error);
@@ -186,7 +191,7 @@ export default function ChatScreen() {
         // Auto scroll to bottom when keyboard shows
         setTimeout(() => {
           scrollViewRef.current?.scrollToEnd({ animated: true });
-        }, 100);
+        }, 0);
       }
     );
 
@@ -198,7 +203,7 @@ export default function ChatScreen() {
         // Auto scroll to bottom when keyboard hides
         setTimeout(() => {
           scrollViewRef.current?.scrollToEnd({ animated: true });
-        }, 300); // Slightly longer delay for keyboard hide animation
+        }, 0); // Slightly longer delay for keyboard hide animation
       }
     );
 
@@ -232,7 +237,7 @@ export default function ChatScreen() {
   const renderMessages = () => {
     const renderedItems: React.ReactElement[] = [];
     
-    messages.forEach((message, index) => {
+    messages.forEach((message: ChatMessage, index: number) => {
       const previousMessage = messages[index - 1];
       const isUser = message.role === 'user';
       
@@ -399,7 +404,13 @@ export default function ChatScreen() {
               {/* Show loading indicator when AI is responding */}
               {isLoading && (
                 <View style={styles.loadingContainer}>
-                  <Avatar.Image size={40} source={require('../../assets/avatar.png')} style={styles.avatar} />
+                  {/* Show buddy header (avatar + name) */}
+                  <View style={styles.buddyMessage}>
+                    <Avatar.Image size={40} source={require('../../assets/avatar.png')} style={styles.avatar} />
+                    <Text style={styles.buddyName}>Buddy</Text>
+                  </View>
+                  
+                  {/* Show thinking bubble below */}
                   <View style={styles.loadingBubble}>
                     <Text style={styles.loadingText}>...</Text>
                   </View>
@@ -467,7 +478,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.12,
     shadowRadius: 1,
-    elevation: 2,
+
   },
   backButton: {
     position: 'absolute',
@@ -650,10 +661,11 @@ const styles = StyleSheet.create({
 
   loadingContainer: {
     display: 'flex',
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
     gap: 8,
     marginTop: 8,
+    paddingBottom: 80,
   },
   loadingBubble: {
     display: 'flex',

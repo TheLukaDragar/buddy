@@ -122,6 +122,22 @@ export default function RootLayout() {
                         gestureDirection: 'horizontal',
                       }} 
                     />
+                    <Stack.Screen
+                      name="profile-view"
+                      options={{
+                        headerShown: false,
+                        presentation: 'card',
+                        animation: 'slide_from_right',
+                      }}
+                    />
+                    <Stack.Screen
+                      name="workout"
+                      options={{
+                        headerShown: false,
+                        presentation: 'card',
+                        animation: 'slide_from_right',
+                      }}
+                    />
 
                     <Stack.Screen name="+not-found" />
                   </Stack>

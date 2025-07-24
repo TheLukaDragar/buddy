@@ -6,11 +6,11 @@ export const nucleus = {
         secondary: "Plus Jakarta Sans"
       },
       fontWeight: {
-        light: 300,
-        regular: 400,
-        medium: 500,
-        semibold: 600,
-        bold: 700
+        light: '300',
+        regular: '400',
+        medium: '500',
+        semibold: '600',
+        bold: '700'
       },
       fontSize: {
         "xs": 12,

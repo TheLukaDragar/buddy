@@ -1,11 +1,14 @@
 import { Image } from "expo-image";
 import { useBuddyTheme } from '@/constants/BuddyTheme';
 import { useEffect } from 'react';
-import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { nucleus } from '../../Buddy_variables.js';
 import { useIntro } from '../_layout';
+import { SystemBars } from "react-native-edge-to-edge";
+import { router } from "expo-router";
+import { useChat } from '@ai-sdk/react'; // Ensure this supports streaming
 
 export default function ExploreScreen() {
   const theme = useBuddyTheme();
@@ -28,6 +31,7 @@ export default function ExploreScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: nucleus.light.semantic.bg.subtle }]}>
+
       <ScrollView 
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -90,27 +94,23 @@ export default function ExploreScreen() {
         </View>
 
         {/* Activities Section */}
-        <View style={styles.sectionContainer}>
+        {/* <View style={styles.sectionContainer}>
           <View style={styles.activitiesCard}>
             <View style={styles.cardHeader}>
               <Text style={styles.sectionTitle}>Activities</Text>
             </View>
             <View style={styles.activitiesContent}>
-              {/* Circular Progress Chart */}
               <View style={styles.chartContainer}>
                 <View style={styles.circularChart}>
-                  {/* Outer ring - Week fitness goal */}
                   <View style={styles.outerRing}>
                     <View style={[styles.progressRing, styles.blueProgress]} />
                   </View>
-                  {/* Inner ring - Current week fitness goal */}
                   <View style={styles.innerRing}>
                     <View style={[styles.progressRing, styles.yellowProgress]} />
                   </View>
                 </View>
               </View>
               
-              {/* Stats */}
               <View style={styles.statsContainer}>
                 <View style={styles.statGroup}>
                   <Text style={styles.statLabel}>Current week fitness goal</Text>
@@ -123,12 +123,12 @@ export default function ExploreScreen() {
               </View>
             </View>
           </View>
-        </View>
+        </View>  */}
 
         {/* Today's Workout Section */}
         <View style={styles.sectionContainer}>
           <Text style={styles.sectionHeading}>Today's workout</Text>
-          <View style={styles.workoutCard}>
+          <Pressable style={styles.workoutCard} onPress={() => router.push('/workout')}>
             {/* Workout Header */}
             <View style={styles.workoutHeader}>
               <View style={styles.progressCircleContainer}>
@@ -155,7 +155,7 @@ export default function ExploreScreen() {
               <View style={styles.recommendedCard}>
                 <View style={styles.workoutThumbnail}>
                   <Image
-                    source={require('../../assets/AI.png')}
+                    source={require('../../assets/images/focused_flow.png')}
                     style={styles.thumbnailImage}
                     contentFit="cover"
                   />
@@ -168,11 +168,11 @@ export default function ExploreScreen() {
                 </View>
               </View>
             </View>
-          </View>
+          </Pressable>
         </View>
 
         {/* Badges Section */}
-        <View style={styles.sectionContainer}>
+        {/* <View style={[styles.sectionContainer, { paddingTop: 200 }]}>
           <Text style={styles.sectionHeading}>Badges</Text>
           <View style={styles.badgesCard}>
             <View style={styles.badgeItem}>
@@ -202,7 +202,7 @@ export default function ExploreScreen() {
               <Text style={styles.badgeLabel}>Personal</Text>
             </View>
           </View>
-        </View>
+        </View> */}
 
         {/* Bottom padding for tab bar */}
         <View style={styles.bottomPadding} />
@@ -542,7 +542,7 @@ const styles = StyleSheet.create({
   },
   workoutThumbnail: {
     width: 85,
-    height: 64,
+    height: 85,
     borderRadius: 8,
     overflow: 'hidden',
   },

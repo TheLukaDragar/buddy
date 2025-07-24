@@ -13,10 +13,12 @@ import {
 
 // Import slices
 import chatSlice from './slices/chatSlice';
+import userSlice from './slices/userSlice';
 
 // Combine all reducers
 const rootReducer = combineReducers({
   chat: chatSlice,
+  user: userSlice,
 });
 
 // Persist configuration
@@ -27,7 +29,7 @@ const persistConfig = {
   // Optionally blacklist certain reducers from being persisted
   // blacklist: ['chat'] // chat might be too large to persist
   // Or whitelist only certain reducers
-  // whitelist: ['chat']
+  whitelist: ['user'], // persist user data including onboarding and profile
 };
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

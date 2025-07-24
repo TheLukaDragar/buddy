@@ -1,3 +1,6 @@
+import UserProfileService from '@/services/userProfileService';
+import { useAppDispatch } from '@/store/hooks';
+import { setOnboardingAnswers, setOnboardingCompleted } from '@/store/slices/userSlice';
 import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
@@ -25,6 +28,9 @@ const Pagination = ({ activeIndex, count }: { activeIndex: number, count: number
 
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
+  
+  // Redux
+  const dispatch = useAppDispatch();
   
   // React Native Animated values (existing animations)
   const firstMessageOpacity = useRef(new Animated.Value(0)).current;
@@ -806,16 +812,29 @@ export default function OnboardingScreen() {
                         : nucleus.light.global.blue[70]
                     }
                   ]}
-                  onPress={() => {
+                  onPress={async () => {
                     // Prevent double navigation
                     if (isNavigating) {
                       return;
                     }
                     setIsNavigating(true);
                     
-                    // Navigate to main app or next screen
-                    console.log('Starting app with answers:', userAnswers);
-                    router.push('/(tabs)')
+                    try {
+                      // Save onboarding answers to Redux
+                      dispatch(setOnboardingAnswers(userAnswers));
+                      dispatch(setOnboardingCompleted(true));
+                      
+                      // Generate user profile using LLM
+                      console.log('Generating user profile from answers:', userAnswers);
+                      await UserProfileService.generateProfileFromAnswers(userAnswers, dispatch);
+                      
+                      // Navigate to main app
+                      router.push('/(tabs)');
+                    } catch (error) {
+                      console.error('Error completing onboarding:', error);
+                      // Still navigate even if profile generation fails
+                      router.push('/(tabs)');
+                    }
                   }}
                 >
                   <Text style={styles.letsBeginText}>Let's begin</Text>
