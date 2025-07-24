@@ -1,4 +1,6 @@
 import { useBuddyTheme } from '@/constants/BuddyTheme';
+import { RootState } from '@/store';
+import { useAppSelector } from '@/store/hooks';
 import { Image } from 'expo-image';
 import { Tabs, router, usePathname } from 'expo-router';
 import React, { useEffect } from 'react';
@@ -14,6 +16,9 @@ export default function TabLayout() {
   const theme = useBuddyTheme();
   const pathname = usePathname();
   
+  // Get input collapse state from Redux
+  const isInputCollapsed = useAppSelector((state: RootState) => (state as any).chat?.isInputCollapsed || false);
+  
   // Animation values
   const tabBarWidth = useSharedValue(187); // Original width
   const tabBarScaleY = useSharedValue(1); // Vertical scale
@@ -23,7 +28,7 @@ export default function TabLayout() {
   const sideTabsOpacity = useSharedValue(1);
   const sideTabsScale = useSharedValue(1);
   
-  // Animate based on current route
+  // Animate based on current route and input collapse state
   useEffect(() => {
     const isOnChat = pathname === '/chat';
     
@@ -37,18 +42,29 @@ export default function TabLayout() {
         duration: 400,
         easing: Easing.out(Easing.cubic),
       });
-      tabBarTranslateY.value = withTiming(-180, { // Move background way up to hide completely
-        duration: 400,
-        easing: Easing.out(Easing.cubic),
-      });
+      
+      // Adjust entire tab bar position based on input collapse state
+      if (isInputCollapsed) {
+        tabBarTranslateY.value = withTiming(-80, { // Move tab bar down when input collapsed
+          duration: 400,
+          easing: Easing.out(Easing.cubic),
+        });
+      } else {
+        tabBarTranslateY.value = withTiming(-180, { // Move tab bar up to hide when input expanded
+          duration: 400,
+          easing: Easing.out(Easing.cubic),
+        });
+      }
+      
       centerIconScaleY.value = withTiming(2, { // Counter-scale to keep icon normal
         duration: 400,
         easing: Easing.out(Easing.cubic),
       });
-      centerIconTranslateY.value = withTiming(0, { // Move icon up
+      centerIconTranslateY.value = withTiming(0, { // Keep icon at normal position relative to tab bar
         duration: 400,
         easing: Easing.out(Easing.cubic),
       });
+      
       sideTabsOpacity.value = withTiming(0, {
         duration: 300,
         easing: Easing.out(Easing.cubic),
@@ -88,7 +104,7 @@ export default function TabLayout() {
         easing: Easing.out(Easing.cubic),
       });
     }
-  }, [pathname]);
+  }, [pathname, isInputCollapsed]); // Added isInputCollapsed to dependency array
 
   // Animated styles
   const animatedTabBarStyle = useAnimatedStyle(() => ({

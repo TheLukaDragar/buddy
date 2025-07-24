@@ -21,85 +21,14 @@ export default function ProfileScreen() {
 
         {/* Profile Summary Card */}
         {userProfile ? (
-          <Card style={styles.profileCard}>
-            <Card.Content style={styles.cardContent}>
-              <Text style={styles.cardTitle}>Your Fitness Profile</Text>
-              <Text style={styles.profilePreview}>
-                {userProfile.profileSummary || "Profile generated successfully!"}
-              </Text>
-              
-              <View style={styles.buttonContainer}>
-                <Button
-                  mode="contained"
-                  style={[styles.button, { backgroundColor: nucleus.light.global.blue["70"] }]}
-                  labelStyle={[styles.buttonLabel, { color: nucleus.light.global.blue["10"] }]}
-                  onPress={() => router.push('/profile-view')}
-                  compact={false}
-                >
-                  View Full Profile
-                </Button>
-                
-                <Button
-                  mode="outlined"
-                  style={[styles.button, styles.outlinedButton]}
-                  labelStyle={[styles.buttonLabel, { color: nucleus.light.global.blue["70"] }]}
-                  onPress={() => router.push('/onboarding')}
-                  compact={false}
-                >
-                  Update Profile
-                </Button>
-              </View>
-            </Card.Content>
-          </Card>
+            <Text>
+            {userProfile.profileSummary || "Profile generated successfully!"}
+          </Text>
         ) : (
-          <Card style={styles.profileCard}>
-            <Card.Content style={styles.cardContent}>
-              <Text style={styles.cardTitle}>
-                {onboardingCompleted ? "Generating Profile..." : "Get Started"}
-              </Text>
-              <Text style={styles.profilePreview}>
-                {onboardingCompleted 
-                  ? "We're creating your personalized fitness profile..."
-                  : "Complete the onboarding to create your personalized fitness profile."
-                }
-              </Text>
-              
-              <Button
-                mode="contained"
-                style={[styles.button, { backgroundColor: nucleus.light.global.blue["70"] }]}
-                labelStyle={[styles.buttonLabel, { color: nucleus.light.global.blue["10"] }]}
-                onPress={() => router.push('/onboarding')}
-                compact={false}
-              >
-                {onboardingCompleted ? "View Onboarding" : "Start Onboarding"}
-              </Button>
-            </Card.Content>
-          </Card>
+          <Text >
+            Profile generated successfully!
+          </Text>
         )}
-
-        {/* Quick Actions */}
-        <View style={styles.quickActions}>
-          <Button
-            mode="text"
-            style={styles.textButton}
-            labelStyle={[styles.textButtonLabel, { color: nucleus.light.global.blue["70"] }]}
-            onPress={() => router.push('/(tabs)/chat')}
-          >
-            💬 Chat with Buddy
-          </Button>
-          
-          <Button
-            mode="text"
-            style={styles.textButton}
-            labelStyle={[styles.textButtonLabel, { color: nucleus.light.global.blue["70"] }]}
-            onPress={() => {
-              // TODO: Add settings screen
-              console.log('Settings coming soon!');
-            }}
-          >
-            ⚙️ Settings
-          </Button>
-        </View>
       </View>
     </SafeAreaView>
   );
@@ -121,60 +50,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 32,
   },
-  profileCard: {
-    backgroundColor: nucleus.light.semantic.bg.canvas,
-    borderRadius: 16,
-    width: '100%',
-    marginBottom: 24,
-    elevation: 2,
-  },
-  cardContent: {
-    padding: 24,
-    alignItems: 'center',
-  },
-  cardTitle: {
-    fontFamily: 'PlusJakartaSans-Bold',
-    fontSize: 18,
-    color: nucleus.light.semantic.fg.base,
-    textAlign: 'center',
-    marginBottom: 12,
-  },
-  profilePreview: {
-    fontFamily: 'PlusJakartaSans-Regular',
-    fontSize: 14,
-    lineHeight: 20,
-    color: nucleus.light.semantic.fg.muted,
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  buttonContainer: {
-    width: '100%',
-    gap: 12,
-  },
-  button: {
-    borderRadius: 48,
-    minHeight: 48,
-  },
-  outlinedButton: {
-    borderColor: nucleus.light.global.blue["70"],
-    borderWidth: 2,
-  },
-  buttonLabel: {
-    fontFamily: 'PlusJakartaSans-Bold',
-    fontSize: 16,
-    lineHeight: 20,
-    marginVertical: 0,
-    includeFontPadding: false,
-  },
-  quickActions: {
-    width: '100%',
-    gap: 8,
-  },
-  textButton: {
-    borderRadius: 24,
-  },
-  textButtonLabel: {
-    fontFamily: 'PlusJakartaSans-Medium',
-    fontSize: 14,
-  },
+  
 }); 

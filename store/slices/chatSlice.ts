@@ -15,12 +15,14 @@ interface ChatState {
   messages: ChatMessage[];
   isLoading: boolean;
   error: string | null;
+  isInputCollapsed: boolean;
 }
 
 const initialState: ChatState = {
   messages: [],
   isLoading: false,
   error: null,
+  isInputCollapsed: false,
 };
 
 const chatSlice = createSlice({
@@ -45,6 +47,9 @@ const chatSlice = createSlice({
     removeMessage: (state, action: PayloadAction<string>) => {
       state.messages = state.messages.filter(msg => msg.id !== action.payload);
     },
+    setInputCollapsed: (state, action: PayloadAction<boolean>) => {
+      state.isInputCollapsed = action.payload;
+    },
   },
 });
 
@@ -55,6 +60,7 @@ export const {
   setError,
   clearMessages,
   removeMessage,
+  setInputCollapsed,
 } = chatSlice.actions;
 
 export default chatSlice.reducer; 
