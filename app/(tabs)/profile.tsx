@@ -1,11 +1,10 @@
-import type { RootState } from '@/store';
-import { useAppSelector } from '@/store/hooks';
-import { router } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
-import { Button, Card, Text } from 'react-native-paper';
+import { Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { nucleus } from '../../Buddy_variables.js';
 import { useBuddyTheme } from '../../constants/BuddyTheme';
+import type { RootState } from '../../store';
+import { useAppSelector } from '../../store/hooks';
 
 export default function ProfileScreen() {
   const theme = useBuddyTheme();

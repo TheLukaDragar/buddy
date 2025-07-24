@@ -1,6 +1,6 @@
-import type { ExtractedUserProfile } from '@/prompts/generateUserProfile';
-import { setError, setExtractedProfile, setLoading } from '@/store/slices/userSlice';
 import { Dispatch } from '@reduxjs/toolkit';
+import type { ExtractedUserProfile } from '../prompts/generateUserProfile';
+import { setError, setExtractedProfile, setLoading } from '../store/slices/userSlice';
 import { generateAPIUrl } from '../utils';
 
 class UserProfileService {

@@ -1,4 +1,4 @@
-import { nucleus } from '@/Buddy_variables';
+import { nucleus } from '../Buddy_variables';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { Dimensions, Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -155,7 +155,7 @@ export default function SwipeableIntro({ visible, onDismiss }: SwipeableIntroPro
                       <>
                       <View style={styles.contentView}>
                       <View style={styles.imageContainer}>
-                          <Image source={require('@/assets/login/logo.png')} style={styles.logoImage} />
+                          <Image source={require('../assets/login/logo.png')} style={styles.logoImage} />
 
                       </View>
                         <Text style={styles.screenTitle}>👋 Meet Buddy — your personal training guide</Text>
@@ -166,24 +166,24 @@ export default function SwipeableIntro({ visible, onDismiss }: SwipeableIntroPro
                     {index === 1 && (
                       <>
                       <View style={styles.contentView2}>
-                          <Image source={require('@/assets/AI.png')} style={styles.logoImage2} />
+                          <Image source={require('../assets/AI.png')} style={styles.logoImage2} />
 
                         <Text style={styles.screenTitle2}>Why Buddy {'>'} a personal trainer?</Text>
                         <View style={styles.screenTexts}>
                           <View style={styles.screenTextItem}>
-                           <Image source={require('@/assets/check.png')} style={styles.checkImage} />
+                           <Image source={require('../assets/check.png')} style={styles.checkImage} />
                            <Text style={styles.screenTextItemText}>Available 24/7</Text>
                           </View>
                           <View style={styles.screenTextItem}>
-                           <Image source={require('@/assets/check.png')} style={styles.checkImage} />
+                           <Image source={require('../assets/check.png')} style={styles.checkImage} />
                            <Text style={styles.screenTextItemText}>Tracks your mood and progress</Text>
                           </View>
                           <View style={styles.screenTextItem}>
-                           <Image source={require('@/assets/check.png')} style={styles.checkImage} />
+                           <Image source={require('../assets/check.png')} style={styles.checkImage} />
                            <Text style={[styles.screenTextItemText,{width: 274}]}>Supports you at home, in the gym, or outdoors</Text>
                           </View>
                           <View style={styles.screenTextItem}>
-                           <Image source={require('@/assets/check.png')} style={styles.checkImage} />
+                           <Image source={require('../assets/check.png')} style={styles.checkImage} />
                            <Text style={[styles.screenTextItemText,{width: 262}]}>Much more affordable — no strings attached</Text>
                           </View>
                         </View>
@@ -194,7 +194,7 @@ export default function SwipeableIntro({ visible, onDismiss }: SwipeableIntroPro
                       <>
                        <View style={styles.contentView}>
                       <View style={styles.imageContainer}>
-                          <Image source={require('@/assets/AI2.png')} style={styles.logoImage3} />
+                          <Image source={require('../assets/AI2.png')} style={styles.logoImage3} />
 
                       </View>
                         <Text style={styles.screenTitle}>Small steps, real change.</Text>
@@ -215,7 +215,7 @@ export default function SwipeableIntro({ visible, onDismiss }: SwipeableIntroPro
                       <>
                       <View style={styles.contentView}>
                       <View style={styles.imageContainer}>
-                          <Image source={require('@/assets/login/logo.png')} style={styles.logoImage} />
+                          <Image source={require('../assets/login/logo.png')} style={styles.logoImage} />
 
                       </View>
                         <Text style={styles.screenTitle}>Time to get to know you.</Text>

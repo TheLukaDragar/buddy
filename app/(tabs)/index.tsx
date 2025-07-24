@@ -1,14 +1,12 @@
 import { Image } from "expo-image";
-import { useBuddyTheme } from '@/constants/BuddyTheme';
+import { router } from "expo-router";
 import { useEffect } from 'react';
 import { Pressable, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { nucleus } from '../../Buddy_variables.js';
+import { useBuddyTheme } from '../../constants/BuddyTheme';
 import { useIntro } from '../_layout';
-import { SystemBars } from "react-native-edge-to-edge";
-import { router } from "expo-router";
-import { useChat } from '@ai-sdk/react'; // Ensure this supports streaming
 
 export default function ExploreScreen() {
   const theme = useBuddyTheme();

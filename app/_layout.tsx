@@ -1,6 +1,3 @@
-import SwipeableIntro from '@/components/SwipeableIntro';
-import { BuddyLightTheme } from '@/constants/BuddyTheme';
-import '@/polyfills';
 import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import * as NavigationBar from 'expo-navigation-bar';
@@ -13,11 +10,14 @@ import { PaperProvider } from 'react-native-paper';
 import 'react-native-reanimated';
 import { Provider } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
+import SwipeableIntro from '../components/SwipeableIntro';
+import { BuddyLightTheme } from '../constants/BuddyTheme';
+import '../polyfills';
 
-import { useColorScheme } from '@/hooks/useColorScheme';
-import { persistor, store } from '@/store';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { nucleus } from '../Buddy_variables.js';
+import { useColorScheme } from '../hooks/useColorScheme';
+import { persistor, store } from '../store';
 
 // Create context for intro state
 interface IntroContextType {

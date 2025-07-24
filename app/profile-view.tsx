@@ -5,10 +5,10 @@ import { Pressable, ScrollView, StatusBar, StyleSheet, View } from "react-native
 import { Button, Card, Text } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { getProfileSummary } from '@/prompts/generateUserProfile';
-import type { RootState } from '@/store';
-import { useAppSelector } from '@/store/hooks';
 import { nucleus } from "../Buddy_variables.js";
+import { getProfileSummary } from '../prompts/generateUserProfile';
+import type { RootState } from '../store';
+import { useAppSelector } from '../store/hooks';
 
 export default function ProfileViewScreen() {
   const userProfile = useAppSelector((state: RootState) => (state as any).user?.extractedProfile);

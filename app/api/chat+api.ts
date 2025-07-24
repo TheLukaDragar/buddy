@@ -1,4 +1,4 @@
-import { createChatbotContextPrompt } from '@/prompts/generateUserProfile';
+import { createChatbotContextPrompt } from '../../prompts/generateUserProfile';
 import { openai } from '@ai-sdk/openai';
 import { convertToModelMessages, streamText, UIMessage } from 'ai';
 

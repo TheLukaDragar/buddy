@@ -1,5 +1,5 @@
-import { ExtractedUserProfile } from '@/prompts/generateUserProfile';
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { ExtractedUserProfile } from '../../prompts/generateUserProfile';
 
 export interface UserState {
   onboardingAnswers: string[];

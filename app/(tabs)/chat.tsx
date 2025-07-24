@@ -1,7 +1,3 @@
-import { RootState } from '@/store';
-import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { addMessage, clearMessages, setError, setInputCollapsed, setLoading, type ChatMessage } from '@/store/slices/chatSlice';
-import { generateAPIUrl } from '@/utils';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import { Image } from "expo-image";
@@ -19,6 +15,10 @@ import ReanimatedAnimated, {
 } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { nucleus } from '../../Buddy_variables';
+import { RootState } from '../../store';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { addMessage, clearMessages, setError, setInputCollapsed, setLoading, type ChatMessage } from '../../store/slices/chatSlice';
+import { generateAPIUrl } from '../../utils';
 
 // Date delimiter component
 const DateDelimiter = ({ date }: { date: string }) => (

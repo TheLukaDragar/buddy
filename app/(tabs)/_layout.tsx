@@ -1,6 +1,3 @@
-import { useBuddyTheme } from '@/constants/BuddyTheme';
-import { RootState } from '@/store';
-import { useAppSelector } from '@/store/hooks';
 import { Image } from 'expo-image';
 import { Tabs, router, usePathname } from 'expo-router';
 import React, { useEffect } from 'react';
@@ -8,6 +5,9 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { nucleus } from '../../Buddy_variables.js';
+import { useBuddyTheme } from '../../constants/BuddyTheme';
+import { RootState } from '../../store';
+import { useAppSelector } from '../../store/hooks';
 
 // Import the Buddy logo
 const BuddyLogo = require("../../assets/login/logo.png");

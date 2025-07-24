@@ -1,4 +1,3 @@
-import { useBuddyTheme } from '@/constants/BuddyTheme';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
@@ -14,6 +13,7 @@ import {
   Text,
   TextInput
 } from 'react-native-paper';
+import { useBuddyTheme } from '../../constants/BuddyTheme';
 import { useIntro } from '../_layout';
 
 export default function HomeScreen() {

@@ -1,4 +1,4 @@
-import { userProfileSchema } from '@/prompts/generateUserProfile';
+import { userProfileSchema } from '../../prompts/generateUserProfile';
 import { openai } from '@ai-sdk/openai';
 import { generateObject } from 'ai';
 

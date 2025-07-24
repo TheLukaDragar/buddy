@@ -1,6 +1,3 @@
-import UserProfileService from '@/services/userProfileService';
-import { useAppDispatch } from '@/store/hooks';
-import { setOnboardingAnswers, setOnboardingCompleted } from '@/store/slices/userSlice';
 import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
@@ -9,6 +6,9 @@ import { Avatar, IconButton, Text } from 'react-native-paper';
 import ReanimatedAnimated, { Easing, FadeIn, Layout, SlideInRight } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { nucleus } from '../Buddy_variables';
+import UserProfileService from '../services/userProfileService';
+import { useAppDispatch } from '../store/hooks';
+import { setOnboardingAnswers, setOnboardingCompleted } from '../store/slices/userSlice';
 
 // Pagination component for question progress
 const Pagination = ({ activeIndex, count }: { activeIndex: number, count: number }) => (
