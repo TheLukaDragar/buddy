@@ -104,6 +104,7 @@ export default function RootLayout() {
                   screenOptions={{
                     contentStyle: { 
                       backgroundColor: nucleus.light.semantic.bg.subtle 
+                      
                     },
                   }}
                 >
@@ -134,6 +135,16 @@ export default function RootLayout() {
                         headerShown: false,
                         presentation: 'card',
                         animation: 'slide_from_right',
+                      }}
+                    />
+                    <Stack.Screen
+                      name="active_workout"
+                      options={{
+                        headerShown: false,
+                        presentation: 'card',
+                        animation: 'fade',
+                        
+                        
                       }}
                     />
 
