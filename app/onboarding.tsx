@@ -112,6 +112,7 @@ export default function OnboardingScreen() {
     onError: (error) => {
       console.error('Onboarding chat error:', error);
     },
+
   
     onFinish: (message) => {
       console.log('AI message finished streaming:', message);
@@ -124,12 +125,12 @@ export default function OnboardingScreen() {
         for (const part of message.message.parts) {
           console.log('Processing finished part:', part);
           
-          if (part.type === 'tool-ask_question_with_suggestions') {
-            // Tool result from ask_question_with_suggestions
+          if (part.type === 'tool-follow_up_suggestions') {
+            // Tool result from follow_up_suggestions
             const toolResult = part as any;
-            const toolSuggestions = toolResult.output?.suggestions;
+            const toolSuggestions = toolResult.input?.suggestions;
             
-            console.log('Found ask_question_with_suggestions tool result:', toolResult);
+            console.log('Found follow_up_suggestions tool result:', toolResult);
             console.log('LLM generated suggestions:', toolSuggestions);
             
             // Use LLM-generated suggestions
@@ -142,11 +143,10 @@ export default function OnboardingScreen() {
             }
           } else if (part.type === 'tool-user_answers_complete') {
             // Tool result from user_answers_complete
-            const toolResult = part as any;
-            if (toolResult.output?.complete) {
+           
               isComplete = true;
-              console.log('Onboarding complete! Summary:', toolResult.output.summary);
-            }
+              console.log('Onboarding complete!');
+            
           }
         }
       }
@@ -308,7 +308,7 @@ export default function OnboardingScreen() {
     });
 
     // Debug: Log all messages to see what we have
-    console.log('All messages:', messages.map(m => ({ role: m.role, content: m.parts?.map(p => p.type === 'text' ? (p as any).text : p.type) })));
+    console.log('All messages:', JSON.stringify(messages, null, 2));
     console.log('Visible messages:', visibleMessages.map(m => ({ role: m.role, content: m.parts?.map(p => p.type === 'text' ? (p as any).text : p.type) })));
 
     return visibleMessages.map((message, index) => {

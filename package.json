@@ -13,6 +13,7 @@
     "codegen:watch": "graphql-codegen --config codegen.ts --watch"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^2.0.0-beta.11",
     "@ai-sdk/openai": "^2.0.0-beta.11",
     "@ai-sdk/react": "^2.0.0-beta.25",
     "@expo-google-fonts/plus-jakarta-sans": "^0.4.1",
@@ -70,7 +71,7 @@
     "react-redux": "^9.2.0",
     "redux-persist": "^6.0.0",
     "ws": "^8.18.3",
-    "zod": "^3.25.76"
+    "zod": "^3.25.0"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
