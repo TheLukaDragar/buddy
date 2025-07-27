@@ -342,7 +342,8 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans-Regular',
     fontSize: 16,
     fontWeight: '400',
-    lineHeight: 16,
+    lineHeight: 24,
+    includeFontPadding: true,
   },
   radioButton: {
     width: 24,

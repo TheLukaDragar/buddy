@@ -1,22 +1,24 @@
+import { Image } from 'expo-image';
 import React, { useEffect, useState } from 'react';
-import { Dimensions, StyleSheet, View } from 'react-native';
+import { BackHandler, Dimensions, Modal, StyleSheet, View } from 'react-native';
 import { SystemBars } from 'react-native-edge-to-edge';
 import { PanGestureHandler } from 'react-native-gesture-handler';
-import { Text } from 'react-native-paper';
+import { Button, Text } from 'react-native-paper';
 import ReanimatedAnimated, {
-    Easing,
-    FadeIn,
-    runOnJS,
-    useAnimatedGestureHandler,
-    useAnimatedStyle,
-    useSharedValue,
-    withSpring,
-    withTiming
+  Easing,
+  FadeIn,
+  runOnJS,
+  useAnimatedGestureHandler,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming
 } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { nucleus } from '../Buddy_variables.js';
 import ChatComponent from '../components/ChatComponent';
 import { useBuddyTheme } from '../constants/BuddyTheme';
+import { router } from 'expo-router';
 
 interface ProgressSegment {
   type: 'set' | 'rest';
@@ -195,9 +197,10 @@ const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface BottomModalProps {
   visible: boolean;
+  onShowFinishAlert: () => void;
 }
 
-const BottomModal: React.FC<BottomModalProps> = ({ visible }) => {
+const BottomModal: React.FC<BottomModalProps> = ({ visible, onShowFinishAlert }) => {
   const insets = useSafeAreaInsets();
   // Use a fixed middle height reference for consistent behavior across devices
   const COLLAPSED_HEIGHT = SCREEN_HEIGHT * 0.45; // 40% of screen height
@@ -406,12 +409,12 @@ const BottomModal: React.FC<BottomModalProps> = ({ visible }) => {
     
   // Debug logging for height calculations
   if (isKeyboardVisible) {
-    console.log('Height calculations:', {
-      visibleModalHeight,
-      baseContentHeight,
-      keyboardHeight,
-      finalChatContentHeight: chatContentHeight
-    });
+    // console.log('Height calculations:', {
+    //   visibleModalHeight,
+    //   baseContentHeight,
+    //   keyboardHeight,
+    //   finalChatContentHeight: chatContentHeight
+    // });
   }
 
   // Callback to trigger scroll after modal expansion
@@ -419,6 +422,40 @@ const BottomModal: React.FC<BottomModalProps> = ({ visible }) => {
     // This will be passed to ChatComponent to trigger scroll
     console.log('Modal expansion complete, should scroll to bottom');
   };
+
+  useEffect(() => {
+    const backAction = () => {
+      if (!isModalCollapsed) {
+        // Modal is expanded, collapse it
+        modalTranslateY.value = withTiming(COLLAPSED_POSITION, {
+          duration: 300,
+          easing: Easing.out(Easing.quad),
+        }, (finished) => {
+          if (finished) {
+            // Update visible height for collapsed state after animation completes
+            lastUpdatedHeight.value = COLLAPSED_HEIGHT;
+            runOnJS(updateVisibleHeight)(COLLAPSED_HEIGHT);
+            runOnJS(setIsModalCollapsed)(true);
+            runOnJS(endAnimation)();
+            // Trigger scroll after collapse
+            runOnJS(setScrollTrigger)(Date.now());
+          }
+        });
+        return true; // Prevent default back action
+      } else {
+        // Modal is collapsed, show custom finish alert
+        onShowFinishAlert();
+        return true;
+      }
+    };
+
+    const backHandler = BackHandler.addEventListener(
+      'hardwareBackPress',
+      backAction,
+    );
+
+    return () => backHandler.remove();
+  }, [isModalCollapsed, modalTranslateY, COLLAPSED_POSITION, COLLAPSED_HEIGHT, lastUpdatedHeight, updateVisibleHeight, endAnimation, setScrollTrigger, onShowFinishAlert]);
 
   if (!visible) return null;
 
@@ -461,10 +498,158 @@ const BottomModal: React.FC<BottomModalProps> = ({ visible }) => {
   );
 };
 
+interface CustomAlertProps {
+  visible: boolean;
+  title: string;
+  message: string;
+  onContinue: () => void;
+  onFinish: () => void;
+}
+
+const CustomAlert: React.FC<CustomAlertProps> = ({
+  visible,
+  title,
+  message,
+  onContinue,
+  onFinish
+}) => {
+  const theme = useBuddyTheme();
+
+  return (
+    <Modal
+      visible={visible}
+      transparent={true}
+      animationType="fade"
+      statusBarTranslucent={true}
+    >
+      <View style={customAlertStyles.overlay}>
+        <ReanimatedAnimated.View 
+          entering={FadeIn.duration(100)}
+          style={[customAlertStyles.container, { backgroundColor: nucleus.light.semantic.bg.canvas, borderWidth: 1, borderColor: nucleus.light.global.grey["40"] }]}
+        >
+          {/* Title */}
+          <Text style={[customAlertStyles.title, { color: nucleus.light.global.grey["90"] }]}>
+            {title}
+          </Text>
+          
+          {/* Message */}
+          <Text style={[customAlertStyles.message, { color: nucleus.light.global.grey["70"] }]}>
+            {message}
+          </Text>
+          
+          {/* Buttons */}
+          <View style={customAlertStyles.buttonContainer}>
+            <Button
+              mode="outlined"
+              style={[customAlertStyles.button, customAlertStyles.continueButton, { 
+                borderColor: nucleus.light.global.grey["40"],
+                backgroundColor: nucleus.light.semantic.bg.canvas
+              }]}
+              labelStyle={[customAlertStyles.buttonLabel, { color: nucleus.light.global.grey["70"] }]}
+              contentStyle={customAlertStyles.buttonContent}
+              compact={false}
+              onPress={onContinue}
+            >
+              No
+            </Button>
+            
+            <Button
+              mode="contained"
+              style={[customAlertStyles.button, customAlertStyles.finishButton, { 
+                backgroundColor: nucleus.light.global.blue["70"]
+              }]}
+              labelStyle={[customAlertStyles.buttonLabel, { color: nucleus.light.global.white }]}
+              contentStyle={customAlertStyles.buttonContent}
+              compact={false}
+              onPress={onFinish}
+            >
+              Finish
+            </Button>
+          </View>
+        </ReanimatedAnimated.View>
+      </View>
+    </Modal>
+  );
+};
+
+const customAlertStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  container: {
+    width: '100%',
+    maxWidth: 320,
+    borderRadius: 16,
+    paddingVertical: 24,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    elevation: 8,
+  },
+  title: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 20,
+    lineHeight: 24,
+    textAlign: 'center',
+    marginBottom: 8,
+    includeFontPadding: false,
+  },
+  message: {
+    fontFamily: 'PlusJakartaSans-Regular',
+    fontSize: 16,
+    lineHeight: 24,
+    textAlign: 'center',
+    marginBottom: 24,
+    includeFontPadding: false,
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  button: {
+    flex: 1,
+    borderRadius: 12,
+    minHeight: 48,
+  },
+  continueButton: {
+    borderWidth: 1.5,
+  },
+  finishButton: {
+    // Additional styles if needed
+  },
+  buttonContent: {
+    minHeight: 48,
+    paddingHorizontal: 16,
+    paddingVertical: 0,
+  },
+  buttonLabel: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 16,
+    
+    lineHeight: 20,
+    marginVertical: 0,
+    includeFontPadding: false,
+  },
+});
+
 export default function ActiveWorkoutScreen() {
   const theme = useBuddyTheme();
   const [elapsedTime, setElapsedTime] = useState(0);
   const [isRunning, setIsRunning] = useState(true);
+  const [showFinishAlert, setShowFinishAlert] = useState(false);
+
+  
 
   // Timer effect
   useEffect(() => {
@@ -500,6 +685,15 @@ export default function ActiveWorkoutScreen() {
     setIsRunning(false);
   };
 
+  const handleFinishWorkout = () => {
+    setShowFinishAlert(false);
+    router.back();
+  };
+
+  const handleContinueWorkout = () => {
+    setShowFinishAlert(false);
+  };
+
   return (
     <ReanimatedAnimated.View 
       entering={FadeIn.duration(300).delay(100)}
@@ -529,7 +723,20 @@ export default function ActiveWorkoutScreen() {
       </SafeAreaView>
       
       {/* Bottom Modal */}
-      <BottomModal visible={true} />
+      <BottomModal visible={true} onShowFinishAlert={() => setShowFinishAlert(true)} />
+
+      <View style={styles.buddyAiButton}>
+        <Image source={require('../assets/icons/AI.svg')} style={styles.buddyAiIcon} />
+      </View>
+
+      {/* Custom Alert */}
+      <CustomAlert
+        visible={showFinishAlert}
+        title="Finish workout?"
+        message="Are you sure you want to finish your workout?"
+        onContinue={handleContinueWorkout}
+        onFinish={handleFinishWorkout}
+      />
     </ReanimatedAnimated.View>
   );
 }
@@ -739,5 +946,19 @@ const styles = StyleSheet.create({
   chatContent: {
     flex: 1,
     backgroundColor: nucleus.light.semantic.bg.canvas, // White background
+  },
+  buddyAiButton: {
+    position: 'absolute',
+    zIndex: 1000,
+    right: 11,
+    bottom: 21,
+    height: 64,
+    width: 64,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  buddyAiIcon: {
+    width: 64,
+    height: 64,
   },
 }); 

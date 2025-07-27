@@ -6,10 +6,10 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Avatar } from 'react-native-paper';
 import ReanimatedAnimated, {
-    Easing,
-    useAnimatedStyle,
-    useSharedValue,
-    withTiming
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming
 } from 'react-native-reanimated';
 import { nucleus } from '../Buddy_variables';
 import { RootState } from '../store';
@@ -1035,6 +1035,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 0,
+    marginRight: 64,
   },
   inputWrapper: {
     flexDirection: 'row',

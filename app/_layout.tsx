@@ -147,6 +147,14 @@ export default function RootLayout() {
                         
                       }}
                     />
+                    <Stack.Screen
+                      name="exercises"
+                      options={{
+                        headerShown: false,
+                        presentation: 'card',
+                        animation: 'slide_from_right',
+                      }}
+                    />
 
                     <Stack.Screen name="+not-found" />
                   </Stack>

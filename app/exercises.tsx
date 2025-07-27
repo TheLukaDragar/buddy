@@ -6,71 +6,9 @@ import { Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 
 import { SystemBars } from 'react-native-edge-to-edge';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { nucleus } from '../Buddy_variables';
-import MusicModal from '../components/MusicModal';
 
 
-export default function WorkoutScreen() {
-  const [selectedMood, setSelectedMood] = useState<string | null>(null);
-  const [showMusicModal, setShowMusicModal] = useState(false);
-
-  const weekNumber = 1;
-
-  const moods = [
-    { 
-      id: 'energetic', 
-      icon: require('../assets/icons/flash.svg'),
-      iconSelected: require('../assets/icons/flash-energetic.svg'),
-      label: 'Energetic',
-      backgroundColor: nucleus.light.global.brand[40],
-      borderColor: nucleus.light.global.brand[70],
-      iconColor: nucleus.light.global.brand[90]
-    },
-    { 
-      id: 'happy', 
-      icon: require('../assets/icons/heart.svg'),
-      iconSelected: require('../assets/icons/heart-happy.svg'),
-      label: 'Happy',
-      backgroundColor: nucleus.light.global.blue[20],
-      borderColor: nucleus.light.global.blue[40],
-      iconColor: nucleus.light.global.blue[90]
-    },
-    { 
-      id: 'calm', 
-      icon: require('../assets/icons/face.svg'),
-      iconSelected: require('../assets/icons/face-calm.svg'),
-      label: 'Calm',
-      backgroundColor: nucleus.light.global.green[20],
-      borderColor: nucleus.light.global.green[40],
-      iconColor: nucleus.light.global.green[90]
-    },
-    { 
-      id: 'tired', 
-      icon: require('../assets/icons/tired.svg'),
-      iconSelected: require('../assets/icons/tired-blue.svg'),
-      label: 'Tired',
-      backgroundColor: nucleus.light.global.orange[20],
-      borderColor: nucleus.light.global.orange[40],
-      iconColor: nucleus.light.global.orange[90]
-    },
-  ];
-
-  const equipment = [
-    {
-      id: 1,
-      name: 'Loop Band',
-      image: require('../assets/icons/loop-band.png'),
-    },
-    {
-      id: 2,
-      name: 'Mat',
-      image: require('../assets/icons/mat.png'),
-    },
-    {
-      id: 3,
-      name: 'Kettlebell',
-      image: require('../assets/icons/kettlebell.png'),
-    },
-  ];
+export default function ExercisesScreen() {
 
   const exercises = [
     {
@@ -97,13 +35,73 @@ export default function WorkoutScreen() {
       description: 'Classic barbell squat movement for lower body strength',
       image: require('../assets/exercises/squats.png'),
     },
+    {
+      id: 3,
+      name: 'Glute Bridges',
+      sets: '4 sets',
+      muscles: 'quads, glutes, hamstrings, core',
+      description: 'Classic barbell squat movement for lower body strength',
+      image: require('../assets/exercises/squats.png'),
+    },
+    {
+      id: 3,
+      name: 'Glute Bridges',
+      sets: '4 sets',
+      muscles: 'quads, glutes, hamstrings, core',
+      description: 'Classic barbell squat movement for lower body strength',
+      image: require('../assets/exercises/squats.png'),
+    },
+    {
+      id: 3,
+      name: 'Glute Bridges',
+      sets: '4 sets',
+      muscles: 'quads, glutes, hamstrings, core',
+      description: 'Classic barbell squat movement for lower body strength',
+      image: require('../assets/exercises/squats.png'),
+    },
+    {
+      id: 3,
+      name: 'Glute Bridges',
+      sets: '4 sets',
+      muscles: 'quads, glutes, hamstrings, core',
+      description: 'Classic barbell squat movement for lower body strength',
+      image: require('../assets/exercises/squats.png'),
+    },
+
+    {
+      id: 3,
+      name: 'Glute Bridges',
+      sets: '4 sets',
+      muscles: 'quads, glutes, hamstrings, core',
+      description: 'Classic barbell squat movement for lower body strength',
+      image: require('../assets/exercises/squats.png'),
+    },
+    {
+      id: 3,
+      name: 'Glute Bridges',
+      sets: '4 sets',
+      muscles: 'quads, glutes, hamstrings, core',
+      description: 'Classic barbell squat movement for lower body strength',
+      image: require('../assets/exercises/squats.png'),
+    },
+    {
+      id: 3,
+      name: 'Glute Bridges',
+      sets: '4 sets',
+      muscles: 'quads, glutes, hamstrings, core',
+      description: 'Classic barbell squat movement for lower body strength',
+      image: require('../assets/exercises/squats.png'),
+    },
+
   ];
+
+
 
 
 
   return (
     <>
-      <SafeAreaView style={[styles.container, { backgroundColor: nucleus.light.semantic.bg.subtle }]}>
+      <SafeAreaView style={[styles.container, { backgroundColor: nucleus.light.semantic.bg.subtle }]} edges={['top', 'bottom']}>
         <SystemBars style="dark" />
         <View style={styles.topNav}>
             <TouchableOpacity
@@ -118,138 +116,25 @@ export default function WorkoutScreen() {
             </TouchableOpacity>
             
           </View>
+
+          <View style={styles.summaryContainer}>
+          <Text style={styles.workoutTitle}> 
+            Tuesday's Leg Workout
+          </Text>
+
+          <Text style={styles.workoutExercises}>Exercises</Text>
+         
+          
+         </View>    
         
         <ScrollView 
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-         <View style={styles.summaryContainer}>
-          <Text style={styles.weekNumber}>Week {weekNumber}</Text>
-          <Text style={styles.workoutTitle}>Tuesday's Workout</Text>
-          <Text style={styles.workoutDescription}>
-          Based on your last workout Buddy recommends this over that so it will go easy on your knees and  right ankle. 
-          </Text>
-
-          <View style={styles.elementwith_icon}>
-            <Image source={require('../assets/icons/clock.svg')} style={styles.icon} />
-
-            <Text style={styles.elementText}>45 min</Text>
-          </View>
-
-          <View style={styles.elementwith_icon}>
-            <Image source={require('../assets/icons/equipment.svg')} style={styles.icon} />
-
-            <Text style={styles.elementText}>8 exercises</Text>
-          </View>
-
-          <View style={styles.elementwith_icon}>
-            <Image source={require('../assets/icons/music.svg')} style={styles.icon} />
-
-            <Text style={styles.elementText}>Rhythmic</Text>
-          </View>
-          
-         </View>        
-
-         <View style={styles.userMood}>
-            <View style={styles.moodContainer}>
-                <Text style={styles.moodTitle}>
-                    How are you feeling today?
-                </Text>
-                <Text style={styles.moodSubtitle}>
-                Your mood helps me adjust the workout intensity and coaching style. 
-          </Text>
-          </View>
-          <View style={styles.moodIconsContainer}>
-            {moods.map((mood) => {
-              const isSelected = selectedMood === mood.id;
-              return (
-                <View key={mood.id} style={styles.moodIconItem}>
-                  <View style={[
-                    styles.moodIconWrapper,
-                    isSelected && {
-                      borderRadius: 40,
-                      borderWidth: 2,
-                      borderColor: mood.borderColor,
-                    }
-                  ]}>
-                    <TouchableOpacity 
-                      style={[
-                        styles.moodIconCircle,
-                        isSelected && {
-                          backgroundColor: mood.backgroundColor,
-                        }
-                      ]}
-                      onPress={() => setSelectedMood(mood.id)}
-                    >
-                      <Image 
-                        source={isSelected ? mood.iconSelected : mood.icon} 
-                        contentFit="contain" 
-                        style={styles.moodIconDeactive} 
-                      />
-                    </TouchableOpacity>
-                  </View>
-                  <Text style={styles.moodIconText}>
-                    {mood.label}
-                  </Text>
-                </View>
-              );
-            })}
-             </View>
-             </View>
-
-        {/* Equipment Section */}
-        <View style={styles.equipmentSection}>
-          <View style={styles.equipmentHeader}>
-            <Text style={styles.equipmentTitle}>Equipment</Text>
-            <TouchableOpacity style={styles.equipmentChevron}>
-              <Image
-                source={require('../assets/icons/back.svg')}
-                style={styles.chevronIcon}
-                contentFit="contain"
-              />
-            </TouchableOpacity>
-          </View>
-          
-          <View style={styles.equipmentList}>
-            {equipment.map((item) => (
-              <TouchableOpacity 
-                key={item.id} 
-                style={styles.equipmentItem}
-                onPress={() => {
-                  console.log(`Selected equipment: ${item.name}`);
-                }}
-              >
-                <View style={styles.equipmentImageContainer}>
-                  <Image
-                    source={item.image}
-                    style={styles.equipmentImage}
-                    contentFit="contain"
-                  />
-                </View>
-                <Text style={styles.equipmentName}>{item.name}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-            </View> 
 
           {/* Summary Section */}
           <View style={styles.summaryExerciseSection}>
-            <View style={styles.summaryExerciseHeader}>
-              <Text style={styles.summaryExerciseTitle}>Summary</Text>
-              <TouchableOpacity 
-                style={styles.summaryChevron}
-                onPress={() => {
-                  console.log('Summary chevron pressed');
-                  router.push('/exercises');
-                }}
-              >
-                <Image
-                  source={require('../assets/icons/back.svg')}
-                  style={styles.chevronIcon}
-                  contentFit="contain"
-                />
-              </TouchableOpacity>
-            </View>
+            
             
             <View style={styles.exerciseList}>
               {exercises.map((exercise, index) => (
@@ -257,10 +142,10 @@ export default function WorkoutScreen() {
                   <View style={styles.exerciseRow}>
                     <View style={styles.exerciseImageContainer}>
                       <Image
-                        source={require('../assets/exercises/squats.png')}
+                        source={exercise.image}
                         style={styles.exerciseImage}
                         contentFit="cover"
-                        />
+                      />
                     </View>
                     <View style={styles.exerciseInfo}>
                       <View style={styles.exerciseTextContainer}>
@@ -276,14 +161,10 @@ export default function WorkoutScreen() {
                         style={styles.playButton}
                         onPress={() => {
                           console.log(`Pressed info for ${exercise.name}`);
-                          router.push({
-                            pathname: '/exercises',
-                            params: { exerciseId: exercise.id },
-                          });
                         }}
                       >
                         <Image
-                          source={require('../assets/icons/info.svg')}
+                          source={require('../assets/icons/back.svg')}
                           style={styles.playIcon}
                           contentFit="contain"
                         />
@@ -334,10 +215,7 @@ export default function WorkoutScreen() {
                     transform: pressed ? [{ scale: 0.98 }] : [{ scale: 1 }],
                   }
                 ]}
-                onPress={() => {
-                  console.log('Start workout pressed');
-                  router.replace('/active_workout');
-                }}
+                onPress={() => console.log('Start workout pressed')}
               >
                 <View style={styles.startButtonContent}>
                   <Text style={[styles.startButtonLabel, styles.buttonLabel]}>Start workout</Text>
@@ -353,7 +231,6 @@ export default function WorkoutScreen() {
                     transform: pressed ? [{ scale: 0.95 }] : [{ scale: 1 }],
                   }
                 ]}
-                onPress={() => setShowMusicModal(true)}
               >
                 <View style={styles.musicIconBackground}>
                   <Image
@@ -367,11 +244,7 @@ export default function WorkoutScreen() {
           </BlurView>
         </View>
       </SafeAreaView>
-      
-      <MusicModal 
-        visible={showMusicModal} 
-        onClose={() => setShowMusicModal(false)} 
-      />
+     
     </>
   );
 }
@@ -421,20 +294,14 @@ const styles = StyleSheet.create({
   },
 
   summaryContainer: {
+    padding: 16,
+    paddingTop: 0,
     flexDirection: 'column',
     alignItems: 'flex-start',
     gap: 8,
   },
 
-  weekNumber: {
-    color: nucleus.light.semantic.fg.muted,
-    fontFamily: nucleus.light.typography.fontFamily.primary,
-    fontSize: nucleus.light.typography.fontSize.sm,
-    fontWeight: '700',
-    lineHeight: 16.8,
-    letterSpacing: 0,
-  },
-  workoutTitle: {
+  workoutExercises: {
     color: nucleus.light.semantic.fg.base,
     fontFamily: nucleus.light.typography.fontFamily.primary,
     fontSize: nucleus.light.typography.fontSize.xl,
@@ -442,12 +309,12 @@ const styles = StyleSheet.create({
     lineHeight: 28.8,
     letterSpacing: -1,
   },
-  workoutDescription: {
-    color: nucleus.light.semantic.fg.base,
+  workoutTitle: {
+    color: nucleus.light.semantic.fg.muted,
     fontFamily: nucleus.light.typography.fontFamily.primary,
     fontSize: nucleus.light.typography.fontSize.sm,
-    fontWeight: '400',
-    lineHeight: 21,
+    fontWeight: '700',
+    lineHeight: 16.8,
     letterSpacing: 0,
   },
   elementwith_icon: {
@@ -469,180 +336,23 @@ const styles = StyleSheet.create({
     lineHeight: 19.2,
     letterSpacing: 0,
   },
-  userMood: {
-   
-    flexDirection: 'column',
-    alignItems: 'flex-start',
-    gap: 16,
-  },
-  moodContainer: {
-    flexDirection: 'column',
-    alignItems: 'flex-start',
-    gap: 16,
-  },
-  moodTitle: {
-    color: nucleus.light.semantic.fg.base,
-    fontFamily: nucleus.light.typography.fontFamily.primary,
-    fontSize: nucleus.light.typography.fontSize.lg,
-    fontWeight: '700',
-    lineHeight: 21.6,
-    letterSpacing: 0,
-  },
-  moodSubtitle: {
-    color: nucleus.light.semantic.fg.base,
-    fontFamily: nucleus.light.typography.fontFamily.primary,
-    fontSize: nucleus.light.typography.fontSize.sm,
-    fontWeight: '400',
-    lineHeight: 21,
-    letterSpacing: 0,
-    textOverflow: 'ellipsis',
-  },
-  moodIconsContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    alignSelf: 'stretch',
-  },
-  moodIconItem: {
-    flex: 1,
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: 8,
-    maxWidth: 80,
-  },
-  moodIconWrapper: {
-    width: 80,
-    height: 80,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
 
-  moodIconCircle: {
-    width: 74,
-    height: 74,
-    borderRadius: 37,
-    backgroundColor: nucleus.light.global.grey[30],
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
 
-  moodIconDeactive: {
-    width: 38.919,
-    height: 38.919,
-    flexShrink: 0,
-    aspectRatio: 38.92/38.92,
-  },
-  moodIconText: {
-    color: nucleus.light.semantic.fg.base,
-    textAlign: 'center',
-    alignSelf: 'stretch',
-    fontFamily: nucleus.light.typography.fontFamily.primary,
-    fontSize: nucleus.light.typography.fontSize.xs,
-    fontStyle: 'normal',
-    fontWeight: '400',
-    lineHeight: 18,
-    letterSpacing: 0,
-  },
-  equipmentSection: {
-    paddingTop: 8,
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    flexDirection: 'column',
-    alignItems: 'flex-start',
-    gap: 24,
-    alignSelf: 'stretch',
-  },
-  equipmentHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    alignSelf: 'stretch',
-  },
-  equipmentTitle: {
-    color: nucleus.light.semantic.fg.base,
-    fontFamily: 'PlusJakartaSans-Bold',
-    fontSize: nucleus.light.typography.fontSize.lg,
-    fontWeight: '700',
-    lineHeight: 21.6,
-    letterSpacing: 0,
-  },
-  equipmentChevron: {
-    width: 32,
-    height: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+
   chevronIcon: {
     width: 32,
     height: 32,
     transform: [{ rotate: '180deg' }],
   },
-  equipmentList: {
-    flexDirection: 'column',
-    alignItems: 'flex-start',
-    gap: 16,
-    alignSelf: 'stretch',
-  },
-  equipmentItem: {
-    backgroundColor: nucleus.light.global.brand[40],
-    borderRadius: nucleus.light.cornerRadius.lg,
-    padding: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    alignSelf: 'stretch',
-  },
-  equipmentImageContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: nucleus.light.cornerRadius.md,
-    backgroundColor: nucleus.light.global.white,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  equipmentImage: {
-    width: 64,
-    height: 64,
-  },
-  equipmentName: {
-    color: nucleus.light.global.grey[80],
-    fontFamily: nucleus.light.typography.fontFamily.primary,
-    fontSize: nucleus.light.typography.fontSize.md,
-    fontWeight: '700',
-    lineHeight: 19.2,
-    letterSpacing: 0,
-    textOverflow: 'ellipsis',
-    overflow: 'hidden',
-  },
+ 
   summaryExerciseSection: {
-    paddingTop: 8,
-    paddingHorizontal: 16,
-    paddingBottom: 16,
     flexDirection: 'column',
     alignItems: 'flex-start',
     gap: 24,
     alignSelf: 'stretch',
   },
-  summaryExerciseHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    alignSelf: 'stretch',
-  },
-  summaryExerciseTitle: {
-    color: nucleus.light.semantic.fg.base,
-    fontFamily: 'PlusJakartaSans-Bold',
-    fontSize: nucleus.light.typography.fontSize.lg,
-    fontWeight: '700',
-    lineHeight: 21.6,
-    letterSpacing: 0,
-  },
-  summaryChevron: {
-    width: 32,
-    height: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+
+
   exerciseList: {
     flexDirection: 'column',
     alignItems: 'flex-start',
@@ -741,6 +451,8 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     overflow: 'hidden',
+    transform: [{ rotate: '180deg' }],
+
   },
   floatingButtonWrapper: {
     position: 'absolute',
