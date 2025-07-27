@@ -512,7 +512,7 @@ export default function ActiveWorkoutScreen() {
           style={styles.mainContent}
         >
           <View style={styles.topContainer}>
-            <Text>Active Workout</Text>
+            <Text>TEST</Text>
           </View>
           
           <View style={styles.workoutStatusContainer}>
