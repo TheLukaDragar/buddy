@@ -33,7 +33,7 @@ function createSupabaseClient() {
     detectSessionInUrl: false,
   }
 
-  supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
+  supabaseInstance = createClient(supabaseUrl!, supabaseAnonKey!, {
     auth: authConfig,
   })
 
