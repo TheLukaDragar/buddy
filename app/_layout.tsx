@@ -17,7 +17,7 @@ import '../polyfills';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { nucleus } from '../Buddy_variables.js';
 import { useColorScheme } from '../hooks/useColorScheme';
-import { store, persistor } from '../store';
+import { persistor, store } from '../store';
 
 // Create context for intro state
 interface IntroContextType {
