@@ -426,7 +426,7 @@ const BottomModal: React.FC<BottomModalProps> = ({ visible, onShowFinishAlert })
   useEffect(() => {
     const backAction = () => {
       if (!isModalCollapsed) {
-        // Modal is expanded, collapse it
+        // Modal is expanded, collapse it (no alert)
         modalTranslateY.value = withTiming(COLLAPSED_POSITION, {
           duration: 300,
           easing: Easing.out(Easing.quad),

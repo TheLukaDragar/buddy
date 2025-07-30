@@ -1,10 +1,12 @@
-import { userProfileSchema } from '../../prompts/generateUserProfile';
 import { openai } from '@ai-sdk/openai';
-import { generateObject } from 'ai';
+import { streamText } from 'ai';
 
 export async function POST(req: Request) {
   try {
-    const { userAnswers }: { userAnswers: string[] } = await req.json();
+    const { userAnswers, conversationHistory }: { 
+      userAnswers: string[], 
+      conversationHistory?: Array<{ role: string, content: string }> 
+    } = await req.json();
 
     if (!userAnswers || !Array.isArray(userAnswers)) {
       return Response.json(
@@ -13,48 +15,63 @@ export async function POST(req: Request) {
       );
     }
 
-    // The onboarding questions in order for context
+    // Complete list of all 18 onboarding questions in order
     const ONBOARDING_QUESTIONS = [
-      "What's your fitness goal?",
-      "How would you describe your fitness experience?", 
-      "When was the last time you moved that body?",
-      "Do you do any kind of sport or physical activity every week?",
-      "Which age range are you in?",
-      "Weight range?",
-      "Want to tell me a bit more? (Additional info)",
-      "How many days a week would you like to train?",
-      "How long should your average workout be?"
+      "What are your main fitness goals?",
+      "How often would you like to work out each week?",
+      "Which days of the week work best for you?",
+      "What's your experience level with fitness?",
+      "How long would you like each workout to be?",
+      "Is there a specific muscle group you'd like to focus more on?",
+      "What are your favorite exercises?",
+      "When was the last time you moved your body?",
+      "Do you currently do any sports - casually or professionally?",
+      "What's your age group?",
+      "How much do you weigh (rough estimate)?",
+      "How tall are you?",
+      "Have you had any injuries in the past?",
+      "Is there any movement or exercise that you can't do or causes discomfort?",
+      "Anything else you'd like me to know about you?",
+      "Where will you be doing your workouts?",
+      "What equipment do you have at home?",
+      "Please describe exactly what equipment you have"
     ];
 
-    // Create Q&A pairs for better context
+    // Create comprehensive Q&A pairs for better context
     const qaPairs = ONBOARDING_QUESTIONS.map((question, index) => {
       const answer = userAnswers[index] || "No answer provided";
-      return `Q: ${question}\nA: ${answer}`;
+      return `Q${index + 1}: ${question}\nA: ${answer}`;
     }).join('\n\n');
 
-    const prompt = `You are an AI fitness coach analyzer. Based on the following onboarding responses, extract and summarize key information about this user to create a personalized fitness profile that THEY can read and understand.
+    // Include conversation history if available for additional context
+    const conversationContext = conversationHistory ? 
+      `\n\nCONVERSATION HISTORY:\n${conversationHistory.map(msg => `${msg.role}: ${msg.content}`).join('\n')}` : '';
+
+    const prompt = `You are an AI fitness coach creating a comprehensive user profile. Based on the following onboarding responses and conversation history, write a detailed summary of everything the user shared.
 
 USER ONBOARDING RESPONSES:
-${qaPairs}
+${qaPairs}${conversationContext}
 
-Create a profile that captures their personality, goals, and preferences in natural, readable language. This profile will be shown to the user, so make it:
-- Personal and relatable (use "you" language in the summary)
-- Natural and conversational (avoid clinical categorizations)
-- Encouraging and positive
-- Specific to their actual responses (don't generalize)
+Write a comprehensive profile summary that includes:
 
-For the profileSummary, write 2-3 sentences that the user would recognize as describing themselves, like: "You're ready to build muscle and get stronger, and as someone new to fitness, you're looking for guidance to start safely. You're active with sports but want to add structured training 3 times per week with 45-minute sessions."
+1. **Goals & Motivation**: What they want to achieve and why
+2. **Schedule & Availability**: Training frequency, preferred days, time constraints  
+3. **Experience & Background**: Fitness history, sports participation, current activity
+4. **Physical Profile**: Age, weight, height, any physical limitations
+5. **Equipment & Environment**: What they have access to, where they'll train
+6. **Health & Safety**: Injuries, limitations, medical considerations
+7. **Preferences**: Favorite exercises, workout style preferences
+8. **Additional Context**: Any other relevant information they shared
 
-Keep all fields natural and human-readable while still being structured enough for the AI coach to understand.`;
+Write this in natural, conversational language that captures all the specific details they provided. Be thorough and include every important piece of information they shared during the onboarding process. Format it as a clear, readable text profile that can be easily referenced by the AI coach.`;
 
-    const result = await generateObject({
+    const result = streamText({
       model: openai('gpt-4o'),
-      schema: userProfileSchema,
       prompt,
-      temperature: 0.5, // Slightly higher for more natural language
+      temperature: 0.3,
     });
 
-    return Response.json(result.object);
+    return result.toTextStreamResponse();
   } catch (error) {
     console.error('Error generating user profile:', error);
     

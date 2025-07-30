@@ -8,10 +8,12 @@ import { Animated, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSh
 import { SystemBars } from 'react-native-edge-to-edge';
 import { Avatar } from 'react-native-paper';
 import ReanimatedAnimated, {
-    Easing,
-    useAnimatedStyle,
-    useSharedValue,
-    withTiming
+  Easing,
+  FadeIn,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming
 } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { nucleus } from '../../Buddy_variables';
@@ -20,6 +22,34 @@ import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { addMessage, clearMessages, setError, setInputCollapsed, setLoading, type ChatMessage } from '../../store/slices/chatSlice';
 import { generateAPIUrl } from '../../utils';
 
+// Animated thinking dot component (same as onboarding)
+const ThinkingDot = ({ delay }: { delay: number }) => {
+  const opacity = useSharedValue(0.3);
+
+  useEffect(() => {
+    // Start the animation with the delay
+    const timer = setTimeout(() => {
+      opacity.value = withRepeat(
+        withTiming(1, { duration: 600, easing: Easing.inOut(Easing.ease) }),
+        -1,
+        true
+      );
+    }, delay);
+
+    return () => clearTimeout(timer);
+  }, [delay]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+  }));
+
+  return (
+    <ReanimatedAnimated.View 
+      style={[styles.thinkingDot, animatedStyle]}
+      entering={FadeIn.delay(delay)}
+    />
+  );
+};
 
 // Date delimiter component
 const DateDelimiter = ({ date }: { date: string }) => (
@@ -106,8 +136,8 @@ export default function ChatScreen() {
   // Input state
   const [inputText, setInputText] = useState('');
 
-  // AI SDK Chat Hook - now integrated with Redux
-  const { sendMessage } = useChat({
+  // AI SDK Chat Hook - now with proper streaming like onboarding
+  const { messages: aiMessages, sendMessage, status } = useChat({
     transport: new DefaultChatTransport({
       fetch: expoFetch as unknown as typeof globalThis.fetch,
       api: generateAPIUrl('/api/chat'),
@@ -121,7 +151,9 @@ export default function ChatScreen() {
       dispatch(setLoading(false));
     },
     onFinish: (message) => {
-      // Add AI response to Redux store
+      console.log('AI message finished streaming:', message);
+      
+      // Add AI response to Redux store for persistence
       const buddyMessage: ChatMessage = {
         id: Date.now().toString(),
         role: 'assistant',
@@ -131,17 +163,22 @@ export default function ChatScreen() {
       };
       dispatch(addMessage(buddyMessage));
       dispatch(setLoading(false));
+      
+      // Auto scroll to bottom after streaming completes
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 100);
     },
   });
 
-  // Auto-scroll when messages change
+  // Auto-scroll when AI messages change (like onboarding)
   useEffect(() => {
-    if (messages.length > 0) {
+    if (aiMessages.length > 0) {
       setTimeout(() => {
         scrollViewRef.current?.scrollToEnd({ animated: true });
       }, 100);
     }
-  }, [messages]);
+  }, [aiMessages]);
 
   // Trigger animation only on first mount
   useEffect(() => {
@@ -244,23 +281,34 @@ export default function ChatScreen() {
     });
   };
 
-  // Render messages with delimiters
+  // Render messages with delimiters - use AI SDK messages like onboarding to prevent flickering
   const renderMessages = () => {
     const renderedItems: React.ReactElement[] = [];
     
-    messages.forEach((message: ChatMessage, index: number) => {
-      const previousMessage = messages[index - 1];
+    // Use AI SDK messages for rendering (like onboarding) to prevent flickering
+    // Filter out the first control message if it exists
+    const visibleMessages = aiMessages.filter((message, index) => {
+      // Hide the first user message if it's a control message
+      if (index === 0 && message.role === 'user') {
+        const textContent = message.parts
+          ?.filter(part => part.type === 'text')
+          .map(part => (part as any).text)
+          .join('');
+        
+        // Hide if it's a control message
+        if (textContent?.includes('User is ready to start')) {
+          return false;
+        }
+      }
+      return true;
+    });
+    
+    visibleMessages.forEach((message, index) => {
+      const previousMessage = visibleMessages[index - 1];
       const isUser = message.role === 'user';
       
-      // Add date delimiter if needed
-      if (shouldShowDateDelimiter(message, previousMessage)) {
-        renderedItems.push(
-          <DateDelimiter 
-            key={`delimiter-${message.id}`}
-            date={formatDateForDelimiter(new Date(message.timestamp))}
-          />
-        );
-      }
+      // Add date delimiter if needed (only for Redux messages)
+      // For now, skip delimiters since we're using AI SDK messages
       
       // Add message
       if (isUser) {
@@ -277,49 +325,33 @@ export default function ChatScreen() {
             ]}
           >
             <Text style={styles.userMessageText}>
-              {renderMessageText(message.content)}
+              {renderMessageText(message.parts?.map(part => part.type === 'text' ? (part as any).text : '').join('') || '')}
             </Text>
           </Animated.View>
         );
       } else {
-        // Buddy message
-        const isFirstBuddyMessage = index === 0 || messages[index - 1]?.role === 'user';
-        
-        // Add buddy avatar/name only for first message in a group
-        if (isFirstBuddyMessage) {
-          renderedItems.push(
+        // Buddy message - ALWAYS show avatar and name (like onboarding)
+        renderedItems.push(
+          <View key={message.id} style={{ width: '100%' }}>
+            <View style={styles.buddyMessage}>
+              <Avatar.Image size={40} source={require('../../assets/avatar.png')} style={styles.avatar} />
+              <Text style={styles.buddyName}>Buddy</Text>
+            </View>
+            
             <Animated.View 
-              key={`buddy-header-${message.id}`}
               style={[
-                styles.buddyMessage,
+                styles.messageBubble,
                 index < 3 ? {
-                  opacity: firstMessageOpacity,
-                  transform: [{ translateY: firstMessageTranslateY }],
+                  opacity: index === 0 ? firstMessageOpacity : secondMessageOpacity,
+                  transform: [{ translateY: index === 0 ? firstMessageTranslateY : secondMessageTranslateY }],
                 } : {}
               ]}
             >
-              <Avatar.Image size={40} source={require('../../assets/avatar.png')} style={styles.avatar} />
-              <Text style={styles.buddyName}>Buddy</Text>
+              <Text style={styles.messageText}>
+                {renderMessageText(message.parts?.map(part => part.type === 'text' ? (part as any).text : '').join('') || '')}
+              </Text>
             </Animated.View>
-          );
-        }
-
-        // Add message bubble
-        renderedItems.push(
-          <Animated.View 
-            key={message.id}
-            style={[
-              styles.messageBubble,
-              index < 3 ? {
-                opacity: index === 0 ? firstMessageOpacity : secondMessageOpacity,
-                transform: [{ translateY: index === 0 ? firstMessageTranslateY : secondMessageTranslateY }],
-              } : {}
-            ]}
-          >
-            <Text style={styles.messageText}>
-              {renderMessageText(message.content)}
-            </Text>
-          </Animated.View>
+          </View>
         );
       }
     });
@@ -329,7 +361,7 @@ export default function ChatScreen() {
 
   const handleSendMessage = () => {
     if (inputText.trim()) {
-      // Add user message to Redux store immediately
+      // Add user message to Redux store for persistence
       const userMessage: ChatMessage = {
         id: Date.now().toString(),
         role: 'user',
@@ -341,7 +373,7 @@ export default function ChatScreen() {
       dispatch(setLoading(true));
       dispatch(setError(null));
       
-      // Send to AI
+      // Send to AI (this will add the message to aiMessages automatically)
       sendMessage({ text: inputText.trim() });
       setInputText('');
       
@@ -534,19 +566,24 @@ export default function ChatScreen() {
               {/* Render messages with delimiters */}
               {renderMessages()}
               
-              {/* Show loading indicator when AI is responding */}
-              {isLoading && (
-                <View style={styles.loadingContainer}>
-                  {/* Show buddy header (avatar + name) */}
+              {/* Buddy thinking indicator - only show when submitted, not when streaming (like onboarding) */}
+              {status === 'submitted' && (
+                <View style={{ width: '100%' }}>
                   <View style={styles.buddyMessage}>
                     <Avatar.Image size={40} source={require('../../assets/avatar.png')} style={styles.avatar} />
                     <Text style={styles.buddyName}>Buddy</Text>
                   </View>
                   
-                  {/* Show thinking bubble below */}
-                  <View style={styles.loadingBubble}>
-                    <Text style={styles.loadingText}>...</Text>
-                  </View>
+                  <ReanimatedAnimated.View 
+                    entering={FadeIn.duration(300)}
+                    style={styles.thinkingBubble}
+                  >
+                    <View style={styles.thinkingDots}>
+                      <ThinkingDot delay={0} />
+                      <ThinkingDot delay={150} />
+                      <ThinkingDot delay={300} />
+                    </View>
+                  </ReanimatedAnimated.View>
                 </View>
               )}
               
@@ -862,6 +899,34 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     lineHeight: 21,
     letterSpacing: 0,
+  },
+  thinkingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: nucleus.light.global.blue["10"],
+  },
+  thinkingDots: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  thinkingBubble: {
+    display: 'flex',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flexDirection: 'column',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 10,
+    alignSelf: 'flex-start',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: nucleus.light.semantic.border.muted,
+    backgroundColor: nucleus.light.global.blue[80],
+    minWidth: 60,
+    minHeight: 40,
+    maxWidth: '85%',
   },
 
   inputContainer: {

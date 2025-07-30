@@ -9,9 +9,8 @@ import { Avatar, IconButton, Text } from 'react-native-paper';
 import ReanimatedAnimated, { Easing, FadeIn, Layout, SlideInRight, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { nucleus } from '../Buddy_variables';
-import UserProfileService from '../services/userProfileService';
 import { useAppDispatch } from '../store/hooks';
-import { setOnboardingAnswers, setOnboardingCompleted } from '../store/slices/userSlice';
+import { generateProfileFromAnswers, setOnboardingAnswers, setOnboardingCompleted } from '../store/slices/userSlice';
 import { generateAPIUrl } from '../utils';
 
 // Animated thinking dot component
@@ -96,12 +95,16 @@ export default function OnboardingScreen() {
   const [scrollViewHeight, setScrollViewHeight] = useState(0);
   const [isNavigating, setIsNavigating] = useState(false);
   const [currentSuggestions, setCurrentSuggestions] = useState<string[]>([]);
+  const [selectedSuggestions, setSelectedSuggestions] = useState<string[]>([]);
   const [showCompletion, setShowCompletion] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
   
+  
+
+  
   // Question tracking for pagination - use a simple counter instead
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [totalQuestions, setTotalQuestions] = useState(17);
+  const [totalQuestions, setTotalQuestions] = useState(18);
   
   // AI SDK Chat Hook for onboarding with proper streaming
   const { messages, sendMessage, status } = useChat({
@@ -120,6 +123,7 @@ export default function OnboardingScreen() {
       // Parse the completed message for tools and suggestions
       let suggestions: string[] = [];
       let isComplete = false;
+      let multipleSelection = false;
       
       if (message.message.parts) {
         for (const part of message.message.parts) {
@@ -129,14 +133,18 @@ export default function OnboardingScreen() {
             // Tool result from follow_up_suggestions
             const toolResult = part as any;
             const toolSuggestions = toolResult.input?.suggestions;
+            const toolAllowMultiple = toolResult.input?.allowMultiple || false;
             
             console.log('Found follow_up_suggestions tool result:', toolResult);
             console.log('LLM generated suggestions:', toolSuggestions);
+            console.log('Allow multiple selection:', toolAllowMultiple);
             
             // Use LLM-generated suggestions
             if (Array.isArray(toolSuggestions)) {
               suggestions = toolSuggestions;
+              multipleSelection = toolAllowMultiple;
               console.log('Setting LLM suggestions:', suggestions);
+              console.log('Setting multiple selection:', multipleSelection);
               
               // Increment question counter for pagination
               setCurrentQuestionIndex(prev => Math.min(prev + 1, totalQuestions - 1));
@@ -152,7 +160,9 @@ export default function OnboardingScreen() {
       }
       
       // Update suggestions and completion state only after streaming finishes
-      setCurrentSuggestions(suggestions);
+              setCurrentSuggestions(suggestions);
+        setSelectedSuggestions([]); // Reset selections for new question
+
       
       if (isComplete) {
         setShowCompletion(true);
@@ -235,19 +245,47 @@ export default function OnboardingScreen() {
       }, 100);
   }, [messages]);
 
+  const handleSuggestionTap = (suggestion: string) => {
+    const isAlreadySelected = selectedSuggestions.includes(suggestion);
+    
+    if (isAlreadySelected) {
+      // Simple string replacement - remove the suggestion once
+      const newText = inputText.replace(', '+suggestion, '').trim();
+
+      //handle case where input doesnet have , becauee it is the first suggestio
+     
+
+      setInputText(newText);
+      setSelectedSuggestions(prev => prev.filter(s => s !== suggestion));
+    } else {
+      // Add suggestion to input text with comma separation
+      if (inputText.trim()) {
+        // If there's already text, add comma and space before new suggestion
+        setInputText(prev => `${prev.trim()}, ${suggestion}`);
+      } else {
+        // If input is empty, just add the suggestion
+        setInputText(suggestion);
+      }
+      
+      // Track which suggestions have been clicked (for visual feedback)
+      setSelectedSuggestions(prev => [...prev, suggestion]);
+    }
+  };
+
   const handleSendMessage = (text: string) => {
     if (!text.trim()) return;
     
+    const finalText = text.trim();
+    
     setCurrentSuggestions([]); // Clear suggestions when user sends message
+    setSelectedSuggestions([]); // Clear selected suggestions
     setInputText('');
     
     // Send to AI
-    sendMessage({ text: text.trim() });
+    sendMessage({ text: finalText });
   };
 
-  const handleSuggestionTap = (suggestion: string) => {
-    handleSendMessage(suggestion);
-  };
+
 
   const handleCompleteOnboarding = async () => {
     if (isNavigating) return;
@@ -256,7 +294,7 @@ export default function OnboardingScreen() {
     try {
       dispatch(setOnboardingCompleted(true));
       
-      // Generate user profile from chat conversation
+      // Generate user profile from chat conversation - always regenerate
       const userAnswers = messages
         .filter(msg => msg.role === 'user')
         .map(msg => {
@@ -268,9 +306,11 @@ export default function OnboardingScreen() {
         });
       
       console.log('Generating user profile from conversation:', userAnswers);
-      await UserProfileService.generateProfileFromAnswers(userAnswers, dispatch);
       
-      // Navigate to main app
+      // Dispatch thunk in background - don't wait for it
+      dispatch(generateProfileFromAnswers(userAnswers));
+      
+      // Navigate to main app immediately
       router.push('/(tabs)');
     } catch (error) {
       console.error('Error completing onboarding:', error);
@@ -308,7 +348,7 @@ export default function OnboardingScreen() {
     });
 
     // Debug: Log all messages to see what we have
-    console.log('All messages:', JSON.stringify(messages, null, 2));
+    //console.log('All messages:', JSON.stringify(messages, null, 2));
     console.log('Visible messages:', visibleMessages.map(m => ({ role: m.role, content: m.parts?.map(p => p.type === 'text' ? (p as any).text : p.type) })));
 
     return visibleMessages.map((message, index) => {
@@ -361,18 +401,27 @@ export default function OnboardingScreen() {
               keyboardShouldPersistTaps="always"
               nestedScrollEnabled={true}
             >
-              {currentSuggestions.map((suggestion: string, suggestionIndex: number) => (
-                <Pressable
-                  key={suggestionIndex}
-                  onPress={() => handleSuggestionTap(suggestion)}
-                  style={({ pressed }) => [
-                    isKeyboardVisible ? styles.suggestionButtonKeyboard : styles.suggestionButtonNormal,
-                    { opacity: pressed ? 0.7 : 1 }
-                  ]}
-                >
-                  <Text style={styles.suggestionText}>{suggestion}</Text>
-                </Pressable>
-              ))}
+              {currentSuggestions.map((suggestion: string, suggestionIndex: number) => {
+                const isSelected = selectedSuggestions.includes(suggestion);
+                return (
+                  <Pressable
+                    key={suggestionIndex}
+                    onPress={() => handleSuggestionTap(suggestion)}
+                    style={({ pressed }) => [
+                      isKeyboardVisible ? styles.suggestionButtonKeyboard : styles.suggestionButtonNormal,
+                      isSelected ? styles.suggestionButtonSelected : null,
+                      { opacity: pressed ? 0.7 : 1 }
+                    ]}
+                  >
+                    <Text style={[
+                      styles.suggestionText,
+                      isSelected ? styles.suggestionTextSelected : null
+                    ]}>
+                      {suggestion}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </ScrollView>
           )}
         </View>
@@ -462,7 +511,7 @@ export default function OnboardingScreen() {
               <View style={styles.inputWrapper}>
                 <TextInput
                   style={styles.textInput}
-                  placeholder="Type your answer..."
+                  placeholder="Type your answer or click suggestions..."
                   placeholderTextColor={nucleus.light.semantic.fg.muted}
                   value={inputText}
                   onChangeText={setInputText}
@@ -475,16 +524,20 @@ export default function OnboardingScreen() {
                 <Pressable
                   style={[
                     styles.sendButton,
-                    { opacity: inputText.trim() ? 1 : 0.5 }
+                    { 
+                      opacity: inputText.trim() ? 1 : 0.5 
+                    }
                   ]}
                   onPress={() => handleSendMessage(inputText)}
                   disabled={!inputText.trim()}
                 >
-                  <Text style={styles.sendButtonText}>Send</Text>
+                  <Text style={styles.sendButtonText}>
+                    Send
+                  </Text>
                 </Pressable>
               </View>
-              </View>
-            )}
+            </View>
+          )}
 
           {/* Completion Button */}
             {showCompletion && (
@@ -681,6 +734,10 @@ const styles = StyleSheet.create({
     width: 'auto',
     minWidth: 120,
   },
+  suggestionButtonSelected: {
+    backgroundColor: nucleus.light.global.blue["70"],
+    borderColor: nucleus.light.global.blue["70"],
+  },
   suggestionText: {
     color: nucleus.light.global.blue["70"],
     fontFamily: 'PlusJakartaSans-Medium',
@@ -688,6 +745,9 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     lineHeight: 18,
     textAlign: 'center',
+  },
+  suggestionTextSelected: {
+    color: nucleus.light.global.blue["10"],
   },
   inputContainer: {
     paddingHorizontal: 16,
@@ -735,6 +795,40 @@ const styles = StyleSheet.create({
     marginVertical: 0,
     includeFontPadding: false,
     textAlign: 'center',
+  },
+  sendButtonActive: {
+    backgroundColor: nucleus.light.global.brand["70"],
+  },
+  sendButtonTextActive: {
+    color: nucleus.light.global.brand["10"],
+  },
+  selectedSuggestionsContainer: {
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  selectedSuggestionsLabel: {
+    fontFamily: 'PlusJakartaSans-Medium',
+    fontSize: 12,
+    color: nucleus.light.global.grey["70"],
+    marginBottom: 8,
+  },
+  selectedSuggestionsList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  selectedSuggestionTag: {
+    backgroundColor: nucleus.light.global.blue["20"],
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: nucleus.light.global.blue["40"],
+  },
+  selectedSuggestionText: {
+    fontFamily: 'PlusJakartaSans-Medium',
+    fontSize: 12,
+    color: nucleus.light.global.blue["70"],
   },
   completionContainer: {
     paddingHorizontal: 16,

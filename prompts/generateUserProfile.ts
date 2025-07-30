@@ -1,20 +1,33 @@
 import { z } from 'zod';
 
-// Define the Zod schema for structured output validation - more flexible for user readability
+// Define the Zod schema for comprehensive user profile in full text format
 export const userProfileSchema = z.object({
-  fitnessGoal: z.string().describe("User's primary fitness goal expressed naturally (e.g., 'Build muscle and get stronger', 'Lose weight and feel confident', 'Stay active and healthy')"),
-  experienceLevel: z.string().describe("Fitness experience level in natural language (e.g., 'Complete beginner', 'Some experience with sports', 'Been training for years')"),
-  lastActivity: z.string().describe("When they last exercised, expressed naturally (e.g., 'Just worked out this week', 'It's been a few months', 'Haven't exercised in over a year')"),
-  currentActivity: z.string().describe("Current activity level in natural language (e.g., 'Play soccer regularly', 'Occasional walks', 'Mostly sedentary lifestyle')"),
-  ageRange: z.string().describe("Age range or specific age as provided, or 'Preferred not to say'"),
-  weightRange: z.string().describe("Weight range as provided, or 'Preferred not to say'"),
-  additionalInfo: z.string().optional().describe("Any special considerations, injuries, preferences, or personal notes they shared"),
-  trainingFrequency: z.string().describe("How often they want to train expressed naturally (e.g., '3 times per week', 'Every other day', 'As much as possible')"),
-  workoutDuration: z.string().describe("Preferred workout length (e.g., '30-45 minutes', 'Quick 20 minute sessions', 'Hour-long workouts')"),
-  personalityTone: z.string().describe("Communication style preference based on their responses (e.g., 'Friendly and encouraging', 'Direct and motivational', 'Patient and understanding')"),
-  motivationLevel: z.string().describe("Motivation level expressed naturally (e.g., 'Very motivated and ready to start', 'Cautiously optimistic', 'Looking for gradual changes')"),
-  specificNeeds: z.array(z.string()).describe("Array of specific needs, considerations, or focus areas they mentioned"),
-  profileSummary: z.string().describe("A friendly 2-3 sentence summary of who they are as a fitness person that they can read and relate to")
+  // Main profile summary in natural language
+  profileSummary: z.string().describe("A comprehensive 3-4 paragraph summary of the user's complete fitness profile, written in natural, conversational language. Include all their goals, experience, preferences, limitations, and personal circumstances."),
+  
+  // Detailed notes section with all information organized by category
+  detailedNotes: z.string().describe("Comprehensive notes organized by category: Goals & Motivation, Schedule & Availability, Experience & Background, Physical Profile, Equipment & Environment, Health & Safety, Preferences, and Additional Context. Write in full sentences with all specific details they shared."),
+  
+  // Coaching insights for the AI
+  coachingInsights: z.string().describe("Specific guidance for the AI coach on how to approach this user, including communication style, motivation strategies, potential challenges, and personalized recommendations."),
+  
+  // Key facts in simple text format
+  keyFacts: z.string().describe("A bullet-point style list of the most important facts about this user, written in simple, clear language that captures their unique situation."),
+  
+  // Personal context and circumstances
+  personalContext: z.string().describe("Any personal circumstances, work schedule, family situation, or other context that affects their training, written in natural language."),
+  
+  // Equipment and environment details
+  equipmentDetails: z.string().describe("Complete list of equipment they have access to, including specific weights, types, and where they'll be training, written in full text."),
+  
+  // Health and safety considerations
+  healthSafety: z.string().describe("All injuries, limitations, medical considerations, and safety concerns they mentioned, written in clear, actionable language for the coach."),
+  
+  // Training preferences and style
+  trainingPreferences: z.string().describe("Their preferred training style, favorite exercises, workout duration preferences, and any specific training approaches they mentioned."),
+  
+  // Motivation and readiness level
+  motivationLevel: z.string().describe("Assessment of their motivation level, readiness to start, potential obstacles, and what drives them, written in encouraging but realistic language.")
 });
 
 // Export the TypeScript type from the schema
@@ -23,31 +36,45 @@ export type ExtractedUserProfile = z.infer<typeof userProfileSchema>;
 // Function to convert the extracted profile into a context prompt for the chatbot
 export function createChatbotContextPrompt(profile: ExtractedUserProfile): string {
   const contextPrompt = `USER PROFILE CONTEXT:
-The user you're chatting with has the following fitness profile:
+The user you're chatting with has the following comprehensive fitness profile:
 
-🎯 FITNESS GOAL: ${profile.fitnessGoal}
-💪 EXPERIENCE LEVEL: ${profile.experienceLevel}
-🏃 ACTIVITY STATUS: Last active: ${profile.lastActivity}, Currently: ${profile.currentActivity}
-📊 DEMOGRAPHICS: Age ${profile.ageRange}, Weight ${profile.weightRange}
-⏰ TRAINING PREFERENCES: ${profile.trainingFrequency}, ${profile.workoutDuration} sessions
-🎭 COMMUNICATION STYLE: ${profile.personalityTone}
-🔥 MOTIVATION LEVEL: ${profile.motivationLevel}
+📋 PROFILE SUMMARY:
+${profile.profileSummary}
 
-${profile.additionalInfo ? `📝 ADDITIONAL INFO: ${profile.additionalInfo}` : ''}
+📝 DETAILED NOTES:
+${profile.detailedNotes}
 
-${profile.specificNeeds.length > 0 ? `🎯 SPECIFIC NEEDS: ${profile.specificNeeds.join(', ')}` : ''}
+🎯 COACHING INSIGHTS:
+${profile.coachingInsights}
 
-💭 PROFILE SUMMARY: ${profile.profileSummary}
+🔑 KEY FACTS:
+${profile.keyFacts}
+
+👤 PERSONAL CONTEXT:
+${profile.personalContext}
+
+🏋️ EQUIPMENT & ENVIRONMENT:
+${profile.equipmentDetails}
+
+🏥 HEALTH & SAFETY:
+${profile.healthSafety}
+
+💪 TRAINING PREFERENCES:
+${profile.trainingPreferences}
+
+🔥 MOTIVATION & READINESS:
+${profile.motivationLevel}
 
 COACHING INSTRUCTIONS:
-- Tailor your responses to their experience level and goals
-- Match their communication style preference
-- Consider their motivation level in your encouragement approach
-- Reference their training preferences when relevant
-- Be mindful of any additional info or specific needs
-- Keep the tone consistent with their profile summary
+- Use this comprehensive profile to provide perfectly personalized guidance
+- Reference specific details from their profile in your responses
+- Consider their personal circumstances and limitations
+- Match their communication style and motivation level
+- Provide recommendations that work with their equipment and environment
+- Be mindful of their health and safety considerations
+- Tailor your encouragement to their specific situation and goals
 
-Always personalize your advice based on this profile while maintaining your encouraging and knowledgeable Buddy personality.`;
+Always personalize your advice based on this detailed profile while maintaining your encouraging and knowledgeable Buddy personality.`;
 
   return contextPrompt;
 }

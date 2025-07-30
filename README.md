@@ -150,3 +150,11 @@ EAS Update allows you to push JavaScript and asset updates to your published bui
 For more information:
 - [EAS Build documentation](https://docs.expo.dev/build/introduction/)
 - [EAS Update documentation](https://docs.expo.dev/eas-update/introduction/)
+
+
+# NOTE DEPLOY
+
+```bash
+npx expo export --platform web
+eas deploy --prod
+```
