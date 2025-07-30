@@ -10,7 +10,7 @@
     "newArchEnabled": true,
     "ios": {
       "bundleIdentifier": "com.theluka.buddy",
-      "supportsTablet": true,
+      "supportsTablet": false,
       "runtimeVersion": {
         "policy": "appVersion"
       },
@@ -37,6 +37,12 @@
         "expo-router",
         {
           "origin": "https://theluka-buddy.expo.app/"
+        }
+      ],
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.200933224210-3gkrgive97g149jelma14i7dcco48qrj"
         }
       ],
       "expo-dev-client",

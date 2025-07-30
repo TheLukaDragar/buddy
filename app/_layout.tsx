@@ -16,6 +16,8 @@ import '../polyfills';
 
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { nucleus } from '../Buddy_variables.js';
+import { SplashScreenController } from '../components/SplashScreenController';
+import { AuthProvider, useAuth } from '../contexts/AuthContext';
 import { useColorScheme } from '../hooks/useColorScheme';
 import { persistor, store } from '../store';
 
@@ -97,82 +99,99 @@ export default function RootLayout() {
   return (
     <Provider store={store}>
       <PersistGate loading={null} persistor={persistor}>
-        <SafeAreaProvider> 
-          <GestureHandlerRootView style={{ flex: 1 }}>
-            <PaperProvider theme={paperTheme}>
-              <ThemeProvider value={BuddyNavigationTheme}>
-                <IntroContext.Provider value={{ showIntro, setShowIntro }}>
-                  <Stack
-                    screenOptions={{
-                      contentStyle: { 
-                        backgroundColor: nucleus.light.semantic.bg.subtle 
-                        
-                      },
-                    }}
-                  >
-                  <Stack.Screen name="login" options={{ headerShown: false }} />
-                  <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                  <Stack.Screen 
-                    name="onboarding" 
-                    options={{ 
-                      headerShown: false,
-                      presentation: 'modal',
-                      animation: 'slide_from_right',
-                      animationDuration: 300,
-                        gestureEnabled: true,
-                        gestureDirection: 'horizontal',
-                      }} 
+        <AuthProvider>
+          <SplashScreenController />
+          <SafeAreaProvider> 
+            <GestureHandlerRootView style={{ flex: 1 }}>
+              <PaperProvider theme={paperTheme}>
+                <ThemeProvider value={BuddyNavigationTheme}>
+                  <IntroContext.Provider value={{ showIntro, setShowIntro }}>
+                    <RootNavigator />
+                    <SystemBars style="dark" />
+                    
+                    {/* Global SwipeableIntro - renders above everything */}
+                    <SwipeableIntro 
+                      visible={showIntro}
+                      onDismiss={handleDismissIntro}
                     />
-                    <Stack.Screen
-                      name="profile-view"
-                      options={{
-                        headerShown: false,
-                        presentation: 'card',
-                        animation: 'slide_from_right',
-                      }}
-                    />
-                    <Stack.Screen
-                      name="workout"
-                      options={{
-                        headerShown: false,
-                        presentation: 'card',
-                        animation: 'slide_from_right',
-                      }}
-                    />
-                    <Stack.Screen
-                      name="active_workout"
-                      options={{
-                        headerShown: false,
-                        presentation: 'card',
-                        animation: 'fade',
-                        
-                        
-                      }}
-                    />
-                    <Stack.Screen
-                      name="exercises"
-                      options={{
-                        headerShown: false,
-                        presentation: 'card',
-                        animation: 'slide_from_right',
-                      }}
-                    />
-
-                    <Stack.Screen name="+not-found" />
-                  </Stack>
-                  <SystemBars style="dark" />
-                  
-                  {/* Global SwipeableIntro - renders above everything */}
-                  <SwipeableIntro 
-                    visible={showIntro}
-                    onDismiss={handleDismissIntro}
-                  />
-                </IntroContext.Provider>
-              </ThemeProvider>
-            </PaperProvider>
-          </GestureHandlerRootView>
-        </SafeAreaProvider>
+                  </IntroContext.Provider>
+                </ThemeProvider>
+              </PaperProvider>
+            </GestureHandlerRootView>
+          </SafeAreaProvider>
+        </AuthProvider>
       </PersistGate>
     </Provider>
+  );
+}
+
+// Separate this into a new component so it can access the AuthProvider context
+function RootNavigator() {
+  const { user } = useAuth();
+
+  return (
+    <Stack
+      screenOptions={{
+        contentStyle: { 
+          backgroundColor: nucleus.light.semantic.bg.subtle 
+        },
+      }}
+    >
+      {/* Protected routes - require authentication */}
+      <Stack.Protected guard={!!user}>
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen 
+          name="onboarding" 
+          options={{ 
+            headerShown: false,
+            presentation: 'modal',
+            animation: 'slide_from_right',
+            animationDuration: 300,
+            gestureEnabled: true,
+            gestureDirection: 'horizontal',
+          }} 
+        />
+        <Stack.Screen
+          name="profile-view"
+          options={{
+            headerShown: false,
+            presentation: 'card',
+            animation: 'slide_from_right',
+          }}
+        />
+        <Stack.Screen
+          name="workout"
+          options={{
+            headerShown: false,
+            presentation: 'card',
+            animation: 'slide_from_right',
+          }}
+        />
+        <Stack.Screen
+          name="active_workout"
+          options={{
+            headerShown: false,
+            presentation: 'card',
+            animation: 'fade',
+          }}
+        />
+        <Stack.Screen
+          name="exercises"
+          options={{
+            headerShown: false,
+            presentation: 'card',
+            animation: 'slide_from_right',
+          }}
+        />
+      </Stack.Protected>
+
+      {/* Public routes - accessible without authentication */}
+      <Stack.Protected guard={!user}>
+        <Stack.Screen name="login" options={{ headerShown: false }} />
+        <Stack.Screen name="login-callback" options={{ headerShown: false }} />
+      </Stack.Protected>
+
+      <Stack.Screen name="+not-found" />
+    </Stack>
   );
 }

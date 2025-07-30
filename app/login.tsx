@@ -1,10 +1,11 @@
 import { Image } from "expo-image";
 import { router } from "expo-router";
 import * as React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Alert, StyleSheet, Text, View } from "react-native";
 import { Button } from "react-native-paper";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { nucleus } from "../Buddy_variables.js";
+import { useAuth } from "../contexts/AuthContext";
 
 // Logo and character images
 const CharacterImage = require("../assets/login/logo.png");
@@ -14,6 +15,22 @@ const GoogleIcon = require("../assets/login/google.png");
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
+  const { signInWithGoogle, loading } = useAuth();
+
+  const handleGoogleSignIn = async () => {
+    try {
+      console.log('🔄 Starting Google sign in...');
+      await signInWithGoogle();
+      console.log('✅ Google sign in initiated successfully');
+    } catch (error) {
+      console.error('❌ Google sign in error:', error);
+      Alert.alert(
+        'Sign In Error',
+        `Failed to sign in with Google: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        [{ text: 'OK' }]
+      );
+    }
+  };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: nucleus.light.global.blue["20"] }]} edges={['bottom']}>
@@ -102,6 +119,8 @@ export default function LoginScreen() {
             labelStyle={[styles.buttonLabel, { color: nucleus.light.semantic.fg.staticDark }]}
             contentStyle={styles.buttonContent}
             compact={false}
+            disabled={loading}
+            onPress={handleGoogleSignIn}
             icon={() => (
               <Image
                 source={GoogleIcon}
@@ -110,7 +129,7 @@ export default function LoginScreen() {
               />
             )}
           >
-            Continue with Google
+            {loading ? 'Signing in...' : 'Continue with Google'}
           </Button>
         </View>
 

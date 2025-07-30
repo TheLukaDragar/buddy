@@ -1,16 +1,40 @@
-import { ScrollView, StyleSheet } from 'react-native';
-import { ActivityIndicator, Card, Text } from 'react-native-paper';
+import { Alert, ScrollView, StyleSheet } from 'react-native';
+import { ActivityIndicator, Avatar, Button, Card, Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { nucleus } from '../../Buddy_variables.js';
 import { useBuddyTheme } from '../../constants/BuddyTheme';
+import { useAuth } from '../../contexts/AuthContext';
 import type { RootState } from '../../store';
 import { useAppSelector } from '../../store/hooks';
 
 export default function ProfileScreen() {
   const theme = useBuddyTheme();
+  const { user, signOut, loading } = useAuth();
   const userProfile = useAppSelector((state: RootState) => (state as any).user?.extractedProfile);
   const onboardingCompleted = useAppSelector((state: RootState) => (state as any).user?.onboardingCompleted);
   const isLoading = useAppSelector((state: RootState) => (state as any).user?.isLoadingProfile);
+
+  const handleSignOut = async () => {
+    Alert.alert(
+      'Sign Out',
+      'Are you sure you want to sign out?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await signOut();
+            } catch (error) {
+              console.error('Sign out error:', error);
+              Alert.alert('Error', 'Failed to sign out. Please try again.');
+            }
+          },
+        },
+      ]
+    );
+  };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: nucleus.light.global.blue["20"] }]}>
@@ -22,6 +46,26 @@ export default function ProfileScreen() {
         <Text variant="headlineLarge" style={[styles.title, { color: nucleus.light.global.blue["80"] }]}>
           Your Profile
         </Text>
+
+        {/* User Info Card */}
+        {user && (
+          <Card style={styles.card}>
+            <Card.Content style={styles.cardContent}>
+              <Avatar.Text 
+                size={60} 
+                label={user.email?.charAt(0).toUpperCase() || 'U'} 
+                style={{ backgroundColor: nucleus.light.global.blue["70"], marginBottom: 16 }}
+                labelStyle={{ color: nucleus.light.global.blue["10"], fontFamily: 'PlusJakartaSans-Bold' }}
+              />
+              <Text style={[styles.userEmail, { color: nucleus.light.global.blue["90"] }]}>
+                {user.email}
+              </Text>
+              <Text style={[styles.userName, { color: nucleus.light.global.blue["80"] }]}>
+                {user.user_metadata?.full_name || 'User'}
+              </Text>
+            </Card.Content>
+          </Card>
+        )}
 
         {/* Loading State */}
         {isLoading && (
@@ -67,6 +111,22 @@ export default function ProfileScreen() {
             </Card.Content>
           </Card>
         )}
+
+        {/* Sign Out Button */}
+        <Button
+          mode="outlined"
+          style={[styles.signOutButton, { 
+            borderColor: nucleus.light.global.blue["70"],
+            marginTop: 32
+          }]}
+          labelStyle={[styles.signOutButtonLabel, { color: nucleus.light.global.blue["70"] }]}
+          contentStyle={styles.signOutButtonContent}
+          compact={false}
+          disabled={loading}
+          onPress={handleSignOut}
+        >
+          Sign Out
+        </Button>
       </ScrollView>
     </SafeAreaView>
   );
@@ -121,5 +181,31 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 24,
     textAlign: 'center',
+  },
+  userEmail: {
+    fontFamily: 'PlusJakartaSans-Medium',
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  userName: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 18,
+    textAlign: 'center',
+  },
+  signOutButton: {
+    minHeight: 48,
+    borderRadius: 48,
+    borderWidth: 1,
+  },
+  signOutButtonLabel: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 16,
+    lineHeight: 20,
+  },
+  signOutButtonContent: {
+    minHeight: 48,
+    paddingHorizontal: 24,
+    paddingVertical: 0,
   },
 }); 
