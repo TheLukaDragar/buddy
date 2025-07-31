@@ -113,6 +113,9 @@ export default function ChatScreen() {
   const sendButtonScale = useSharedValue(1);
   const [isInputCollapsed, setIsInputCollapsed] = useState(false);
   
+  // Chat session management
+  const [chatId, setChatId] = useState(() => `chat-${Date.now()}`);
+  
   // Redux selectors and actions
   const dispatch = useAppDispatch();
   const { messages, isLoading, error } = useAppSelector((state: RootState) => (state as any).chat);
@@ -137,7 +140,8 @@ export default function ChatScreen() {
   const [inputText, setInputText] = useState('');
 
   // AI SDK Chat Hook - now with proper streaming like onboarding
-  const { messages: aiMessages, append, status } = useChat({
+  const { messages: aiMessages, append, status, setMessages: setAiMessages } = useChat({
+    id: chatId, // Use the chat session ID
     chatStore: defaultChatStore({
       api: generateAPIUrl('/api/chat'),
       fetch: expoFetch as unknown as typeof globalThis.fetch,
@@ -385,7 +389,13 @@ export default function ChatScreen() {
   };
 
   const handleClearChat = () => {
+    // Generate a new chat ID to create a fresh chat session
+    setChatId(`chat-${Date.now()}`);
+    // Clear Redux store
     dispatch(clearMessages());
+    // Clear any loading states
+    dispatch(setLoading(false));
+    dispatch(setError(null));
   };
 
   const handleCollapseInput = () => {

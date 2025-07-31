@@ -42,6 +42,7 @@ const chatSlice = createSlice({
       state.error = action.payload;
     },
     clearMessages: (state) => {
+      console.log('Clearing messages');
       state.messages = [];
     },
     removeMessage: (state, action: PayloadAction<string>) => {
