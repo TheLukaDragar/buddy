@@ -180,69 +180,7 @@ export default function ExercisesScreen() {
           </View>
         </ScrollView>
 
-        {/* Floating Button Container */}
-        <View style={styles.floatingButtonWrapper}>
-          <BlurView intensity={100} tint="light" style={styles.floatingButtonContainer}>
-            <View style={styles.buttonRow}>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.adjustButton,
-                  styles.buttonBase,
-                  {
-                    opacity: pressed ? 0.7 : 1,
-                    transform: pressed ? [{ scale: 0.98 }] : [{ scale: 1 }],
-                  }
-                ]}
-                onPress={() => console.log('Adjust pressed')}
-              >
-                <View style={[
-                  styles.adjustButtonBg, 
-                  styles.buttonBg,
-                ]} />
-                <View style={styles.buttonContent}>
-                  <Text style={[styles.adjustButtonLabel, styles.buttonLabel]}>Adjust</Text>
-                </View>
-              </Pressable>
-
-              <Pressable
-                style={({ pressed }) => [
-                  styles.startButton,
-                  styles.buttonBase,
-                  {
-                    backgroundColor: pressed 
-                      ? nucleus.light.global.blue[80]
-                      : nucleus.light.global.blue[70],
-                    transform: pressed ? [{ scale: 0.98 }] : [{ scale: 1 }],
-                  }
-                ]}
-                onPress={() => console.log('Start workout pressed')}
-              >
-                <View style={styles.startButtonContent}>
-                  <Text style={[styles.startButtonLabel, styles.buttonLabel]}>Start workout</Text>
-                </View>
-              </Pressable>
-
-              <Pressable
-                style={({ pressed }) => [
-                  styles.iconButton,
-                  styles.buttonBase,
-                  {
-                    opacity: pressed ? 0.7 : 1,
-                    transform: pressed ? [{ scale: 0.95 }] : [{ scale: 1 }],
-                  }
-                ]}
-              >
-                <View style={styles.musicIconBackground}>
-                  <Image
-                    source={require('../assets/icons/music.svg')}
-                    style={styles.musicIcon}
-                    contentFit="contain"
-                  />
-                </View>
-              </Pressable>
-            </View>
-          </BlurView>
-        </View>
+        
       </SafeAreaView>
      
     </>

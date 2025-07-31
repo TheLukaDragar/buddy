@@ -7,6 +7,8 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
+  signInWithOtp: (email: string) => Promise<void>;
+  verifyOtp: (email: string, token: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -69,11 +71,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const signInWithOtp = async (email: string) => {
+    try {
+      setLoading(true);
+      const result = await authService.signInWithOtp(email);
+      
+      if (!result.success) {
+        console.error('OTP send error:', result.error);
+        throw new Error(result.error?.message || 'Failed to send OTP');
+      }
+    } catch (error) {
+      console.error('OTP send error:', error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const verifyOtp = async (email: string, token: string) => {
+    try {
+      setLoading(true);
+      const result = await authService.verifyOtp(email, token);
+      
+      if (!result.success) {
+        console.error('OTP verification error:', result.error);
+        throw new Error(result.error?.message || 'Failed to verify OTP');
+      }
+    } catch (error) {
+      console.error('OTP verification error:', error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const value = {
     user,
     session,
     loading,
     signInWithGoogle,
+    signInWithOtp,
+    verifyOtp,
     signOut,
   };
 

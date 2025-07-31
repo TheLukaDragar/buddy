@@ -183,6 +183,83 @@ export class AuthService {
   onAuthStateChange(callback: (event: string, session: any) => void) {
     return this.supabase.auth.onAuthStateChange(callback);
   }
+
+  /**
+   * Send OTP to email address
+   */
+  async signInWithOtp(email: string): Promise<AuthResult> {
+    try {
+      console.log('🔧 AuthService: Sending OTP to email:', email);
+      
+      const { data, error } = await this.supabase.auth.signInWithOtp({
+        email,
+        options: {
+          shouldCreateUser: true, // Allow new users to sign up
+          // Force OTP instead of Magic Link
+          emailRedirectTo: undefined, // This ensures OTP mode
+        },
+      });
+
+      if (error) {
+        console.error('❌ AuthService: OTP send error:', error);
+        return {
+          success: false,
+          error: {
+            message: error.message,
+            code: error.status?.toString(),
+          },
+        };
+      }
+
+      console.log('✅ AuthService: OTP sent successfully');
+      return { success: true };
+    } catch (error: any) {
+      console.error('❌ AuthService: OTP send error:', error);
+      return {
+        success: false,
+        error: {
+          message: error instanceof Error ? error.message : 'Failed to send OTP',
+        },
+      };
+    }
+  }
+
+  /**
+   * Verify OTP code
+   */
+  async verifyOtp(email: string, token: string): Promise<AuthResult> {
+    try {
+      console.log('🔧 AuthService: Verifying OTP for email:', email);
+      
+      const { data, error } = await this.supabase.auth.verifyOtp({
+        email,
+        token,
+        type: 'email',
+      });
+
+      if (error) {
+        console.error('❌ AuthService: OTP verification error:', error);
+        return {
+          success: false,
+          error: {
+            message: error.message,
+            code: error.status?.toString(),
+          },
+        };
+      }
+
+      console.log('✅ AuthService: OTP verified successfully');
+      return { success: true };
+    } catch (error: any) {
+      console.error('❌ AuthService: OTP verification error:', error);
+      return {
+        success: false,
+        error: {
+          message: error instanceof Error ? error.message : 'Failed to verify OTP',
+        },
+      };
+    }
+  }
 }
 
 // Export a singleton instance

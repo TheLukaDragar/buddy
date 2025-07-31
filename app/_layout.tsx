@@ -189,6 +189,7 @@ function RootNavigator() {
       <Stack.Protected guard={!user}>
         <Stack.Screen name="login" options={{ headerShown: false }} />
         <Stack.Screen name="login-callback" options={{ headerShown: false }} />
+        <Stack.Screen name="login-email" options={{ headerShown: false }} />
       </Stack.Protected>
 
       <Stack.Screen name="+not-found" />
