@@ -1,5 +1,5 @@
 import { useChat } from '@ai-sdk/react';
-import { DefaultChatTransport } from 'ai';
+import { defaultChatStore } from 'ai';
 import { router } from 'expo-router';
 import { fetch as expoFetch } from 'expo/fetch';
 import React, { useEffect, useRef, useState } from 'react';
@@ -107,10 +107,10 @@ export default function OnboardingScreen() {
   const [totalQuestions, setTotalQuestions] = useState(18);
   
   // AI SDK Chat Hook for onboarding with proper streaming
-  const { messages, sendMessage, status } = useChat({
-    transport: new DefaultChatTransport({
-      fetch: expoFetch as unknown as typeof globalThis.fetch,
+  const { messages, append, status } = useChat({
+    chatStore: defaultChatStore({
       api: generateAPIUrl('/api/onboarding-chat'),
+      fetch: expoFetch as unknown as typeof globalThis.fetch,
     }),
     onError: (error) => {
       console.error('Onboarding chat error:', error);
@@ -129,32 +129,54 @@ export default function OnboardingScreen() {
         for (const part of message.message.parts) {
           console.log('Processing finished part:', part);
           
-          if (part.type === 'tool-follow_up_suggestions') {
-            // Tool result from follow_up_suggestions
-            const toolResult = part as any;
-            const toolSuggestions = toolResult.input?.suggestions;
-            const toolAllowMultiple = toolResult.input?.allowMultiple || false;
+          if (part.type === 'tool-invocation') {
+            // Tool invocation from the AI SDK
+            const toolInvocation = part.toolInvocation;
             
-            console.log('Found follow_up_suggestions tool result:', toolResult);
-            console.log('LLM generated suggestions:', toolSuggestions);
-            console.log('Allow multiple selection:', toolAllowMultiple);
-            
-            // Use LLM-generated suggestions
-            if (Array.isArray(toolSuggestions)) {
-              suggestions = toolSuggestions;
-              multipleSelection = toolAllowMultiple;
-              console.log('Setting LLM suggestions:', suggestions);
-              console.log('Setting multiple selection:', multipleSelection);
+            // Check if this is a tool result (state === 'result')
+            if (toolInvocation.state === 'result') {
+              // Type the tool result properly
+              const toolResult = toolInvocation as {
+                state: 'result';
+                step?: number;
+                toolCallId: string;
+                toolName: string;
+                args: unknown;
+                result: unknown;
+              };
               
-              // Increment question counter for pagination
-              setCurrentQuestionIndex(prev => Math.min(prev + 1, totalQuestions - 1));
+              // Check for follow_up_suggestions tool
+              if (toolResult.toolName === 'follow_up_suggestions') {
+                // The suggestions are in the args, not the result
+                const args = toolResult.args as {
+                  suggestions?: string[];
+                  allowMultiple?: boolean;
+                };
+                const toolSuggestions = args?.suggestions;
+                const toolAllowMultiple = args?.allowMultiple || false;
+                
+                console.log('Found follow_up_suggestions tool result:', toolResult);
+                console.log('LLM generated suggestions:', toolSuggestions);
+                console.log('Allow multiple selection:', toolAllowMultiple);
+                
+                // Use LLM-generated suggestions
+                if (Array.isArray(toolSuggestions)) {
+                  suggestions = toolSuggestions;
+                  multipleSelection = toolAllowMultiple;
+                  console.log('Setting LLM suggestions:', suggestions);
+                  console.log('Setting multiple selection:', multipleSelection);
+                  
+                  // Increment question counter for pagination
+                  setCurrentQuestionIndex(prev => Math.min(prev + 1, totalQuestions - 1));
+                }
+              }
+              
+              // Check for user_answers_complete tool
+              if (toolResult.toolName === 'user_answers_complete') {
+                isComplete = true;
+                console.log('Onboarding complete!');
+              }
             }
-          } else if (part.type === 'tool-user_answers_complete') {
-            // Tool result from user_answers_complete
-           
-              isComplete = true;
-              console.log('Onboarding complete!');
-            
           }
         }
       }
@@ -173,7 +195,7 @@ export default function OnboardingScreen() {
             // Extract text from message parts
             return msg.parts
               .filter(part => part.type === 'text')
-              .map(part => (part as any).text)
+              .map(part => (part as { type: 'text'; text: string }).text)
               .join('');
           });
         
@@ -194,7 +216,7 @@ export default function OnboardingScreen() {
       
       // Send initial message to start the conversation
       setTimeout(() => {
-        sendMessage({ text: "User is ready to start the onboarding conversation. Begin with the greeting and first question." });
+        append({ role: 'user', parts: [{ type: 'text', text: "User is ready to start the onboarding conversation. Begin with the greeting and first question." }] });
       }, 0);
     }
     
@@ -211,7 +233,7 @@ export default function OnboardingScreen() {
         useNativeDriver: true,
       }),
     ]).start();
-  }, [hasStarted, sendMessage]);
+  }, [hasStarted, append]);
 
   // Keyboard listeners
   useEffect(() => {
@@ -282,7 +304,7 @@ export default function OnboardingScreen() {
     setInputText('');
     
     // Send to AI
-    sendMessage({ text: finalText });
+    append({ role: 'user', parts: [{ type: 'text', text: finalText }] });
   };
 
 
@@ -546,7 +568,7 @@ export default function OnboardingScreen() {
                 style={styles.completeButton}
                 onPress={handleCompleteOnboarding}
                 >
-                <Text style={styles.completeButtonText}>Let's begin my fitness journey!</Text>
+                <Text style={styles.completeButtonText}>Let&apos;s begin my fitness journey!</Text>
                 </Pressable>
           </View>
           )}

@@ -1,5 +1,5 @@
 import { useChat } from '@ai-sdk/react';
-import { DefaultChatTransport } from 'ai';
+import { defaultChatStore } from 'ai';
 import { Image } from "expo-image";
 import { router } from 'expo-router';
 import { fetch as expoFetch } from 'expo/fetch';
@@ -137,10 +137,10 @@ export default function ChatScreen() {
   const [inputText, setInputText] = useState('');
 
   // AI SDK Chat Hook - now with proper streaming like onboarding
-  const { messages: aiMessages, sendMessage, status } = useChat({
-    transport: new DefaultChatTransport({
-      fetch: expoFetch as unknown as typeof globalThis.fetch,
+  const { messages: aiMessages, append, status } = useChat({
+    chatStore: defaultChatStore({
       api: generateAPIUrl('/api/chat'),
+      fetch: expoFetch as unknown as typeof globalThis.fetch,
       body: {
         userProfile: userProfile, // Include user profile in requests
       },
@@ -157,7 +157,7 @@ export default function ChatScreen() {
       const buddyMessage: ChatMessage = {
         id: Date.now().toString(),
         role: 'assistant',
-        content: message.message.parts?.map((part: any) => part.type === 'text' ? part.text : '').join('') || '',
+        content: message.message.parts?.map((part) => part.type === 'text' ? (part as { type: 'text'; text: string }).text : '').join('') || '',
         timestamp: Date.now(),
         parts: message.message.parts as Array<{ type: string; text: string }>,
       };
@@ -374,7 +374,7 @@ export default function ChatScreen() {
       dispatch(setError(null));
       
       // Send to AI (this will add the message to aiMessages automatically)
-      sendMessage({ text: inputText.trim() });
+      append({ role: 'user', parts: [{ type: 'text', text: inputText.trim() }] });
       setInputText('');
       
       // Auto scroll to bottom after sending

@@ -1,5 +1,5 @@
 import { useChat } from '@ai-sdk/react';
-import { DefaultChatTransport } from 'ai';
+import { defaultChatStore } from 'ai';
 import { Image } from "expo-image";
 import { fetch as expoFetch } from 'expo/fetch';
 import React, { useEffect, useRef, useState } from 'react';
@@ -152,10 +152,10 @@ export default function ChatComponent({
   const [inputText, setInputText] = useState('');
 
   // AI SDK Chat Hook - now integrated with Redux
-  const { sendMessage } = useChat({
-    transport: new DefaultChatTransport({
-      fetch: expoFetch as unknown as typeof globalThis.fetch,
+  const { append } = useChat({
+    chatStore: defaultChatStore({
       api: generateAPIUrl('/api/chat'),
+      fetch: expoFetch as unknown as typeof globalThis.fetch,
       body: {
         userProfile: userProfile, // Include user profile in requests
       },
@@ -391,7 +391,7 @@ export default function ChatComponent({
       dispatch(setError(null));
       
       // Send to AI
-      sendMessage({ text: inputText.trim() });
+      append({ role: 'user', parts: [{ type: 'text', text: inputText.trim() }] });
       setInputText('');
       
       // Auto scroll to bottom after sending
