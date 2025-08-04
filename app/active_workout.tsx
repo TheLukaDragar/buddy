@@ -1,4 +1,5 @@
 import { Image } from 'expo-image';
+import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { BackHandler, Dimensions, Modal, StyleSheet, View } from 'react-native';
 import { SystemBars } from 'react-native-edge-to-edge';
@@ -18,7 +19,6 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { nucleus } from '../Buddy_variables.js';
 import ChatComponent from '../components/ChatComponent';
 import { useBuddyTheme } from '../constants/BuddyTheme';
-import { router } from 'expo-router';
 
 interface ProgressSegment {
   type: 'set' | 'rest';
@@ -302,10 +302,10 @@ const BottomModal: React.FC<BottomModalProps> = ({ visible, onShowFinishAlert })
       });
       setIsModalCollapsed(true); // Ensure state matches initial position
       // Debug the calculations on startup
-      console.log('INITIAL CALCULATIONS:');
-      console.log('Screen height:', SCREEN_HEIGHT);
-      console.log('Collapsed height:', COLLAPSED_HEIGHT);
-      console.log('Collapsed position:', COLLAPSED_POSITION);
+      // console.log('INITIAL CALCULATIONS:');
+      // console.log('Screen height:', SCREEN_HEIGHT);
+      // console.log('Collapsed height:', COLLAPSED_HEIGHT);
+      // console.log('Collapsed position:', COLLAPSED_POSITION);
     }
     
     // Cleanup function to reset animation state
@@ -645,6 +645,7 @@ const customAlertStyles = StyleSheet.create({
 
 export default function ActiveWorkoutScreen() {
   const theme = useBuddyTheme();
+  const insets = useSafeAreaInsets();
   const [elapsedTime, setElapsedTime] = useState(0);
   const [isRunning, setIsRunning] = useState(true);
   const [showFinishAlert, setShowFinishAlert] = useState(false);
@@ -725,7 +726,7 @@ export default function ActiveWorkoutScreen() {
       {/* Bottom Modal */}
       <BottomModal visible={true} onShowFinishAlert={() => setShowFinishAlert(true)} />
 
-      <View style={styles.buddyAiButton}>
+      <View style={[styles.buddyAiButton, { bottom: insets.bottom }]}>
         <Image source={require('../assets/icons/AI.svg')} style={styles.buddyAiIcon} />
       </View>
 

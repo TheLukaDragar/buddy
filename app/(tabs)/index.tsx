@@ -1,16 +1,30 @@
 import { Image } from "expo-image";
 import { router } from "expo-router";
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from 'react-native-paper';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming
+} from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { nucleus } from '../../Buddy_variables.js';
+import Statistics from '../../components/Statistics';
+import WorkoutItem, { WorkoutItemData } from '../../components/WorkoutItem';
 import { useBuddyTheme } from '../../constants/BuddyTheme';
 import { useIntro } from '../_layout';
 
 export default function ExploreScreen() {
   const theme = useBuddyTheme();
   const { setShowIntro } = useIntro();
+  
+  // Animation values
+  const greetingOpacity = useSharedValue(0);
+  const calendarOpacity = useSharedValue(0);
+  const agendaOpacity = useSharedValue(0);
+  const workoutOpacity = useSharedValue(0);
+  const statsOpacity = useSharedValue(0);
   
   // Show the intro popup when the screen loads
   useEffect(() => {
@@ -21,14 +35,164 @@ export default function ExploreScreen() {
     return () => clearTimeout(timer);
   }, [setShowIntro]);
 
-  // Calendar data
-  const weekDays = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-  const dates = [4, 5, 6, 7, 8, 9, 10];
-  const activeDate = 6; // Tuesday
-  const completedDate = 4; // Sunday
+  // Start entrance animations
+  useEffect(() => {
+    const startAnimations = () => {
+      // Staggered entrance animations
+      greetingOpacity.value = withTiming(1, { duration: 600 });
+      
+      setTimeout(() => {
+        calendarOpacity.value = withTiming(1, { duration: 600 });
+      }, 200);
+      
+      setTimeout(() => {
+        agendaOpacity.value = withTiming(1, { duration: 600 });
+      }, 400);
+      
+      setTimeout(() => {
+        workoutOpacity.value = withTiming(1, { duration: 600 });
+      }, 600);
+      
+      setTimeout(() => {
+        statsOpacity.value = withTiming(1, { duration: 600 });
+      }, 800);
+    };
+
+    startAnimations();
+  }, []);
+
+  // Week calendar data
+  const weeks = [1, 2, 3, 4, 5, 6, 7, 8];
+  const [activeWeek, setActiveWeek] = useState(3); // Current week
+  const completedWeeks = [1, 2]; // Completed weeks (exclude current week)
+
+  // Helper function to format date as YYYY-MM-DD
+  const formatDateForAPI = (date: Date): string => {
+    return date.toISOString().split('T')[0];
+  };
+
+  // Helper function to get date with offset
+  const getDateWithOffset = (daysOffset: number): string => {
+    const date = new Date();
+    date.setDate(date.getDate() + daysOffset);
+    return formatDateForAPI(date);
+  };
+
+  // Helper function to get week start date (Monday)
+  const getWeekStartDate = (weekOffset: number): Date => {
+    const today = new Date();
+    const currentDay = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    const daysToMonday = currentDay === 0 ? 6 : currentDay - 1; // Days to previous Monday
+    
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - daysToMonday + (weekOffset * 7));
+    return monday;
+  };
+
+  // Generate 8-week workout plan
+  const generateWorkoutPlan = () => {
+    const workoutTypes = [
+      { name: 'Abs & Core', duration: 45, exercises: 8, reps: 12 },
+      { name: 'Legs & Glutes', duration: 50, exercises: 10, reps: 15 },
+      { name: 'Upper Body', duration: 40, exercises: 8, reps: 12 },
+      { name: 'Full Body', duration: 55, exercises: 12, reps: 10 },
+      { name: 'Cardio HIIT', duration: 30, exercises: 6, reps: 20 },
+      { name: 'Strength Training', duration: 60, exercises: 8, reps: 8 },
+      { name: 'Yoga Flow', duration: 45, exercises: 15, reps: 5 },
+      { name: 'Pilates', duration: 40, exercises: 10, reps: 10 }
+    ];
+
+    const allWorkouts: WorkoutItemData[] = [];
+    let workoutId = 1;
+
+    // Generate workouts for 8 weeks
+    for (let week = 0; week < 8; week++) {
+      const weekStart = getWeekStartDate(week);
+      
+      // Generate 3-4 workouts per week (Monday, Wednesday, Friday, Sunday)
+      const workoutDays = [0, 2, 4, 6]; // Monday, Wednesday, Friday, Sunday
+      
+      workoutDays.forEach((dayOffset, dayIndex) => {
+        const workoutDate = new Date(weekStart);
+        workoutDate.setDate(weekStart.getDate() + dayOffset);
+        
+        // Show all workouts for all weeks (no filtering by future date)
+        // This allows users to see their complete 8-week plan
+
+        const workoutType = workoutTypes[(week * 4 + dayIndex) % workoutTypes.length];
+        const today = new Date();
+        const isCompleted = workoutDate < today;
+        
+        // Generate random progress for today's workouts (0-100%)
+        const isToday = workoutDate.toDateString() === today.toDateString();
+        const progress = isToday ? Math.floor(Math.random() * 101) : 0; // Random progress for today's workouts
+        
+        allWorkouts.push({
+          id: workoutId.toString(),
+          title: `${workoutType.name}`,
+          date: formatDateForAPI(workoutDate),
+          time: `${8 + (dayIndex * 2)}:00`, // 8:00, 10:00, 12:00, 14:00
+          duration: workoutType.duration,
+          exercises: workoutType.exercises,
+          reps: workoutType.reps,
+          isCompleted: isCompleted,
+          progress: progress,
+          weekNumber: week + 1,
+          dayOfWeek: dayOffset
+        });
+        
+        workoutId++;
+      });
+    }
+
+    return allWorkouts.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  };
+
+  // Get workouts for current week
+  const getCurrentWeekWorkouts = (weekNumber: number) => {
+    const allWorkouts = generateWorkoutPlan();
+    return allWorkouts.filter(workout => workout.weekNumber === weekNumber);
+  };
+
+  // Workout data for current week
+  const workoutData = getCurrentWeekWorkouts(activeWeek);
+
+  // Sample statistics data
+  const statisticsData = {
+    completedWorkouts: 33,
+    averageWorkoutTime: "1:02:21",
+    totalLiftedWeight: 12204,
+    burnedCalories: 5249
+  };
+
+  // Animated styles
+  const greetingAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: greetingOpacity.value,
+    transform: [{ translateY: (1 - greetingOpacity.value) * 20 }]
+  }));
+
+  const calendarAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: calendarOpacity.value,
+    transform: [{ translateY: (1 - calendarOpacity.value) * 30 }]
+  }));
+
+  const agendaAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: agendaOpacity.value,
+    transform: [{ translateY: (1 - agendaOpacity.value) * 40 }]
+  }));
+
+  const workoutAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: workoutOpacity.value,
+    transform: [{ translateY: (1 - workoutOpacity.value) * 50 }]
+  }));
+
+  const statsAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: statsOpacity.value,
+    transform: [{ translateY: (1 - statsOpacity.value) * 60 }]
+  }));
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: nucleus.light.semantic.bg.subtle }]}>
+    <SafeAreaView edges={['top']} style={[styles.container, { backgroundColor: nucleus.light.semantic.bg.subtle }]}>
 
       <ScrollView 
         style={styles.scrollView}
@@ -36,7 +200,7 @@ export default function ExploreScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Greeting Section */}
-        <View style={styles.greetingContainer}>
+        <Animated.View style={[styles.greetingContainer, greetingAnimatedStyle]}>
           <View style={ styles.greetingContent}>
             <View style={styles.morningRow}>
               <Text onPress={() => router.push('/active_workout')} style={styles.morningText}>Morning Otto,</Text>
@@ -47,49 +211,74 @@ export default function ExploreScreen() {
               </Text>
             </View>
           </View>
-        </View>
+        </Animated.View>
 
-        {/* Calendar Section */}
-        <View style={styles.calendarContainer}>
-          <View style={styles.calendarContent}>
-            {/* Week days row */}
-            <View style={styles.weekDaysRow}>
-              {weekDays.map((day, index) => (
-                <View key={index} style={styles.dayContainer}>
-                  <Text style={[
-                    styles.dayText,
-                    index === 2 && styles.activeDayText // Tuesday highlighted
-                  ]}>
-                    {day}
-                  </Text>
-                </View>
-              ))}
-            </View>
-            
-            {/* Dates row */}
-            <View style={styles.datesRow}>
-              {dates.map((date, index) => (
-                <TouchableOpacity 
-                  key={index} 
-                  style={[
-                    styles.dateContainer,
-                    date === activeDate && styles.activeDateContainer,
-                    date === completedDate && styles.completedDateContainer
-                  ]}
-                >
-                  <Text style={[
-                    styles.dateText,
-                    date === activeDate && styles.activeDateText,
-                    date === completedDate && styles.completedDateText,
-                    (date !== activeDate && date !== completedDate) && styles.disabledDateText
-                  ]}>
-                    {date}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+        {/* Week Calendar Section */}
+        <Animated.View style={[styles.calendarContainer, calendarAnimatedStyle]}>
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.calendarScrollContent}
+          >
+            {weeks.map((week, index) => (
+              <TouchableOpacity 
+                key={index} 
+                style={[
+                  styles.weekContainer,
+                  week === activeWeek ? styles.activeWeekContainer : 
+                  completedWeeks.includes(week) ? styles.completedWeekContainer : null
+                ]}
+                onPress={() => {
+                  setActiveWeek(week);
+                  // Add haptic feedback or spring animation here if needed
+                }}
+              >
+                <Text style={[
+                  styles.calendarWeekLabel,
+                  week === activeWeek ? styles.activeWeekLabel :
+                  completedWeeks.includes(week) ? styles.completedWeekLabel :
+                  styles.disabledWeekLabel
+                ]}>
+                  Week
+                </Text>
+                <Text style={[
+                  styles.weekNumber,
+                  week === activeWeek ? styles.activeWeekNumber :
+                  completedWeeks.includes(week) ? styles.completedWeekNumber :
+                  styles.disabledWeekNumber
+                ]}>
+                  {week}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </Animated.View>
+
+        {/* Agenda Section */}
+        <Animated.View style={[styles.agendaContainer, agendaAnimatedStyle]}>
+          {/* Agenda Title */}
+          <View style={styles.agendaTitleContainer}>
+            <Text style={styles.agendaLabel}>Agenda</Text>
+            <Text style={styles.agendaSeparator}>/</Text>
+            <Text style={styles.agendaWeek}>Week {activeWeek}</Text>
           </View>
-        </View>
+
+          {/* Workout Items */}
+          <View style={styles.workoutItemsContainer}>
+            {workoutData.map((workout, index) => {
+              // Calculate workout number based on sorted position (chronological order)
+              const chronologicalIndex = index;
+              return (
+                <WorkoutItem
+                  key={workout.id}
+                  workout={workout}
+                  index={chronologicalIndex}
+                  onPress={() => router.push('/workout')}
+                />
+              );
+            })}
+          </View>
+        </Animated.View>
 
         {/* Activities Section */}
         {/* <View style={styles.sectionContainer}>
@@ -124,7 +313,7 @@ export default function ExploreScreen() {
         </View>  */}
 
         {/* Today's Workout Section */}
-        <View style={styles.sectionContainer}>
+        <Animated.View style={[styles.sectionContainer, workoutAnimatedStyle]}>
           <Text style={styles.sectionHeading}>Today's workout</Text>
           <Pressable style={styles.workoutCard} onPress={() => router.push('/workout')}>
             {/* Workout Header */}
@@ -167,7 +356,7 @@ export default function ExploreScreen() {
               </View>
             </View>
           </Pressable>
-        </View>
+        </Animated.View>
 
         {/* Badges Section */}
         {/* <View style={[styles.sectionContainer, { paddingTop: 200 }]}>
@@ -201,6 +390,11 @@ export default function ExploreScreen() {
             </View>
           </View>
         </View> */}
+
+        {/* Statistics Section */}
+        <Animated.View style={[styles.sectionContainer, statsAnimatedStyle]}>
+          <Statistics data={statisticsData} />
+        </Animated.View>
 
         {/* Bottom padding for tab bar */}
         <View style={styles.bottomPadding} />
@@ -260,71 +454,103 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  // Calendar Section
+  // Week Calendar Section
   calendarContainer: {
-    paddingHorizontal: 12,
     marginBottom: 24,
   },
-  calendarContent: {
-    backgroundColor: 'transparent',
-    borderRadius: 16,
-    paddingVertical: 8,
+  calendarScrollContent: {
+    paddingHorizontal: 16,
     gap: 8,
-  },
-  weekDaysRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 4,
-  },
-  dayContainer: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
     alignItems: 'center',
   },
-  dayText: {
+  weekContainer: {
+    width: 63,
+    height: 40,
+    borderRadius: 80,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: nucleus.light.global.white,
+    paddingVertical: 7,
+    paddingHorizontal: 0,
+    gap: 2,
+  },
+  activeWeekContainer: {
+    backgroundColor: nucleus.light.global.blue["50"],
+  },
+  completedWeekContainer: {
+    backgroundColor: nucleus.light.global.brand["40"],
+  },
+  calendarWeekLabel: {
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 12,
     fontWeight: '700',
-    color: nucleus.light.semantic.fg.base,
+    lineHeight: 12,
+    color: nucleus.light.global.blue["30"],
     textAlign: 'center',
   },
-  activeDayText: {
-    color: nucleus.light.global.blue["70"],
+  activeWeekLabel: {
+    color: nucleus.light.global.white,
   },
-  datesRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 4,
+  completedWeekLabel: {
+    color: nucleus.light.global.green["60"],
   },
-  dateContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
+  disabledWeekLabel: {
+    color: nucleus.light.global.blue["30"],
   },
-  activeDateContainer: {
-    backgroundColor: nucleus.light.global.blue["40"],
-  },
-  completedDateContainer: {
-    backgroundColor: nucleus.light.semantic.accent.moderate,
-  },
-  dateText: {
+  weekNumber: {
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 14,
     fontWeight: '700',
+    lineHeight: 14,
+    color: nucleus.light.global.blue["40"],
     textAlign: 'center',
   },
-  activeDateText: {
-    color: nucleus.light.semantic.fg.onContrast,
+  activeWeekNumber: {
+    color: nucleus.light.global.white,
   },
-  completedDateText: {
-    color: nucleus.light.global.green["80"],
+  completedWeekNumber: {
+    color: nucleus.light.global.green["60"],
   },
-  disabledDateText: {
-    color: nucleus.light.semantic.fg.disabled,
+  disabledWeekNumber: {
+    color: nucleus.light.global.blue["40"],
   },
+
+  // Agenda Section
+  agendaContainer: {
+    paddingHorizontal: 16,
+    marginBottom: 32,
+    gap: 16,
+  },
+  agendaTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  agendaLabel: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 18,
+    fontWeight: '700',
+    lineHeight: 21.6,
+    color: nucleus.light.semantic.fg.subtle,
+  },
+  agendaSeparator: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 18,
+    fontWeight: '700',
+    lineHeight: 21.6,
+    color: nucleus.light.semantic.fg.subtle,
+  },
+  agendaWeek: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 18,
+    fontWeight: '700',
+    lineHeight: 21.6,
+    color: nucleus.light.semantic.fg.base,
+  },
+  workoutItemsContainer: {
+    gap: 16,
+  },
+
 
   // Section Containers
   sectionContainer: {
@@ -503,6 +729,13 @@ const styles = StyleSheet.create({
     color: nucleus.light.semantic.fg.disabled,
   },
   workoutTitle: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 18,
+    fontWeight: '700',
+    lineHeight: 21.6,
+    color: nucleus.light.semantic.fg.base,
+  },
+  agendaWorkoutTitle: {
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 18,
     fontWeight: '700',
