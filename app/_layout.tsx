@@ -20,6 +20,8 @@ import { SplashScreenController } from '../components/SplashScreenController';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
 import { useColorScheme } from '../hooks/useColorScheme';
 import { persistor, store } from '../store';
+import { ElevenLabsProvider } from '@elevenlabs/react-native';
+
 
 // Create context for intro state
 interface IntroContextType {
@@ -97,8 +99,10 @@ export default function RootLayout() {
   };
 
   return (
+    <ElevenLabsProvider>
     <Provider store={store}>
       <PersistGate loading={null} persistor={persistor}>
+       
         <AuthProvider>
           <SplashScreenController />
           <SafeAreaProvider> 
@@ -118,10 +122,11 @@ export default function RootLayout() {
                 </ThemeProvider>
               </PaperProvider>
             </GestureHandlerRootView>
-          </SafeAreaProvider>
-        </AuthProvider>
-      </PersistGate>
-    </Provider>
+            </SafeAreaProvider>
+          </AuthProvider>
+        </PersistGate>
+      </Provider>
+    </ElevenLabsProvider>
   );
 }
 
@@ -177,6 +182,14 @@ function RootNavigator() {
         />
         <Stack.Screen
           name="exercises"
+          options={{
+            headerShown: false,
+            presentation: 'card',
+            animation: 'slide_from_right',
+          }}
+        />
+        <Stack.Screen
+          name="conversation"
           options={{
             headerShown: false,
             presentation: 'card',
