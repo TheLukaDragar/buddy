@@ -86,8 +86,8 @@ export default function WorkoutItem({ workout, index, onPress }: WorkoutItemProp
     if (workoutDateOnly.getTime() === todayOnly.getTime()) {
       return {
         text: "Today 💪",
-        backgroundColor: nucleus.light.global.blue["60"],
-        textColor: nucleus.light.global.blue["10"],
+        backgroundColor: nucleus.light.global.brand["40"],
+        textColor: nucleus.light.global.brand["90"],
         icon: "today"
       };
     }
@@ -139,17 +139,45 @@ export default function WorkoutItem({ workout, index, onPress }: WorkoutItemProp
     return num + (suffixes[(v - 20) % 10] || suffixes[v] || suffixes[0]);
   };
 
-  const getWorkoutSubtitle = () => {
+  const getWorkoutNumberAndDate = () => {
     const workoutNumber = workout.workoutNumber || (index !== undefined ? getOrdinalNumber(index + 1) : '1st');
-    return `${workoutNumber} workout of the week`;
+    return `${workoutNumber} workout  /  ${formatDate(workout.date)}`;
   };
 
   const statusInfo = getStatusInfo();
 
+  const getBorderStyle = () => {
+    if (workout.isCompleted) return null;
+    
+    const workoutDate = new Date(workout.date);
+    const today = new Date();
+    
+    // Reset time to compare only dates
+    const workoutDateOnly = new Date(workoutDate.getFullYear(), workoutDate.getMonth(), workoutDate.getDate());
+    const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    
+    // Show brand border if workout is today
+    if (workoutDateOnly.getTime() === todayOnly.getTime()) {
+      return 'brand';
+    }
+    
+    // // Show orange border if workout date is in the past (missed workout)
+    // if (workoutDateOnly.getTime() < todayOnly.getTime()) {
+    //   return 'orange';
+    // }
+    
+    // No border for future workouts
+    return null;
+  };
+
   return (
     <Animated.View entering={FadeInUp.delay((index || 0) * 100).duration(600).springify()}>
       <TouchableOpacity 
-        style={styles.workoutCard}
+        style={[
+          styles.workoutCard,
+          getBorderStyle() === 'orange' && styles.missedWorkoutBorder,
+          getBorderStyle() === 'brand' && styles.todayWorkoutBorder
+        ]}
         onPress={onPress}
         activeOpacity={0.8}
       >
@@ -162,42 +190,27 @@ export default function WorkoutItem({ workout, index, onPress }: WorkoutItemProp
           </View>
           <View style={styles.workoutDetails}>
             <View style={styles.titleSection}>
+              <Text style={styles.workoutSubtitle}>
+                <Text style={styles.workoutNumberText}>{workout.workoutNumber || (index !== undefined ? getOrdinalNumber(index + 1) : '1st')} workout  </Text>
+                <Text style={styles.workoutDateText}>/  {formatDate(workout.date)}</Text>
+              </Text>
               <Text style={styles.workoutTitle}>{workout.title}</Text>
-              <Text style={styles.workoutSubtitle}>{getWorkoutSubtitle()}</Text>
-            </View>
-            <View style={styles.metadataSection}>
-              <View style={styles.metadataItem}>
-                <Image
-                  source={require('../assets/icons/clock.svg')}
-                  style={styles.metadataIcon}
-                  contentFit="contain"
-                />
-                <Text style={styles.metadataText}>{formatDate(workout.date)}</Text>
-              </View>
-              <View style={styles.metadataItem}>
-                <Image
-                  source={require('../assets/icons/clock.svg')}
-                  style={styles.metadataIcon}
-                  contentFit="contain"
-                />
+              <View style={styles.metadataRow}>
                 <Text style={styles.metadataText}>{workout.duration} min</Text>
-              </View>
-              <View style={styles.metadataItem}>
-                <Image
-                  source={require('../assets/icons/equipment.svg')}
-                  style={styles.metadataIcon}
-                  contentFit="contain"
-                />
-                <Text style={styles.metadataText}>{workout.exercises} exercises</Text>
+                <View style={styles.dotSeparator} />
+                <Text style={styles.metadataText}>{workout.exercises} ex.</Text>
+                <View style={styles.dotSeparator} />
+                <Text style={styles.metadataText}>{workout.reps} rep</Text>
               </View>
             </View>
           </View>
         </View>
                 <View style={[
           styles.progressCircle, 
-          { backgroundColor: workout.isCompleted ? nucleus.light.semantic.accent.moderate : nucleus.light.global.blue["20"] }
+          { backgroundColor: workout.isCompleted ? nucleus.light.semantic.accent.moderate : "#F1F3E8" }
         ]}>
           {/* HeroUI-style Circular Progress Ring */}
+          {/* Progress ring for in-progress workouts */}
           {!workout.isCompleted && (workout.progress || 0) > 0 && (
             <View style={styles.progressRingContainer}>
               <Svg width="48" height="48" viewBox="0 0 48 48" fill="none" style={styles.progressSvg}>
@@ -226,6 +239,23 @@ export default function WorkoutItem({ workout, index, onPress }: WorkoutItemProp
                   strokeDasharray={`${2 * Math.PI * 20} ${2 * Math.PI * 20}`}
                   strokeDashoffset={`${2 * Math.PI * 20 * (1 - (workout.progress || 0) / 100)}`}
                   transform="rotate(-90 24 24)"
+                  strokeLinecap="round"
+                />
+              </Svg>
+            </View>
+          )}
+          
+          {/* Completion ring for completed workouts */}
+          {workout.isCompleted && (
+            <View style={styles.progressRingContainer}>
+              <Svg width="48" height="48" viewBox="0 0 48 48" fill="none" style={styles.progressSvg}>
+                <Circle
+                  cx="24"
+                  cy="24"
+                  r="20"
+                  stroke={nucleus.light.global.brand["60"]}
+                  strokeWidth="6"
+                  fill="transparent"
                   strokeLinecap="round"
                 />
               </Svg>
@@ -260,6 +290,30 @@ const styles = {
     borderRadius: 16,
     overflow: 'hidden' as const,
   },
+  missedWorkoutBorder: {
+    borderWidth: 1,
+    borderColor: nucleus.light.global.orange["40"],
+    shadowColor: nucleus.light.global.orange["40"],
+    shadowOffset: {
+      width: 0,
+      height: 12,
+    },
+    shadowOpacity: 0.16,
+    shadowRadius: 40,
+    elevation: 12,
+  },
+  todayWorkoutBorder: {
+    borderWidth: 1,
+    borderColor: nucleus.light.global.brand["70"],
+    shadowColor: nucleus.light.global.brand["70"],
+    shadowOffset: {
+      width: 0,
+      height: 12,
+    },
+    shadowOpacity: 0.16,
+    shadowRadius: 40,
+    elevation: 12,
+  },
   workoutContent: {
     flexDirection: 'row' as const,
     padding: 16,
@@ -287,40 +341,44 @@ const styles = {
     gap: 16,
   },
   titleSection: {
-    gap: 4,
+    gap: 8,
+  },
+  workoutSubtitle: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 12,
+    fontWeight: '700' as const,
+    lineHeight: 12,
+  },
+  workoutNumberText: {
+    color: nucleus.light.semantic.fg.subtle,
+  },
+  workoutDateText: {
+    color: nucleus.light.semantic.fg.base,
   },
   workoutTitle: {
     fontFamily: 'PlusJakartaSans-Bold',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700' as const,
-    lineHeight: 21.6,
+    lineHeight: 19.2,
     color: nucleus.light.semantic.fg.base,
   },
-  workoutSubtitle: {
-    fontFamily: 'PlusJakartaSans-Regular',
-    fontSize: 12,
-    fontWeight: '400' as const,
-    lineHeight: 12,
-    color: nucleus.light.semantic.fg.subtle,
-  },
-  metadataSection: {
-    gap: 4,
-  },
-  metadataItem: {
+  metadataRow: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     gap: 8,
-  },
-  metadataIcon: {
-    width: 16,
-    height: 16,
   },
   metadataText: {
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 12,
     fontWeight: '700' as const,
     lineHeight: 12,
-    color: nucleus.light.global.grey["70"],
+    color: nucleus.light.global.grey["60"],
+  },
+  dotSeparator: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: nucleus.light.global.grey["60"],
   },
   progressCircle: {
     width: 48,

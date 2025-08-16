@@ -2,18 +2,74 @@ import { BlurView } from 'expo-blur';
 import { Image } from "expo-image";
 import { router } from 'expo-router';
 import React, { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SystemBars } from 'react-native-edge-to-edge';
+import Animated, { Extrapolation, interpolate, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { nucleus } from '../Buddy_variables';
 import MusicModal from '../components/MusicModal';
 
 
+const HEADER_HEIGHT = 250;
+const HEADER_MIN_HEIGHT = 120;
+
 export default function WorkoutScreen() {
   const [selectedMood, setSelectedMood] = useState<string | null>(null);
   const [showMusicModal, setShowMusicModal] = useState(false);
+  const scrollY = useSharedValue(0);
 
   const weekNumber = 1;
+
+  const scrollHandler = useAnimatedScrollHandler((event) => {
+    scrollY.value = event.contentOffset.y;
+  });
+
+  const headerAnimatedStyle = useAnimatedStyle(() => {
+    const height = interpolate(
+      scrollY.value,
+      [0, HEADER_HEIGHT - HEADER_MIN_HEIGHT],
+      [HEADER_HEIGHT, HEADER_MIN_HEIGHT],
+      Extrapolation.CLAMP
+    );
+
+    return {
+      height,
+    };
+  });
+
+  const imageAnimatedStyle = useAnimatedStyle(() => {
+    const opacity = interpolate(
+      scrollY.value,
+      [0, HEADER_HEIGHT - HEADER_MIN_HEIGHT],
+      [1, 0],
+      Extrapolation.CLAMP
+    );
+
+    const translateY = interpolate(
+      scrollY.value,
+      [0, HEADER_HEIGHT - HEADER_MIN_HEIGHT],
+      [0, -50],
+      Extrapolation.CLAMP
+    );
+
+    return {
+      opacity,
+      transform: [{ translateY }],
+    };
+  });
+
+  const buttonAnimatedStyle = useAnimatedStyle(() => {
+    const top = interpolate(
+      scrollY.value,
+      [0, HEADER_HEIGHT - HEADER_MIN_HEIGHT],
+      [50, 35],
+      Extrapolation.CLAMP
+    );
+
+    return {
+      top,
+    };
+  });
 
   const moods = [
     { 
@@ -105,24 +161,51 @@ export default function WorkoutScreen() {
     <>
       <SafeAreaView style={[styles.container, { backgroundColor: nucleus.light.semantic.bg.subtle }]}>
         <SystemBars style="dark" />
-        <View style={styles.topNav}>
-            <TouchableOpacity
-              onPress={() => router.back()}
-              style={styles.backButton}
-            >
-              <Image
-                source={require('../assets/icons/back.svg')}
-                style={styles.crossIcon}
-                contentFit="contain"
-              />
-            </TouchableOpacity>
-            
-          </View>
+
         
-        <ScrollView 
-          contentContainerStyle={styles.scrollContent}
+        {/* Collapsible Header */}
+        <Animated.View style={[styles.header, headerAnimatedStyle]}>
+          <Animated.View style={[styles.headerImageContainer, imageAnimatedStyle]}>
+            <Image
+              source={require('../assets/images/9_16_2.png')}
+              style={styles.headerImage}
+              contentFit="cover"
+            />
+          </Animated.View>
+                     <Animated.View style={[styles.headerBackButton, buttonAnimatedStyle]}>
+             <TouchableOpacity
+               onPress={() => router.back()}
+               style={styles.headerButton}
+             >
+               <Image
+                 source={require('../assets/icons/back.svg')}
+                 style={styles.headerBackIcon}
+                 contentFit="contain"
+               />
+             </TouchableOpacity>
+           </Animated.View>
+           
+           <Animated.View style={[styles.headerShareButton, buttonAnimatedStyle]}>
+             <TouchableOpacity
+               onPress={() => console.log('Share pressed')}
+               style={styles.headerButton}
+             >
+               <Image
+                 source={require('../assets/icons/share.svg')}
+                 style={styles.headerShareIcon}
+                 contentFit="contain"
+               />
+             </TouchableOpacity>
+           </Animated.View>
+        </Animated.View>
+
+        <Animated.ScrollView 
+          contentContainerStyle={[styles.scrollContent, { paddingTop: 0 }]}
           showsVerticalScrollIndicator={false}
+          onScroll={scrollHandler}
+          scrollEventThrottle={16}
         >
+         <View style={styles.contentContainer}>
          <View style={styles.summaryContainer}>
           <Text style={styles.weekNumber}>Week {weekNumber}</Text>
           <Text style={styles.workoutTitle}>Tuesday's Workout</Text>
@@ -297,7 +380,8 @@ export default function WorkoutScreen() {
               ))}
             </View>
           </View>
-        </ScrollView>
+          </View>
+        </Animated.ScrollView>
 
         {/* Floating Button Container */}
         <View style={styles.floatingButtonWrapper}>
@@ -380,30 +464,61 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  topNav: {
-    height: 64,
-    paddingVertical: 16,
-    paddingHorizontal: 8,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    flexShrink: 0,
-  
-  },
-  backButton: {
+  header: {
     position: 'absolute',
-    left: 8,
-    top: 4,
-    width: 56,
-    height: 56,
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1000,
+    overflow: 'hidden',
+  },
+  headerImageContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  headerImage: {
+    width: '100%',
+    height: '100%',
+  },
+  headerBackButton: {
+    position: 'absolute',
+    left: 16,
+  },
+  headerButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 28,
   },
-  crossIcon: {
+  headerBackIcon: {
     width: 32,
     height: 32,
+    tintColor: nucleus.light.semantic.fg.base,
   },
+  headerShareButton: {
+    position: 'absolute',
+    right: 16,
+  },
+  headerShareIcon: {
+    width: 24,
+    height: 24,
+    tintColor: nucleus.light.semantic.fg.base,
+  },
+  contentContainer: {
+    flex: 1,
+    backgroundColor: nucleus.light.semantic.bg.subtle,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    marginTop: HEADER_HEIGHT - 32,
+    paddingTop: 32,
+    overflow: 'hidden',
+    gap: 32,
+  },
+
   content: {
     padding: 16,
     paddingTop: 0,
@@ -415,7 +530,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     padding: 16,
-    paddingTop: 0,
     paddingBottom: 120, // Extra space for floating buttons
     gap: 32,
   },
@@ -424,6 +538,7 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     alignItems: 'flex-start',
     gap: 8,
+    alignSelf: 'stretch',
   },
 
   weekNumber: {
@@ -433,6 +548,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     lineHeight: 16.8,
     letterSpacing: 0,
+    textAlign: 'center',
+    alignSelf: 'stretch',
   },
   workoutTitle: {
     color: nucleus.light.semantic.fg.base,
@@ -441,6 +558,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     lineHeight: 28.8,
     letterSpacing: -1,
+    textAlign: 'center',
+    alignSelf: 'stretch',
   },
   workoutDescription: {
     color: nucleus.light.semantic.fg.base,
@@ -449,6 +568,8 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     lineHeight: 21,
     letterSpacing: 0,
+    textAlign: 'center',
+    alignSelf: 'stretch',
   },
   elementwith_icon: {
     flexDirection: 'row',
@@ -584,7 +705,7 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
   },
   equipmentItem: {
-    backgroundColor: nucleus.light.global.brand[40],
+    backgroundColor: nucleus.light.global.white,
     borderRadius: nucleus.light.cornerRadius.lg,
     padding: 8,
     flexDirection: 'row',

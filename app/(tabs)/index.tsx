@@ -1,7 +1,6 @@
-import { Image } from "expo-image";
 import { router } from "expo-router";
-import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from 'react-native-paper';
 import Animated, {
   useAnimatedStyle,
@@ -13,11 +12,117 @@ import { nucleus } from '../../Buddy_variables.js';
 import Statistics from '../../components/Statistics';
 import WorkoutItem, { WorkoutItemData } from '../../components/WorkoutItem';
 import { useBuddyTheme } from '../../constants/BuddyTheme';
+import { useAuth } from '../../contexts/AuthContext';
+import type { RootState } from '../../store';
+import { useAppSelector } from '../../store/hooks';
 import { useIntro } from '../_layout';
 
 export default function ExploreScreen() {
   const theme = useBuddyTheme();
   const { setShowIntro } = useIntro();
+  const { user } = useAuth();
+  
+  // Get user profile data from Redux store
+  const userProfile = useAppSelector((state: RootState) => (state as any).user?.extractedProfile);
+  const onboardingCompleted = useAppSelector((state: RootState) => (state as any).user?.onboardingCompleted);
+  
+  // Function to generate personalized morning message
+  const getPersonalizedGreeting = () => {
+    const now = new Date();
+    const hour = now.getHours();
+    
+    // Fallback for non-authenticated users
+    if (!user) {
+      return {
+        greeting: 'Welcome,',
+        message: 'Ready to start your fitness journey? 💪'
+      };
+    }
+    
+    // Get user's first name from email or metadata
+    const userName = user?.user_metadata?.full_name?.split(' ')[0] || 
+                    user?.email?.split('@')[0] || 
+                    'there';
+    
+    // Time-based greeting
+    let timeGreeting;
+    if (hour < 5) {
+      timeGreeting = 'Early start';
+    } else if (hour < 12) {
+      timeGreeting = 'Good morning';
+    } else if (hour < 17) {
+      timeGreeting = 'Good afternoon';
+    } else if (hour < 21) {
+      timeGreeting = 'Good evening';
+    } else {
+      timeGreeting = 'Good evening';
+    }
+    
+    return {
+      greeting: `${timeGreeting} ${userName},`,
+      message: getMotivationalMessage(hour, userProfile)
+    };
+  };
+  
+  // Function to generate motivational message based on time and user profile
+  const getMotivationalMessage = (hour: number, profile: string | null) => {
+    const messages = {
+      earlyMorning: [
+        "Early bird gets the gains! 🌅",
+        "Starting strong today! 💪",
+        "Your dedication is inspiring! ✨"
+      ],
+      morning: [
+        "Ready to crush your workout? 💪",
+        "Your strength session awaits! 🔥",
+        "Time to unlock your potential! ⚡",
+        "Let's make today amazing! 🌟"
+      ],
+      afternoon: [
+        "Perfect time for an energy boost! ⚡",
+        "Afternoon power session? 💪",
+        "Recharge with some movement! 🔋",
+        "Your body will thank you! 🙌"
+      ],
+      evening: [
+        "End the day strong! 🌟",
+        "Perfect time to unwind with movement! 🧘",
+        "Your evening routine awaits! ✨",
+        "Release the day's stress! 💆"
+      ]
+    };
+    
+    let messageArray;
+    if (hour < 6) {
+      messageArray = messages.earlyMorning;
+    } else if (hour < 12) {
+      messageArray = messages.morning;
+    } else if (hour < 17) {
+      messageArray = messages.afternoon;
+    } else {
+      messageArray = messages.evening;
+    }
+    
+    // If user has profile data, try to personalize further
+    if (profile && onboardingCompleted) {
+      // Simple keyword matching for personalization
+      if (profile.toLowerCase().includes('strength') || profile.toLowerCase().includes('muscle')) {
+        return hour < 12 ? "Time to build that strength! 💪" : "Perfect time for strength training! 🏋️";
+      } else if (profile.toLowerCase().includes('cardio') || profile.toLowerCase().includes('running')) {
+        return hour < 12 ? "Ready to get your heart pumping? ❤️" : "Cardio session calling your name! 🏃";
+      } else if (profile.toLowerCase().includes('yoga') || profile.toLowerCase().includes('flexibility')) {
+        return hour < 12 ? "Flow into your day with movement! 🧘" : "Time to stretch and unwind! 🤸";
+      }
+    }
+    
+    // Return random message from time-appropriate array
+    return messageArray[Math.floor(Math.random() * messageArray.length)];
+  };
+  
+  // Memoize the greeting so it doesn't change on re-renders (like week selection)
+  const { greeting, message } = useMemo(() => {
+    return getPersonalizedGreeting();
+  }, [user?.email, user?.user_metadata?.full_name, userProfile, onboardingCompleted]);
   
   // Animation values
   const greetingOpacity = useSharedValue(0);
@@ -145,7 +250,21 @@ export default function ExploreScreen() {
       });
     }
 
-    return allWorkouts.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    // Custom sort: Today's workout first, then chronological order
+    return allWorkouts.sort((a, b) => {
+      const today = new Date();
+      const todayString = formatDateForAPI(today);
+      
+      const aIsToday = a.date === todayString;
+      const bIsToday = b.date === todayString;
+      
+      // If one is today and the other isn't, today comes first
+      if (aIsToday && !bIsToday) return -1;
+      if (!aIsToday && bIsToday) return 1;
+      
+      // Otherwise, sort chronologically
+      return new Date(a.date).getTime() - new Date(b.date).getTime();
+    });
   };
 
   // Get workouts for current week
@@ -159,10 +278,18 @@ export default function ExploreScreen() {
 
   // Sample statistics data
   const statisticsData = {
-    completedWorkouts: 33,
-    averageWorkoutTime: "1:02:21",
-    totalLiftedWeight: 12204,
-    burnedCalories: 5249
+    allTime: {
+      completedWorkouts: 33,
+      averageWorkoutTime: "1:02:21",
+      totalLiftedWeight: 12204,
+      burnedCalories: 5249
+    },
+    thisWeek: {
+      completedWorkouts: 3,
+      averageWorkoutTime: "0:45:12",
+      totalLiftedWeight: 385,
+      burnedCalories: 1247
+    }
   };
 
   // Animated styles
@@ -201,13 +328,15 @@ export default function ExploreScreen() {
       >
         {/* Greeting Section */}
         <Animated.View style={[styles.greetingContainer, greetingAnimatedStyle]}>
-          <View style={ styles.greetingContent}>
+          <View style={styles.greetingContent}>
             <View style={styles.morningRow}>
-              <Text onPress={() => router.push('/active_workout')} style={styles.morningText}>Morning Otto,</Text>
+              <Text onPress={() => router.push('/active_workout')} style={styles.morningText}>
+                {greeting}
+              </Text>
             </View>
             <View style={styles.messageRow}>
               <Text style={styles.messageText}>
-                Your session is ready <Text style={styles.emoji}>💪</Text>
+                {message}
               </Text>
             </View>
           </View>
@@ -313,11 +442,11 @@ export default function ExploreScreen() {
         </View>  */}
 
         {/* Today's Workout Section */}
-        <Animated.View style={[styles.sectionContainer, workoutAnimatedStyle]}>
+        {/* <Animated.View style={[styles.sectionContainer, workoutAnimatedStyle]}>
           <Text style={styles.sectionHeading}>Today's workout</Text>
-          <Pressable style={styles.workoutCard} onPress={() => router.push('/workout')}>
+          <Pressable style={styles.workoutCard} onPress={() => router.push('/workout')}> */}
             {/* Workout Header */}
-            <View style={styles.workoutHeader}>
+            {/* <View style={styles.workoutHeader}>
               <View style={styles.progressCircleContainer}>
                 <View style={styles.progressCircle}>
                   <View style={styles.progressCircleInner} />
@@ -335,10 +464,10 @@ export default function ExploreScreen() {
                   <Text style={styles.metaText}>8 rep</Text>
                 </View>
               </View>
-            </View>
+            </View> */}
             
             {/* Recommended Workout */}
-            <View style={styles.recommendedSection}>
+            {/* <View style={styles.recommendedSection}>
               <View style={styles.recommendedCard}>
                 <View style={styles.workoutThumbnail}>
                   <Image
@@ -356,7 +485,7 @@ export default function ExploreScreen() {
               </View>
             </View>
           </Pressable>
-        </Animated.View>
+        </Animated.View> */}
 
         {/* Badges Section */}
         {/* <View style={[styles.sectionContainer, { paddingTop: 200 }]}>
