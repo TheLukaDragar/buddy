@@ -16,9 +16,28 @@ import ReanimatedAnimated, {
   withTiming
 } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useDispatch, useSelector } from 'react-redux';
 import { nucleus } from '../Buddy_variables.js';
 import ChatComponent from '../components/ChatComponent';
 import { useBuddyTheme } from '../constants/BuddyTheme';
+import { sampleWorkoutSession } from '../data/sampleWorkouts';
+import {
+  adjustReps,
+  adjustWeight,
+  completeSet,
+  confirmReadyAndStartSet,
+  finishWorkoutEarly,
+  jumpToSet,
+  pauseSet,
+  resumeSet,
+  selectActiveWorkout,
+  selectCurrentExercise,
+  selectCurrentSet,
+  selectTimers,
+  selectWorkout,
+  selectWorkoutStatus,
+  startRest
+} from '../store/slices/workoutSlice';
 
 interface ProgressSegment {
   type: 'set' | 'rest';
@@ -30,19 +49,22 @@ interface ProgressSegment {
 
 interface WorkoutProgressProps {
   segments: ProgressSegment[];
-  currentWeight?: string;
-  currentReps?: number;
-  elapsedTime: number; // Current elapsed time in seconds
-  isRunning: boolean; // Whether timer is running
 }
 
 const WorkoutProgress: React.FC<WorkoutProgressProps> = ({
-  segments,
-  currentWeight = "40 kg",
-  currentReps = 8,
-  elapsedTime,
-  isRunning
+  segments
 }) => {
+  // Get workout state from Redux
+  const activeWorkout = useSelector(selectActiveWorkout);
+  const currentSet = useSelector(selectCurrentSet);
+  const timers = useSelector(selectTimers);
+  const status = useSelector(selectWorkoutStatus);
+  
+  // Calculate current values from Redux state
+  const currentWeight = currentSet?.targetWeight ? `${currentSet.targetWeight} kg` : 'Body';
+  const currentReps = currentSet?.targetReps || 0;
+  const elapsedTime = activeWorkout?.elapsedTime ? Math.floor(activeWorkout.elapsedTime / 1000) : 0;
+  const isRunning = status === 'exercising' && !activeWorkout?.isPaused;
   const theme = useBuddyTheme();
 
   // Calculate total duration for proportional widths
@@ -50,40 +72,80 @@ const WorkoutProgress: React.FC<WorkoutProgressProps> = ({
 
   // Format time as MM:SS
   const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
+    const totalSeconds = Math.floor(seconds);
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Find which segment is currently active based on elapsed time
+  // Find which segment is currently active based on workout state
   const getCurrentSegmentInfo = () => {
-    let cumulativeTime = 0;
+    if (!activeWorkout || !currentSet) {
+      return {
+        activeIndex: 0,
+        progress: 0,
+        remainingTime: segments[0]?.duration || 45,
+        segmentType: 'set' as const
+      };
+    }
+
+    // Calculate which segment we're in based on current set and phase
+    const currentSetIndex = activeWorkout.currentSetIndex;
+    let segmentIndex = currentSetIndex * 2; // Each set has a set segment and rest segment
     
-    for (let i = 0; i < segments.length; i++) {
-      const segment = segments[i];
-      const segmentEnd = cumulativeTime + segment.duration;
-      
-      if (elapsedTime >= cumulativeTime && elapsedTime < segmentEnd) {
-        const segmentElapsed = elapsedTime - cumulativeTime;
-        const progress = (segmentElapsed / segment.duration) * 100;
-        
-        return {
-          activeIndex: i,
-          progress: Math.min(progress, 100),
-          remainingTime: segment.duration - segmentElapsed,
-          segmentType: segment.type
-        };
-      }
-      
-      cumulativeTime = segmentEnd;
+    // Adjust for current phase with more precise state handling
+    if (status === 'resting' || status === 'rest-ending') {
+      segmentIndex += 1; // We're in the rest segment
+    } else if (status === 'set-complete') {
+      // Just completed a set, show 100% progress for that set
+      segmentIndex = currentSetIndex * 2; // Stay on the set segment
     }
     
-    // If we're past all segments
+    // Ensure we don't go beyond available segments
+    segmentIndex = Math.min(segmentIndex, segments.length - 1);
+    
+    // Calculate progress within current segment
+    let progress = 0;
+    let remainingTime = segments[segmentIndex]?.duration || 45;
+    
+    if (status === 'exercising') {
+      // For sets, use elapsed time
+      const targetDuration = currentSet.targetTime || 45;
+      const elapsed = elapsedTime;
+      progress = Math.min((elapsed / targetDuration) * 100, 100);
+      remainingTime = Math.max(0, targetDuration - elapsed);
+    } else if (status === 'set-complete') {
+      // Show completed set
+      progress = 100;
+      remainingTime = 0;
+    } else if (status === 'resting' || status === 'rest-ending') {
+      // For rest, use the displayed time from activeWorkout
+      const restDuration = currentSet.restTimeAfter || 60;
+      
+      if (activeWorkout?.timeRemaining !== undefined) {
+        // timeRemaining is already in seconds from Redux store
+        const remainingSec = Math.max(0, activeWorkout.timeRemaining);
+        const elapsedSec = Math.max(0, restDuration - remainingSec);
+        
+        // Calculate progress based on elapsed time vs total duration
+        progress = Math.min((elapsedSec / restDuration) * 100, 100);
+        remainingTime = Math.floor(remainingSec);
+      } else {
+        // No timer active, show 0 progress
+        progress = 0;
+        remainingTime = restDuration;
+      }
+    } else if (status === 'preparing') {
+      // Preparing for set, show 0 progress
+      progress = 0;
+      remainingTime = segments[segmentIndex]?.duration || 45;
+    }
+    
     return {
-      activeIndex: segments.length - 1,
-      progress: 100,
-      remainingTime: 0,
-      segmentType: segments[segments.length - 1]?.type || 'set'
+      activeIndex: segmentIndex,
+      progress: Math.max(0, Math.min(100, progress)), // Clamp between 0-100
+      remainingTime: Math.max(0, remainingTime), // Ensure non-negative
+      segmentType: segments[segmentIndex]?.type || 'set'
     };
   };
 
@@ -93,15 +155,15 @@ const WorkoutProgress: React.FC<WorkoutProgressProps> = ({
     // Completed segments
     if (index < currentInfo.activeIndex) {
       return segment.type === 'set' 
-        ? nucleus.light.global.blue["40"] // #89BAD5 for completed sets
-        : nucleus.light.global.brand["70"]; // #D0DD17 for completed rest
+        ? nucleus.light.global.brand["70"] // #D0DD17 for completed sets
+        : nucleus.light.global.blue["40"]; // #89BAD5 for completed rest
     }
     
     // Active segment
     if (index === currentInfo.activeIndex && currentInfo.progress > 0) {
       return segment.type === 'set' 
-        ? nucleus.light.global.blue["40"] // #89BAD5 for active sets
-        : nucleus.light.global.brand["70"]; // #D0DD17 for active rest
+        ? nucleus.light.global.brand["70"] // #D0DD17 for active sets
+        : nucleus.light.global.blue["40"]; // #89BAD5 for active rest
     }
 
     return nucleus.light.global.white; // #FFF for future segments
@@ -192,6 +254,404 @@ const WorkoutProgress: React.FC<WorkoutProgressProps> = ({
     </View>
   );
 };
+
+// Workout Controls Component
+interface WorkoutControlsProps {
+  onShowFinishAlert: () => void;
+}
+
+const WorkoutControls: React.FC<WorkoutControlsProps> = ({ onShowFinishAlert }) => {
+  const dispatch = useDispatch();
+  const status = useSelector(selectWorkoutStatus);
+  const activeWorkout = useSelector(selectActiveWorkout);
+  const currentExercise = useSelector(selectCurrentExercise);
+  const currentSet = useSelector(selectCurrentSet);
+  
+  // State for adjustment inputs
+  const [showAdjustments, setShowAdjustments] = useState(false);
+  const [newWeight, setNewWeight] = useState('');
+  const [newReps, setNewReps] = useState('');
+
+  // 3-Button Control Logic - Left/Right for workflow progression
+  const getLeftButtonText = () => {
+    if (status === 'inactive') return '←';
+    return '←'; // Always show left button
+  };
+
+  const getCenterButtonText = () => {
+    if (status === 'exercising' || status === 'resting' || status === 'rest-ending') {
+      return activeWorkout?.isPaused ? 'RESUME' : 'PAUSE';
+    }
+    return 'PAUSE'; // No icons, just text
+  };
+
+  const getRightButtonText = () => {
+    if (status === 'inactive') return '→';
+    return '→'; // Always show right button
+  };
+
+  const handleLeftButton = () => {
+    // Left button goes back ONE STATE in workflow and clears progress
+    switch (status) {
+      case 'inactive':
+        // Can't go back from inactive
+        break;
+      case 'preparing':
+        // Can't go back from preparing (it's the start of a set)
+        break;
+      case 'exercising':
+        // Go back to preparing (restart preparation)
+        // Clear any set progress and go back to preparing
+        dispatch(jumpToSet({ targetSetNumber: (activeWorkout?.currentSetIndex || 0) + 1, reason: 'User went back' }));
+        break;
+      case 'set-complete':
+        // Go back to exercising (restart the set)
+        dispatch(confirmReadyAndStartSet());
+        break;
+      case 'resting':
+        // Go back to set-complete (undo rest start)
+        // Need to implement: go back to set-complete state
+        console.log('TODO: Go back from resting to set-complete');
+        break;
+      case 'rest-ending':
+        // Go back to resting (undo 10s warning)
+        // Need to implement: restart rest timer
+        console.log('TODO: Go back from rest-ending to resting');
+        break;
+      case 'exercise-transition':
+        // Go back to preparing the last set of previous exercise
+        console.log('TODO: Go back from exercise-transition');
+        break;
+    }
+  };
+
+  const handleCenterButton = () => {
+    // Center button handles pause/resume for exercising and rest states
+    if (status === 'exercising' || status === 'resting' || status === 'rest-ending') {
+      if (activeWorkout?.isPaused) {
+        dispatch(resumeSet());
+      } else {
+        dispatch(pauseSet({ reason: 'User requested pause' }));
+      }
+    }
+    // Do nothing for other states
+  };
+
+  const handleRightButton = () => {
+    // Right button goes FORWARD in workflow
+    switch (status) {
+      case 'inactive':
+        dispatch(selectWorkout(sampleWorkoutSession));
+        break;
+      case 'preparing':
+      case 'rest-ending':
+      case 'exercise-transition':
+        dispatch(confirmReadyAndStartSet());
+        break;
+      case 'exercising':
+        dispatch(completeSet());
+        break;
+      case 'set-complete':
+        dispatch(startRest());
+        break;
+      case 'resting':
+        dispatch(confirmReadyAndStartSet()); // Skip rest
+        break;
+    }
+  };
+
+  const handleAdjustWeight = () => {
+    if (newWeight && currentSet) {
+      dispatch(adjustWeight({ 
+        newWeight: parseFloat(newWeight), 
+        reason: 'User adjustment' 
+      }));
+      setNewWeight('');
+      setShowAdjustments(false);
+    }
+  };
+
+  const handleAdjustReps = () => {
+    if (newReps && currentSet) {
+      dispatch(adjustReps({ 
+        newReps: parseInt(newReps), 
+        reason: 'User adjustment' 
+      }));
+      setNewReps('');
+      setShowAdjustments(false);
+    }
+  };
+
+  // Simple 3-Button Layout
+  return (
+    <View style={workoutControlsStyles.container}>
+      {/* Current Exercise Info */}
+      {currentExercise && (
+        <View style={workoutControlsStyles.exerciseInfo}>
+          <Text style={[workoutControlsStyles.exerciseTitle, { color: nucleus.light.global.grey["90"] }]}>
+            {currentExercise.name}
+          </Text>
+          <Text style={[workoutControlsStyles.exerciseDetails, { color: nucleus.light.global.grey["70"] }]}>
+            Set {(activeWorkout?.currentSetIndex || 0) + 1} of {currentExercise.sets.length} • 
+            Exercise {(activeWorkout?.currentExerciseIndex || 0) + 1} of {activeWorkout?.totalExercises || 0}
+          </Text>
+        </View>
+      )}
+
+      {/* Status Indicator */}
+      <View style={workoutControlsStyles.statusContainer}>
+        <Text style={[workoutControlsStyles.statusText, { color: nucleus.light.global.blue["60"] }]}>
+          {status.toUpperCase().replace('-', ' ')}
+          {activeWorkout?.isPaused && ' (PAUSED)'}
+        </Text>
+      </View>
+
+      {/* 3-Button Controls */}
+      <View style={workoutControlsStyles.threeButtonContainer}>
+        {/* Left Button */}
+        <Button
+          mode="outlined"
+          style={workoutControlsStyles.sideButton}
+          labelStyle={[workoutControlsStyles.sideButtonLabel, { color: nucleus.light.global.blue["60"] }]}
+          contentStyle={workoutControlsStyles.sideButtonContent}
+          compact={false}
+          onPress={handleLeftButton}
+        >
+          {getLeftButtonText()}
+        </Button>
+
+        {/* Center Button */}
+        <Button
+          mode="contained"
+          style={[workoutControlsStyles.centerButton, { backgroundColor: nucleus.light.global.blue["70"] }]}
+          labelStyle={[workoutControlsStyles.centerButtonLabel, { color: nucleus.light.global.white }]}
+          contentStyle={workoutControlsStyles.centerButtonContent}
+          compact={false}
+          onPress={handleCenterButton}
+        >
+          {getCenterButtonText()}
+        </Button>
+
+        {/* Right Button */}
+        <Button
+          mode="outlined"
+          style={workoutControlsStyles.sideButton}
+          labelStyle={[workoutControlsStyles.sideButtonLabel, { color: nucleus.light.global.blue["60"] }]}
+          contentStyle={workoutControlsStyles.sideButtonContent}
+          compact={false}
+          onPress={handleRightButton}
+        >
+          {getRightButtonText()}
+        </Button>
+      </View>
+
+      
+    </View>
+  );
+};
+
+const workoutControlsStyles = StyleSheet.create({
+  container: {
+    padding: 16,
+    gap: 16,
+  },
+  exerciseInfo: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  exerciseTitle: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 20,
+    lineHeight: 24,
+    textAlign: 'center',
+    includeFontPadding: false,
+  },
+  exerciseDetails: {
+    fontFamily: 'PlusJakartaSans-Regular',
+    fontSize: 14,
+    lineHeight: 16.8,
+    textAlign: 'center',
+    includeFontPadding: false,
+  },
+  statusContainer: {
+    alignItems: 'center',
+    backgroundColor: nucleus.light.global.blue["10"],
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    alignSelf: 'center',
+  },
+  statusText: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 12,
+    lineHeight: 14.4,
+    letterSpacing: 1,
+    includeFontPadding: false,
+  },
+  buttonsContainer: {
+    gap: 12,
+  },
+  mainButton: {
+    borderRadius: 48,
+    minHeight: 56,
+  },
+  secondaryButton: {
+    borderRadius: 48,
+    minHeight: 48,
+    borderWidth: 2,
+  },
+  buttonContent: {
+    minHeight: 48,
+    paddingHorizontal: 24,
+    paddingVertical: 0,
+  },
+  
+  // 3-Button Layout Styles
+  threeButtonContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 20,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+  },
+  sideButton: {
+    borderRadius: 32,
+    minHeight: 56,
+    minWidth: 80,
+    borderColor: nucleus.light.global.blue["60"],
+    borderWidth: 2,
+  },
+  sideButtonLabel: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 20,
+    lineHeight: 24,
+    marginVertical: 0,
+    includeFontPadding: false,
+  },
+  sideButtonContent: {
+    minHeight: 56,
+    paddingHorizontal: 20,
+    paddingVertical: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  centerButton: {
+    borderRadius: 48,
+    minHeight: 72,
+    minWidth: 120,
+    shadowColor: nucleus.light.global.blue["70"],
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  centerButtonLabel: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 16,
+    lineHeight: 20,
+    marginVertical: 0,
+    includeFontPadding: false,
+  },
+  centerButtonContent: {
+    minHeight: 72,
+    paddingHorizontal: 24,
+    paddingVertical: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  buttonLabel: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 16,
+    lineHeight: 20,
+    marginVertical: 0,
+    includeFontPadding: false,
+  },
+  navigationContainer: {
+    gap: 8,
+  },
+  navigationTitle: {
+    fontFamily: 'PlusJakartaSans-Medium',
+    fontSize: 14,
+    lineHeight: 16.8,
+    textAlign: 'center',
+    includeFontPadding: false,
+  },
+  navigationButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  navigationButton: {
+    flex: 1,
+    borderRadius: 24,
+    minHeight: 40,
+    borderColor: nucleus.light.global.blue["60"],
+  },
+  navigationButtonDisabled: {
+    borderColor: nucleus.light.global.grey["30"],
+    backgroundColor: nucleus.light.global.grey["10"],
+  },
+  navigationButtonLabel: {
+    fontFamily: 'PlusJakartaSans-Medium',
+    fontSize: 12,
+    lineHeight: 14.4,
+    color: nucleus.light.global.blue["60"],
+    marginVertical: 0,
+    includeFontPadding: false,
+  },
+  setIndicator: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: nucleus.light.global.blue["10"],
+    borderRadius: 16,
+    minWidth: 60,
+    alignItems: 'center',
+  },
+  setIndicatorText: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 12,
+    lineHeight: 14.4,
+    includeFontPadding: false,
+  },
+  adjustmentsContainer: {
+    gap: 8,
+  },
+  adjustmentsTitle: {
+    fontFamily: 'PlusJakartaSans-Medium',
+    fontSize: 14,
+    lineHeight: 16.8,
+    textAlign: 'center',
+    includeFontPadding: false,
+  },
+  adjustmentButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  adjustmentButton: {
+    flex: 1,
+    borderRadius: 24,
+    minHeight: 40,
+    borderColor: nucleus.light.global.grey["40"],
+  },
+  adjustmentButtonLabel: {
+    fontFamily: 'PlusJakartaSans-Medium',
+    fontSize: 12,
+    lineHeight: 14.4,
+    color: nucleus.light.global.grey["70"],
+    marginVertical: 0,
+    includeFontPadding: false,
+  },
+  finishButton: {
+    alignSelf: 'center',
+  },
+  finishButtonLabel: {
+    fontFamily: 'PlusJakartaSans-Medium',
+    fontSize: 14,
+    lineHeight: 16.8,
+    includeFontPadding: false,
+  },
+});
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -646,49 +1106,61 @@ const customAlertStyles = StyleSheet.create({
 export default function ActiveWorkoutScreen() {
   const theme = useBuddyTheme();
   const insets = useSafeAreaInsets();
-  const [elapsedTime, setElapsedTime] = useState(0);
-  const [isRunning, setIsRunning] = useState(true);
   const [showFinishAlert, setShowFinishAlert] = useState(false);
-
   
+  // Redux state
+  const activeWorkout = useSelector(selectActiveWorkout);
+  const currentExercise = useSelector(selectCurrentExercise);
+  const status = useSelector(selectWorkoutStatus);
 
-  // Timer effect
-  useEffect(() => {
-    let interval: ReturnType<typeof setInterval>;
-    
-    if (isRunning) {
-      interval = setInterval(() => {
-        setElapsedTime(prevTime => prevTime + 1);
-      }, 1000);
+  // Generate progress segments from current exercise
+  const generateProgressSegments = (): ProgressSegment[] => {
+    if (!currentExercise) {
+      // Default segments for demo
+      return [
+        { type: 'set', duration: 45 },
+        { type: 'rest', duration: 60 },
+        { type: 'set', duration: 45 },
+        { type: 'rest', duration: 60 },
+        { type: 'set', duration: 45 },
+        { type: 'rest', duration: 60 },
+      ];
     }
     
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [isRunning]);
-
-  // Example segments data
-  const sampleSegments: ProgressSegment[] = [
-    { type: 'set', duration: 45 },
-    { type: 'rest', duration: 60 },
-    { type: 'set', duration: 45 },
-    { type: 'rest', duration: 60 },
-    { type: 'set', duration: 45 },
-    { type: 'rest', duration: 60 },
-  ];
-
-  const toggleTimer = () => {
-    setIsRunning(!isRunning);
+    const segments: ProgressSegment[] = [];
+    currentExercise.sets.forEach((set, index) => {
+      // Add set segment
+      segments.push({
+        type: 'set',
+        duration: set.targetTime || 45,
+      });
+      
+      // Add rest segment if the set has restTimeAfter defined
+      // This includes rest after the last set if it has a rest period
+      if (set.restTimeAfter && set.restTimeAfter > 0) {
+        segments.push({
+          type: 'rest',
+          duration: set.restTimeAfter,
+        });
+      }
+    });
+    
+    return segments;
   };
 
-  const resetTimer = () => {
-    setElapsedTime(0);
-    setIsRunning(false);
-  };
+  const progressSegments = generateProgressSegments();
+
+  const dispatch = useDispatch();
 
   const handleFinishWorkout = () => {
+    // Dispatch finish workout early action
+    dispatch(finishWorkoutEarly());
     setShowFinishAlert(false);
-    router.back();
+    
+    // Show completion message
+    setTimeout(() => {
+      router.back();
+    }, 1000);
   };
 
   const handleContinueWorkout = () => {
@@ -707,18 +1179,12 @@ export default function ActiveWorkoutScreen() {
           style={styles.mainContent}
         >
           <View style={styles.topContainer}>
-            <Text>TEST</Text>
+            {/* Workout Controls */}
+            <WorkoutControls onShowFinishAlert={() => setShowFinishAlert(true)} />
           </View>
           
           <View style={styles.workoutStatusContainer}>
-            <WorkoutProgress 
-              segments={sampleSegments}
-              currentWeight="40 kg"
-              currentReps={8}
-              elapsedTime={elapsedTime}
-              isRunning={isRunning}
-            />
-
+            <WorkoutProgress segments={progressSegments} />
           </View>
         </ReanimatedAnimated.View>
       </SafeAreaView>
@@ -734,7 +1200,11 @@ export default function ActiveWorkoutScreen() {
       <CustomAlert
         visible={showFinishAlert}
         title="Finish workout?"
-        message="Are you sure you want to finish your workout?"
+        message={
+          activeWorkout 
+            ? `You've completed ${activeWorkout.completedSets} of ${activeWorkout.totalSets} sets across ${activeWorkout.completedExercises} exercises. Are you sure you want to finish early?`
+            : "Are you sure you want to finish your workout?"
+        }
         onContinue={handleContinueWorkout}
         onFinish={handleFinishWorkout}
       />
