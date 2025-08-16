@@ -1,5 +1,4 @@
 import { createListenerMiddleware, isAnyOf, type TypedStartListening } from '@reduxjs/toolkit';
-import { workoutContextManager } from '../../services/WorkoutContextManager';
 import type { AppDispatch, RootState } from '../index';
 import {
     adjustRestTime,
@@ -422,26 +421,26 @@ startAppListening({
           
           contextMessage += '. User just connected to voice assistant.';
           
-          // Send via context manager
-          workoutContextManager.processSystemUpdate({
-            type: 'SYSTEM',
-            event: 'voice-agent-connected',
-            data: {
-              contextMessage,
-              workout: workoutState.session?.name,
-              exercise: currentExercise.name,
-              exerciseIndex: context.currentExerciseIndex + 1,
-              totalExercises: context.totalExercises,
-              setIndex: context.currentSetIndex + 1,
-              totalSets: currentExercise.sets.length,
-              state: workoutState.status,
-              targetReps: currentSet.targetReps,
-              targetWeight: currentSet.targetWeight,
-              isSetCompleted: currentSet.isCompleted,
-              isPaused: context.isPaused,
-            },
-            timestamp: Date.now(),
-          });
+        //   // Send via context manager
+        //   workoutContextManager.processSystemUpdate({
+        //     type: 'SYSTEM',
+        //     event: 'voice-agent-connected',
+        //     data: {
+        //       contextMessage,
+        //       workout: workoutState.session?.name,
+        //       exercise: currentExercise.name,
+        //       exerciseIndex: context.currentExerciseIndex + 1,
+        //       totalExercises: context.totalExercises,
+        //       setIndex: context.currentSetIndex + 1,
+        //       totalSets: currentExercise.sets.length,
+        //       state: workoutState.status,
+        //       targetReps: currentSet.targetReps,
+        //       targetWeight: currentSet.targetWeight,
+        //       isSetCompleted: currentSet.isCompleted,
+        //       isPaused: context.isPaused,
+        //     },
+        //     timestamp: Date.now(),
+        //   });
           
           dispatch(contextSyncCompleted());
         }
