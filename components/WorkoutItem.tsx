@@ -175,7 +175,7 @@ export default function WorkoutItem({ workout, index, onPress }: WorkoutItemProp
       <TouchableOpacity 
         style={[
           styles.workoutCard,
-          getBorderStyle() === 'orange' && styles.missedWorkoutBorder,
+          // getBorderStyle() === 'orange' && styles.missedWorkoutBorder,
           getBorderStyle() === 'brand' && styles.todayWorkoutBorder
         ]}
         onPress={onPress}

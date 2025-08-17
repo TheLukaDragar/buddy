@@ -21,7 +21,7 @@ import {
     startRest,
     triggerRestEnding,
     updateRestTimer,
-    updateSetTimer,
+    updateSetTimer
 } from '../slices/workoutSlice';
 
 // Create the listener middleware with proper typing
@@ -119,7 +119,6 @@ const startUserActivityPing = () => {
   const ping = () => {
     // This would call the user activity callback if available
     // For now, we'll just log it
-    console.log('🏃 [Workout Middleware] User activity ping');
     
     activeTimers.userActivityPing = setTimeout(ping, 30000) as ReturnType<typeof setTimeout>;
   };
@@ -479,10 +478,7 @@ startAppListening({
       }
     }
     
-    // Clear processed updates
-    if (pendingUpdates.length > 0) {
-      dispatch(clearProcessedSystemUpdates());
-    }
+    // Don't clear updates - only clear on explicit cleanup
   },
 });
 
@@ -490,6 +486,7 @@ startAppListening({
 startAppListening({
   actionCreator: finishWorkoutEarly,
   effect: async (action, listenerApi) => {
+    const { dispatch } = listenerApi;
     console.log('🏁 [Workout Middleware] Workout finished early');
     clearAllTimers();
     stopUserActivityPing();
@@ -502,6 +499,9 @@ startAppListening({
     if (finishUpdate) {
       console.log('📊 [Workout Summary]', finishUpdate.data);
     }
+    
+    // Clear system updates after logging
+    dispatch(clearProcessedSystemUpdates());
   },
 });
 
@@ -527,10 +527,12 @@ startAppListening({
 // Listener for cleanup - clear all timers
 startAppListening({
   type: 'workout/cleanup',
-  effect: async () => {
+  effect: async (action, listenerApi) => {
+    const { dispatch } = listenerApi;
     console.log('🧹 [Workout Middleware] Cleaning up all timers');
     clearAllTimers();
     stopUserActivityPing();
+    dispatch(clearProcessedSystemUpdates());
   },
 });
 
@@ -567,6 +569,20 @@ startAppListening({
     const { dispatch } = listenerApi;
     console.log('🎉 [Workout Middleware] Workout completion requested');
     dispatch(completeWorkout());
+  },
+});
+
+// Listener for workout completion - clear system updates after logging
+startAppListening({
+  actionCreator: completeWorkout,
+  effect: async (action, listenerApi) => {
+    const { dispatch } = listenerApi;
+    console.log('🎉 [Workout Middleware] Workout completed');
+    
+    // Clear system updates after they've been logged by the general listener
+    setTimeout(() => {
+      dispatch(clearProcessedSystemUpdates());
+    }, 100);
   },
 });
 

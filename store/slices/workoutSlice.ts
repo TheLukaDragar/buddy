@@ -507,47 +507,69 @@ const workoutSlice = createSlice({
     // Timer expiration (called by middleware)
     setTimerExpired: (state) => {
       if (state.status === 'exercising') {
-        // Auto-complete the set
-        state.timers.setTimer = null;
-        state.userActivityPingActive = false;
+        // Auto-complete the set using target reps
+        const actualReps = state.activeWorkout?.currentSet?.targetReps;
+        const timestamp = Date.now();
         
-        if (state.activeWorkout?.currentSet) {
-          state.activeWorkout.currentSet.isCompleted = true;
-        }
-        
-        state.status = 'set-complete';
-        
-        state.pendingSystemUpdates.push({
-          event: 'set-auto-completed',
-          data: {},
-          timestamp: Date.now(),
+        // Call the existing completeSet reducer
+        workoutSlice.caseReducers.completeSet(state, {
+          type: 'workout/completeSet',
+          payload: { actualReps, timestamp }
         });
+        
+        // Update the system event to indicate auto-completion
+        if (state.pendingSystemUpdates.length > 0) {
+          const lastUpdate = state.pendingSystemUpdates[state.pendingSystemUpdates.length - 1];
+          lastUpdate.event = 'set-auto-completed';
+        }
       }
     },
 
     restTimerExpired: (state) => {
-      if (state.status === 'resting' && state.timers.restTimer) {
-        const isLastSet = state.timers.restTimer.isLastSet;
+      if (state.status === 'resting') {
+        // Trigger rest ending (middleware handles isLastSet logic)
+        state.status = 'rest-ending';
         
-        if (isLastSet) {
-          // Auto-complete exercise
-          state.pendingSystemUpdates.push({
-            event: 'complete-exercise-requested',
-            data: { auto: true },
-            timestamp: Date.now(),
-          });
-        } else {
-          // Trigger rest ending
-          state.status = 'rest-ending';
+        // Use actual remaining time instead of hardcoded 10
+        const actualTimeRemaining = state.activeWorkout?.timeRemaining || 10;
+        
+        state.pendingSystemUpdates.push({
+          event: 'rest-ending',
+          data: {
+            timeRemaining: actualTimeRemaining,
+            nextSetNumber: (state.activeWorkout?.currentSetIndex || 0) + 2,
+          },
+          timestamp: Date.now(),
+        });
+      } else if (state.status === 'rest-ending') {
+        // Rest timer fully expired - auto-advance to preparing state (middleware handles isLastSet)
+        state.timers.restTimer = null;
+        
+        if (state.activeWorkout) {
+          // Advance to next set
+          state.activeWorkout.currentSetIndex++;
+          if (state.activeWorkout.currentExercise) {
+            state.activeWorkout.currentSet = state.activeWorkout.currentExercise.sets[state.activeWorkout.currentSetIndex];
+          }
           
-          // Use actual remaining time instead of hardcoded 10
-          const actualTimeRemaining = state.activeWorkout?.timeRemaining || 10;
+          // Reset timing data for new set
+          state.activeWorkout.elapsedTime = 0;
+          state.activeWorkout.totalPauseTime = 0;
+          state.activeWorkout.pauseStartTime = undefined;
+          state.activeWorkout.isPaused = false;
+          state.activeWorkout.timeRemaining = undefined; // Clear rest timer display
+          
+          // Go to preparing state
+          state.status = 'preparing';
+          state.activeWorkout.phase = 'preparing';
+          state.activeWorkout.currentPhaseStartTime = new Date();
+          state.activeWorkout.exerciseConfirmed = false;
           
           state.pendingSystemUpdates.push({
-            event: 'rest-ending',
+            event: 'rest-completed-auto-advance',
             data: {
-              timeRemaining: actualTimeRemaining,
-              nextSetNumber: (state.activeWorkout?.currentSetIndex || 0) + 2,
+              nextSetNumber: state.activeWorkout.currentSetIndex + 1,
+              exerciseName: state.activeWorkout.currentExercise?.name,
             },
             timestamp: Date.now(),
           });
