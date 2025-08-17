@@ -17,6 +17,22 @@ import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { addMessage, clearMessages, setError, setInputCollapsed, setLoading, type ChatMessage } from '../store/slices/chatSlice';
 import { generateAPIUrl } from '../utils';
 
+// Import ElevenLabs types
+import type {
+  ConversationEvent,
+  ConversationStatus,
+  Mode,
+  Role
+} from '@elevenlabs/react-native';
+
+// Define specific event types locally based on the ConversationEvent union
+type UserTranscriptionEvent = Extract<ConversationEvent, { type: "user_transcript" }>;
+type AgentResponseEvent = Extract<ConversationEvent, { type: "agent_response" }>;
+type AgentResponseCorrectionEvent = Extract<ConversationEvent, { type: "agent_response_correction" }>;
+type ClientToolCallEvent = Extract<ConversationEvent, { type: "client_tool_call" }>;
+type InterruptionEvent = Extract<ConversationEvent, { type: "interruption" }>;
+type InternalTentativeAgentResponseEvent = Extract<ConversationEvent, { type: "internal_tentative_agent_response" }>;
+
 // Date delimiter component
 const DateDelimiter = ({ date }: { date: string }) => (
   <View style={styles.dateDelimiter}>
@@ -54,7 +70,7 @@ const formatDateForDelimiter = (date: Date) => {
   }
 };
 
-// Helper function to check if we need a date delimiter
+  // Helper function to check if we need a date delimiter
 const shouldShowDateDelimiter = (currentMessage: ChatMessage, previousMessage?: ChatMessage) => {
   if (!previousMessage) return true;
   
@@ -64,7 +80,92 @@ const shouldShowDateDelimiter = (currentMessage: ChatMessage, previousMessage?: 
   return currentDate !== previousDate;
 };
 
-interface ChatComponentProps {
+// Helper function to process conversation events into displayable messages
+const processConversationEvent = (event: ConversationEvent, source: Role): ExtendedChatMessage | null => {
+  // Ignore ping events and interruption events
+  if (event.type === 'ping' || event.type === 'interruption') {
+    return null;
+  }
+  
+  const baseMessage: Partial<ExtendedChatMessage> = {
+    id: `event-${Date.now()}-${Math.random()}`,
+    timestamp: Date.now(),
+    conversationEvent: event,
+    eventSource: source,
+  };
+
+  switch (event.type) {
+    case 'user_transcript':
+      const userEvent = event as UserTranscriptionEvent;
+      return {
+        ...baseMessage,
+        role: 'user',
+        content: userEvent.user_transcription_event.user_transcript.trim(),
+        eventType: 'voice',
+      } as ExtendedChatMessage;
+
+    case 'agent_response':
+      const agentEvent = event as AgentResponseEvent;
+      return {
+        ...baseMessage,
+        role: 'assistant',
+        content: agentEvent.agent_response_event.agent_response.trim(),
+        eventType: 'voice',
+      } as ExtendedChatMessage;
+
+    case 'agent_response_correction':
+      // Don't create a new message for corrections - they'll be handled by replacing the original
+      return null;
+
+    case 'client_tool_call':
+      const toolEvent = event as ClientToolCallEvent;
+      return {
+        ...baseMessage,
+        role: 'assistant',
+        content: `🔧 Tool Call: ${toolEvent.client_tool_call.tool_name}\nParameters: ${JSON.stringify(toolEvent.client_tool_call.parameters, null, 2)}`.trim(),
+        eventType: 'tool_call',
+      } as ExtendedChatMessage;
+
+    // Interruption events are filtered out above, so this case won't be reached
+
+    case 'internal_tentative_agent_response':
+      const tentativeEvent = event as InternalTentativeAgentResponseEvent;
+      return {
+        ...baseMessage,
+        role: 'assistant',
+        content: `💭 ${tentativeEvent.tentative_agent_response_internal_event.tentative_agent_response}`.trim(),
+        eventType: 'voice',
+      } as ExtendedChatMessage;
+
+    default:
+      // For other events, create a generic status message
+      return {
+        ...baseMessage,
+        role: 'assistant',
+        content: `📡 ${event.type} event received`.trim(),
+        eventType: 'status',
+      } as ExtendedChatMessage;
+  }
+};
+
+// Extended chat message type to include conversation events
+export interface ExtendedChatMessage extends ChatMessage {
+  conversationEvent?: ConversationEvent;
+  eventSource?: Role;
+  eventType?: 'text' | 'voice' | 'status' | 'tool_call' | 'interruption' | 'correction';
+}
+
+// Conversation event handler props
+export interface ConversationEventHandlers {
+  conversationEvents?: ConversationEvent[];
+  conversationMode?: Mode;
+  conversationStatus?: ConversationStatus;
+  canSendFeedback?: boolean;
+  onEventReceived?: (event: ConversationEvent, source: Role) => void;
+  onSendTextMessage?: (message: string) => void;
+}
+
+interface ChatComponentProps extends ConversationEventHandlers {
   showHeader?: boolean;
   headerTitle?: string;
   headerSubtitle?: string;
@@ -95,7 +196,14 @@ export default function ChatComponent({
   maxHeight,
   onKeyboardToggle,
   disableKeyboardAvoidance = false,
-  scrollToBottomTrigger = 0
+  scrollToBottomTrigger = 0,
+  // Conversation event props
+  conversationEvents = [],
+  conversationMode,
+  conversationStatus,
+  canSendFeedback,
+  onEventReceived,
+  onSendTextMessage
 }: ChatComponentProps) {
   // Input collapse animation values
   const keyboardButtonScale = useSharedValue(1);
@@ -150,6 +258,35 @@ export default function ChatComponent({
   
   // Input state
   const [inputText, setInputText] = useState('');
+  
+  // Conversation events state
+  const [processedEvents, setProcessedEvents] = useState<ExtendedChatMessage[]>([]);
+  const [lastProcessedCount, setLastProcessedCount] = useState(0);
+
+  // Function to handle message corrections by replacing the original message
+  const handleMessageCorrection = (correctionEvent: AgentResponseCorrectionEvent) => {
+    const originalText = correctionEvent.agent_response_correction_event.original_agent_response.trim();
+    const correctedText = correctionEvent.agent_response_correction_event.corrected_agent_response.trim();
+    
+    setProcessedEvents(prev => {
+      return prev.map(event => {
+        // Find the message with the original text and replace it
+        if (event.role === 'assistant' && event.content.trim() === originalText) {
+          return {
+            ...event,
+            content: correctedText,
+            eventType: 'correction' as const,
+          };
+        }
+        return event;
+      });
+    });
+    
+    // Auto scroll to bottom after correction to ensure user sees the updated message
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 150);
+  };
 
   // AI SDK Chat Hook - now integrated with Redux
   const { append } = useChat({
@@ -179,6 +316,57 @@ export default function ChatComponent({
     },
   });
 
+  // Process only NEW conversation events when they change
+  useEffect(() => {
+    if (conversationEvents && conversationEvents.length > lastProcessedCount) {
+      const newProcessedEvents: ExtendedChatMessage[] = [];
+      
+      // Only process events from the last processed count onwards
+      const newEvents = conversationEvents.slice(lastProcessedCount);
+      
+      newEvents.forEach(event => {
+        // Handle corrections specially by replacing the original message
+        if (event.type === 'agent_response_correction') {
+          handleMessageCorrection(event as AgentResponseCorrectionEvent);
+          // Still notify parent about the correction event
+          if (onEventReceived) {
+            onEventReceived(event, 'ai');
+          }
+          return;
+        }
+
+        // Determine the source role based on event type
+        let source: Role = 'ai';
+        if (event.type === 'user_transcript') {
+          source = 'user';
+        }
+        
+        const processedEvent = processConversationEvent(event, source);
+        if (processedEvent) {
+          newProcessedEvents.push(processedEvent);
+        }
+        
+        // Notify parent about event processing
+        if (onEventReceived) {
+          onEventReceived(event, source);
+        }
+      });
+      
+      // Only update state if we have new events
+      if (newProcessedEvents.length > 0) {
+        setProcessedEvents(prev => [...prev, ...newProcessedEvents]);
+        
+        // Auto scroll to bottom when new conversation events are added
+        setTimeout(() => {
+          scrollViewRef.current?.scrollToEnd({ animated: true });
+        }, 100);
+      }
+      
+      // Update the count of processed events
+      setLastProcessedCount(conversationEvents.length);
+    }
+  }, [conversationEvents, onEventReceived, lastProcessedCount]);
+
   // Auto-scroll when messages change
   useEffect(() => {
     if (messages.length > 0) {
@@ -187,6 +375,15 @@ export default function ChatComponent({
       }, 100);
     }
   }, [messages]);
+
+  // Auto-scroll when conversation events change
+  useEffect(() => {
+    if (processedEvents.length > 0) {
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    }
+  }, [processedEvents]);
 
   // Scroll to bottom when external trigger changes (from modal transitions)
   useEffect(() => {
@@ -293,13 +490,48 @@ export default function ChatComponent({
     });
   };
 
+  // Combine and sort all messages (Redux messages + conversation events)
+  const getAllMessages = (): (ChatMessage | ExtendedChatMessage)[] => {
+    const allMessages = [...messages, ...processedEvents];
+    return allMessages.sort((a, b) => a.timestamp - b.timestamp);
+  };
+
+  // Render event indicator for conversation events
+  const renderEventIndicator = (eventType?: string) => {
+    if (!eventType || eventType === 'text' || eventType === 'voice') return null; // No indicator for voice events
+    
+    const getIndicatorStyle = () => {
+      switch (eventType) {
+        case 'correction':
+          return { backgroundColor: nucleus.light.global.orange["50"], icon: '✏️' };
+        case 'tool_call':
+          return { backgroundColor: nucleus.light.global.blue["50"], icon: '🔧' };
+        case 'status':
+          return { backgroundColor: nucleus.light.global.grey["50"], icon: '📡' };
+        default:
+          return { backgroundColor: nucleus.light.global.grey["30"], icon: '•' };
+      }
+    };
+    
+    const { backgroundColor, icon } = getIndicatorStyle();
+    
+    return (
+      <View style={[styles.eventIndicator, { backgroundColor }]}>
+        <Text style={styles.eventIndicatorText}>{icon}</Text>
+      </View>
+    );
+  };
+
   // Render messages with delimiters
   const renderMessages = () => {
     const renderedItems: React.ReactElement[] = [];
+    const allMessages = getAllMessages();
     
-    messages.forEach((message: ChatMessage, index: number) => {
-      const previousMessage = messages[index - 1];
+    allMessages.forEach((message: ChatMessage | ExtendedChatMessage, index: number) => {
+      const previousMessage = allMessages[index - 1];
       const isUser = message.role === 'user';
+      const isExtendedMessage = 'eventType' in message;
+      const extendedMessage = message as ExtendedChatMessage;
       
       // Add date delimiter if needed
       if (shouldShowDateDelimiter(message, previousMessage)) {
@@ -315,24 +547,26 @@ export default function ChatComponent({
       if (isUser) {
         // User message
         renderedItems.push(
-          <Animated.View 
-            key={message.id}
-            style={[
-              styles.userMessageBubble,
-              index < 3 ? {
-                opacity: secondMessageOpacity,
-                transform: [{ translateY: secondMessageTranslateY }],
-              } : {}
-            ]}
-          >
-            <Text style={styles.userMessageText}>
-              {renderMessageText(message.content)}
-            </Text>
-          </Animated.View>
+          <View key={message.id} style={styles.userMessageContainer}>
+            <Animated.View 
+              style={[
+                styles.userMessageBubble,
+                index < 3 ? {
+                  opacity: secondMessageOpacity,
+                  transform: [{ translateY: secondMessageTranslateY }],
+                } : {}
+              ]}
+            >
+              {isExtendedMessage && renderEventIndicator(extendedMessage.eventType)}
+              <Text style={styles.userMessageText}>
+                {renderMessageText(message.content)}
+              </Text>
+            </Animated.View>
+          </View>
         );
       } else {
         // Buddy message
-        const isFirstBuddyMessage = index === 0 || messages[index - 1]?.role === 'user';
+        const isFirstBuddyMessage = index === 0 || allMessages[index - 1]?.role === 'user';
         
         // Add buddy avatar/name only for first message in a group
         if (isFirstBuddyMessage) {
@@ -355,20 +589,22 @@ export default function ChatComponent({
 
         // Add message bubble
         renderedItems.push(
-          <Animated.View 
-            key={message.id}
-            style={[
-              styles.messageBubble,
-              index < 3 ? {
-                opacity: index === 0 ? firstMessageOpacity : secondMessageOpacity,
-                transform: [{ translateY: index === 0 ? firstMessageTranslateY : secondMessageTranslateY }],
-              } : {}
-            ]}
-          >
-            <Text style={styles.messageText}>
-              {renderMessageText(message.content)}
-            </Text>
-          </Animated.View>
+          <View key={message.id} style={styles.assistantMessageContainer}>
+            <Animated.View 
+              style={[
+                styles.messageBubble,
+                index < 3 ? {
+                  opacity: index === 0 ? firstMessageOpacity : secondMessageOpacity,
+                  transform: [{ translateY: index === 0 ? firstMessageTranslateY : secondMessageTranslateY }],
+                } : {}
+              ]}
+            >
+              {isExtendedMessage && renderEventIndicator(extendedMessage.eventType)}
+              <Text style={styles.messageText}>
+                {renderMessageText(message.content)}
+              </Text>
+            </Animated.View>
+          </View>
         );
       }
     });
@@ -378,20 +614,27 @@ export default function ChatComponent({
 
   const handleSendMessage = () => {
     if (inputText.trim()) {
-      // Add user message to Redux store immediately
-      const userMessage: ChatMessage = {
-        id: Date.now().toString(),
-        role: 'user',
-        content: inputText.trim(),
-        timestamp: Date.now(),
-      };
+      // Send to ElevenLabs conversation if callback is provided
+      if (onSendTextMessage) {
+        onSendTextMessage(inputText.trim());
+      } else {
+        // Fallback to AI chat API if no ElevenLabs callback
+        // Add user message to Redux store immediately
+        const userMessage: ChatMessage = {
+          id: Date.now().toString(),
+          role: 'user',
+          content: inputText.trim(),
+          timestamp: Date.now(),
+        };
+        
+        dispatch(addMessage(userMessage));
+        dispatch(setLoading(true));
+        dispatch(setError(null));
+        
+        // Send to AI
+        append({ role: 'user', parts: [{ type: 'text', text: inputText.trim() }] });
+      }
       
-      dispatch(addMessage(userMessage));
-      dispatch(setLoading(true));
-      dispatch(setError(null));
-      
-      // Send to AI
-      append({ role: 'user', parts: [{ type: 'text', text: inputText.trim() }] });
       setInputText('');
       
       // Auto scroll to bottom after sending
@@ -403,6 +646,9 @@ export default function ChatComponent({
 
   const handleClearChat = () => {
     dispatch(clearMessages());
+    // Also clear conversation events
+    setProcessedEvents([]);
+    setLastProcessedCount(0);
     if (onNewChat) {
       onNewChat();
     }
@@ -1103,5 +1349,37 @@ const styles = StyleSheet.create({
   },
   mainContent: {
     flex: 1,
+  },
+  
+  // Event indicator styles
+  eventIndicator: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
+    borderWidth: 2,
+    borderColor: nucleus.light.semantic.bg.canvas,
+  },
+  eventIndicatorText: {
+    fontSize: 10,
+    lineHeight: 12,
+  },
+  
+  // Message container styles for event indicators
+  userMessageContainer: {
+    alignSelf: 'flex-end',
+    position: 'relative',
+    marginTop: 8,
+    maxWidth: '80%',
+  },
+  assistantMessageContainer: {
+    alignSelf: 'flex-start',
+    position: 'relative',
+    maxWidth: '80%',
   },
 }); 

@@ -1,4 +1,3 @@
-import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { BackHandler, Dimensions, Modal, StyleSheet, View } from 'react-native';
@@ -38,6 +37,13 @@ import {
   selectWorkoutStatus,
   startRest
 } from '../store/slices/workoutSlice';
+
+import type { ConversationEvent, ConversationStatus, Mode, Role } from '@elevenlabs/react-native';
+import { useConversation } from '@elevenlabs/react-native';
+import { AnimatedAIButton } from '../components/AnimatedAIButton';
+import { useAuth } from '../contexts/AuthContext';
+import { useMicrophonePermission } from '../hooks/useMicrophonePermission';
+
 
 interface ProgressSegment {
   type: 'set' | 'rest';
@@ -658,9 +664,28 @@ const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 interface BottomModalProps {
   visible: boolean;
   onShowFinishAlert: () => void;
+  // Conversation event props
+  conversationEvents?: ConversationEvent[];
+  conversationMode?: Mode;
+  conversationStatus?: ConversationStatus;
+  canSendFeedback?: boolean;
+  onEventReceived?: (event: ConversationEvent, source: Role) => void;
+  // ElevenLabs conversation instance
+  conversation?: any; // Type from useConversation hook
+  onAddConversationEvent?: (event: ConversationEvent) => void;
 }
 
-const BottomModal: React.FC<BottomModalProps> = ({ visible, onShowFinishAlert }) => {
+const BottomModal: React.FC<BottomModalProps> = ({ 
+  visible, 
+  onShowFinishAlert,
+  conversationEvents,
+  conversationMode,
+  conversationStatus,
+  canSendFeedback,
+  onEventReceived,
+  conversation,
+  onAddConversationEvent
+}) => {
   const insets = useSafeAreaInsets();
   // Use a fixed middle height reference for consistent behavior across devices
   const COLLAPSED_HEIGHT = SCREEN_HEIGHT * 0.45; // 40% of screen height
@@ -951,6 +976,36 @@ const BottomModal: React.FC<BottomModalProps> = ({ visible, onShowFinishAlert })
             onKeyboardToggle={handleKeyboardToggle}
             disableKeyboardAvoidance={true}
             scrollToBottomTrigger={scrollTrigger}
+            // Conversation event props
+            conversationEvents={conversationEvents}
+            conversationMode={conversationMode}
+            conversationStatus={conversationStatus}
+            canSendFeedback={canSendFeedback}
+            onEventReceived={(event, source) => {
+              console.log('Event processed by ChatComponent:', event.type, 'from:', source);
+            }}
+            onSendTextMessage={(message) => {
+              // Add the user message to conversation events manually since ElevenLabs doesn't always emit user_transcript for text
+              const userMessageEvent: ConversationEvent = {
+                type: 'user_transcript',
+                user_transcription_event: {
+                  user_transcript: message
+                }
+              } as any;
+              
+              // Add to our events array immediately so it shows in chat
+              if (onAddConversationEvent) {
+                onAddConversationEvent(userMessageEvent);
+              }
+              
+              // Send typed message to ElevenLabs conversation
+              if (conversation?.status === 'connected') {
+                conversation.sendUserMessage(message);
+                console.log('Sent text message to ElevenLabs:', message);
+              } else {
+                console.warn('Cannot send text message - ElevenLabs conversation not connected');
+              }
+            }}
           />
         </View>
       </ReanimatedAnimated.View>
@@ -1108,10 +1163,172 @@ export default function ActiveWorkoutScreen() {
   const insets = useSafeAreaInsets();
   const [showFinishAlert, setShowFinishAlert] = useState(false);
   
+  // Auth context
+  const { user } = useAuth();
+  
+  // Microphone permissions
+  const { requestMicrophonePermission } = useMicrophonePermission();
+  
   // Redux state
   const activeWorkout = useSelector(selectActiveWorkout);
   const currentExercise = useSelector(selectCurrentExercise);
   const status = useSelector(selectWorkoutStatus);
+
+  // ElevenLabs Conversation state
+  const [conversationToken, setConversationToken] = useState<string | null>(null);
+  const [conversationEvents, setConversationEvents] = useState<ConversationEvent[]>([]);
+  const [conversationMode, setConversationMode] = useState<Mode | undefined>();
+  const [conversationStatus, setConversationStatus] = useState<ConversationStatus>('disconnected');
+  const [canSendFeedback, setCanSendFeedback] = useState<boolean>(false);
+  const agentId = 'agent_7501k2pbpjmqe2et3qh3634a66rv';
+  
+  // Initialize conversation with handlers
+  const conversation = useConversation({
+    onConnect: ({ conversationId }: { conversationId: string }) => {
+      console.log('Connected to ElevenLabs conversation', conversationId);
+      setConversationStatus('connected');
+    },
+    onDisconnect: (details: string) => {
+      console.log('Disconnected from ElevenLabs conversation', details);
+      setConversationStatus('disconnected');
+    },
+    onMessage: ({ message, source }: { message: ConversationEvent; source: Role }) => {
+      console.log('ElevenLabs message received:', message, 'from:', source);
+      
+      // Ignore ping events to prevent chat from filling up with duplicates
+      if (message.type === 'ping') {
+        return;
+      }
+      
+      // Add the new event to our events array
+      setConversationEvents(prev => [...prev, message]);
+    },
+    onError: (error) => {
+      console.error('ElevenLabs conversation error:', error);
+    },
+    onModeChange: ({ mode }: { mode: Mode }) => {
+      console.log('ElevenLabs conversation mode changed:', mode);
+      setConversationMode(mode);
+    },
+    onStatusChange: ({ status }: { status: ConversationStatus }) => {
+      console.log('ElevenLabs conversation status changed:', status);
+      setConversationStatus(status);
+    },
+    onCanSendFeedbackChange: ({ canSendFeedback: canSend }: { canSendFeedback: boolean }) => {
+      console.log('ElevenLabs can send feedback changed:', canSend);
+      setCanSendFeedback(canSend);
+    },
+    onUnhandledClientToolCall: (params) => {
+      console.log('ElevenLabs unhandled client tool call:', params);
+    },
+  });
+
+  // Function to fetch conversation token
+  const fetchConversationToken = async () => {
+    try {
+      const response = await fetch('/api/elevenlabs-token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ agentId }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Token API error:', errorData);
+        throw new Error(errorData.error || 'Failed to get conversation token');
+      }
+      
+      const { token } = await response.json();
+      setConversationToken(token);
+      return token;
+    } catch (error) {
+      console.error('Error fetching conversation token:', error);
+      return null;
+    }
+  };
+
+  // Function to start conversation
+  const startConversation = async () => {
+    if (conversation.status === 'connecting' || conversation.status === 'connected') return;
+    
+    try {
+      // Request microphone permission first
+      const permissionGranted = await requestMicrophonePermission();
+      if (!permissionGranted) {
+        console.error('Microphone permission denied');
+        return;
+      }
+
+      let token = conversationToken;
+      
+      if (!token) {
+        token = await fetchConversationToken();
+        if (!token) {
+          console.error('Could not get conversation token');
+          return;
+        }
+      }
+
+      await conversation.startSession({
+        agentId: agentId,
+        conversationToken: token,
+        dynamicVariables: {
+          user_name: user?.user_metadata?.full_name || user?.email?.split('@')[0] || "User",
+          user_activity: "starting_workout_session",
+          app_context: "fitness_workout_assistant",
+        }
+      });
+    } catch (error) {
+      console.error('Failed to start ElevenLabs conversation:', error);
+    }
+  };
+
+  // Function to end conversation
+  const endConversation = async () => {
+    try {
+      await conversation.endSession();
+    } catch (error) {
+      console.error('Failed to end ElevenLabs conversation:', error);
+    }
+  };
+
+  // Function to send text message
+  const sendTextMessage = async (message: string) => {
+    try {
+      await conversation.sendUserMessage(message);
+    } catch (error) {
+      console.error('Failed to send text message:', error);
+    }
+  };
+
+  // Function to send contextual update
+  const sendContextualUpdate = async (context: string) => {
+    try {
+      await conversation.sendContextualUpdate(context);
+    } catch (error) {
+      console.error('Failed to send contextual update:', error);
+    }
+  };
+
+  // Function to send feedback
+  const sendFeedback = async (liked: boolean) => {
+    try {
+      await conversation.sendFeedback(liked);
+    } catch (error) {
+      console.error('Failed to send feedback:', error);
+    }
+  };
+
+  // Function to signal user activity
+  const signalUserActivity = async () => {
+    try {
+      await conversation.sendUserActivity();
+    } catch (error) {
+      console.error('Failed to signal user activity:', error);
+    }
+  };
 
   // Generate progress segments from current exercise
   const generateProgressSegments = (): ProgressSegment[] => {
@@ -1167,6 +1384,16 @@ export default function ActiveWorkoutScreen() {
     setShowFinishAlert(false);
   };
 
+  // Handle buddy AI button press
+  const handleBuddyAIPress = async () => {
+    if (conversation.status === 'connected') {
+      await endConversation();
+    } else if (conversation.status === 'disconnected') {
+      await startConversation();
+    }
+    // If connecting, do nothing to prevent multiple calls
+  };
+
   return (
     <ReanimatedAnimated.View 
       entering={FadeIn.duration(300).delay(100)}
@@ -1190,11 +1417,29 @@ export default function ActiveWorkoutScreen() {
       </SafeAreaView>
       
       {/* Bottom Modal */}
-      <BottomModal visible={true} onShowFinishAlert={() => setShowFinishAlert(true)} />
+      <BottomModal 
+        visible={true} 
+        onShowFinishAlert={() => setShowFinishAlert(true)}
+        conversationEvents={conversationEvents}
+        conversationMode={conversationMode}
+        conversationStatus={conversationStatus}
+        canSendFeedback={canSendFeedback}
+        conversation={conversation}
+        onEventReceived={(event, source) => {
+          console.log('Event processed by ChatComponent:', event.type, 'from:', source);
+        }}
+        onAddConversationEvent={(event) => {
+          setConversationEvents(prev => [...prev, event]);
+        }}
+      />
 
-      <View style={[styles.buddyAiButton, { bottom: insets.bottom }]}>
-        <Image source={require('../assets/icons/AI.svg')} style={styles.buddyAiIcon} />
-      </View>
+      <AnimatedAIButton
+        style={[styles.buddyAiButton, { bottom: insets.bottom }]}
+        isActive={conversation.status === 'connected'}
+        onPress={handleBuddyAIPress}
+        disabled={conversation.status === 'connecting'}
+        conversationStatus={conversation.status}
+      />
 
       {/* Custom Alert */}
       <CustomAlert
