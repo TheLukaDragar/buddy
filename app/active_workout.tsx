@@ -1,7 +1,9 @@
 import { unwrapResult } from '@reduxjs/toolkit';
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import React, { useEffect, useState } from 'react';
-import { BackHandler, Dimensions, Modal, StyleSheet, View } from 'react-native';
+import { BackHandler, Dimensions, Modal, StyleSheet, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { SystemBars } from 'react-native-edge-to-edge';
 import { PanGestureHandler } from 'react-native-gesture-handler';
 import { Button, Text } from 'react-native-paper';
@@ -20,7 +22,7 @@ import { useSelector } from 'react-redux';
 import { nucleus } from '../Buddy_variables.js';
 import ChatComponent from '../components/ChatComponent';
 import { useBuddyTheme } from '../constants/BuddyTheme';
-import { sampleWorkoutSession } from '../data/sampleWorkouts';
+import { mihasWorkout } from '../data/sampleWorkouts';
 import { contextBridgeService } from '../services/contextBridgeService';
 import { store } from '../store';
 import {
@@ -37,6 +39,7 @@ import {
   pauseSet,
   resumeSet,
   selectWorkout,
+  startExercisePreparation,
   startRest
 } from '../store/actions/workoutActions';
 import { useAppDispatch } from '../store/hooks';
@@ -67,6 +70,225 @@ interface ProgressSegment {
 interface WorkoutProgressProps {
   segments: ProgressSegment[];
 }
+
+// Exercise Video Component
+interface ExerciseVideoProps {
+  videoUrl?: string;
+  exerciseName: string;
+  isPaused?: boolean;
+}
+
+const ExerciseVideo: React.FC<ExerciseVideoProps> = ({ videoUrl, exerciseName, isPaused = false }) => {
+  // Map video URLs to required assets
+  const getVideoAsset = (url?: string) => {
+    if (!url) return null;
+    
+    try {
+      if (url.includes('squats.mp4')) {
+        return require('../assets/videos/squats.mp4');
+      } else if (url.includes('bench_dumbles.mp4')) {
+        return require('../assets/videos/bench_dumbles.mp4');
+      } else if (url.includes('literal_shoulder.mp4')) {
+        return require('../assets/videos/literal_shoulder.mp4');
+      } else if (url.includes('seatued_pulling.mp4')) {
+        return require('../assets/videos/seatued_pulling.mp4');
+      }
+    } catch (error) {
+      console.warn('Video asset not found:', url);
+      return null;
+    }
+    
+    return null;
+  };
+
+  const videoAsset = getVideoAsset(videoUrl);
+  
+  const player = useVideoPlayer(videoAsset, (player) => {
+    player.loop = true;
+    player.muted = true;
+    if (videoAsset) {
+      player.play();
+    }
+  });
+
+  // Handle pause/resume based on workout state
+  useEffect(() => {
+    if (player && videoAsset) {
+      if (isPaused) {
+        player.pause();
+      } else {
+        player.play();
+      }
+    }
+  }, [isPaused, player, videoAsset]);
+
+  if (!videoAsset) {
+    return (
+      <View style={exerciseVideoStyles.container}>
+        <View style={exerciseVideoStyles.placeholderContainer}>
+          <Text style={exerciseVideoStyles.placeholderText}>
+            {exerciseName}
+          </Text>
+          <Text style={exerciseVideoStyles.placeholderSubtext}>
+            Exercise demonstration
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <VideoView
+      style={exerciseVideoStyles.video}
+      player={player}
+      allowsFullscreen={false}
+      allowsPictureInPicture={false}
+      contentFit="cover"
+      nativeControls={false}
+    />
+  );
+};
+
+const exerciseVideoStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: nucleus.light.global.grey["20"],
+  },
+  video: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
+  placeholderContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: nucleus.light.global.grey["10"],
+    borderRadius: 16,
+  },
+  placeholderText: {
+    color: nucleus.light.global.grey["70"],
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 20,
+    lineHeight: 24,
+    textAlign: 'center',
+    marginBottom: 4,
+    includeFontPadding: false,
+  },
+  placeholderSubtext: {
+    color: nucleus.light.global.grey["50"],
+    fontFamily: 'PlusJakartaSans-Regular',
+    fontSize: 14,
+    lineHeight: 16.8,
+    textAlign: 'center',
+    includeFontPadding: false,
+  },
+});
+
+// Video Container with Auto-fade Controls
+interface VideoContainerProps {
+  currentExercise?: any;
+  status: string;
+  activeWorkout?: any;
+  onShowFinishAlert: () => void;
+  onHideControls?: () => void;
+}
+
+const VideoContainer: React.FC<VideoContainerProps> = ({ 
+  currentExercise, 
+  status, 
+  activeWorkout, 
+  onShowFinishAlert,
+  onHideControls 
+}) => {
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const controlsOpacity = useSharedValue(1);
+
+  // Auto-show controls when paused/preparing
+  useEffect(() => {
+    if (status === 'paused' || activeWorkout?.isPaused || status === 'preparing') {
+      setControlsVisible(true);
+      controlsOpacity.value = withTiming(1, { duration: 300 });
+    }
+  }, [status, activeWorkout?.isPaused]);
+
+  // Auto-hide controls after 5 seconds when not paused
+  useEffect(() => {
+    if (controlsVisible && status !== 'paused' && !activeWorkout?.isPaused && status !== 'preparing') {
+      const timeout = setTimeout(() => {
+        setControlsVisible(false);
+        controlsOpacity.value = withTiming(0, { duration: 300 });
+      }, 5000);
+
+      return () => clearTimeout(timeout);
+    }
+  }, [controlsVisible, status, activeWorkout?.isPaused]);
+
+  const showControls = () => {
+    setControlsVisible(true);
+    controlsOpacity.value = withTiming(1, { duration: 300 });
+  };
+
+  const hideControls = () => {
+    if (status !== 'paused' && !activeWorkout?.isPaused && status !== 'preparing') {
+      setControlsVisible(false);
+      controlsOpacity.value = withTiming(0, { duration: 300 });
+    }
+  };
+
+  const animatedOverlayStyle = useAnimatedStyle(() => ({
+    opacity: controlsOpacity.value,
+  }));
+
+  return (
+    <View style={styles.videoContainer}>
+      <ExerciseVideo 
+        videoUrl={currentExercise?.videoUrl} 
+        exerciseName={currentExercise?.name || 'Exercise'} 
+        isPaused={activeWorkout?.isPaused}
+      />
+      
+      {/* Tap area to show controls */}
+      <TouchableWithoutFeedback onPress={showControls}>
+        <View style={styles.videoTouchArea} />
+      </TouchableWithoutFeedback>
+      
+      {/* Always visible exercise info */}
+      <View style={styles.bottomLayout}>
+        {currentExercise && (
+          <View style={styles.exerciseNameContainer}>
+            <Text style={styles.exerciseName}>
+              {currentExercise.name}
+            </Text>
+          </View>
+        )}
+        
+        <View style={styles.statusContainer}>
+          <Text style={styles.statusInfo}>
+            {status.toUpperCase().replace('-', ' ')}
+            {activeWorkout?.isPaused && ' (PAUSED)'}
+          </Text>
+        </View>
+      </View>
+      
+      {/* Simple controls overlay */}
+      <ReanimatedAnimated.View 
+        style={[styles.controlsOverlay, animatedOverlayStyle]} 
+        pointerEvents={controlsVisible ? 'auto' : 'none'}
+      >
+        <TouchableWithoutFeedback onPress={hideControls}>
+          <View style={styles.overlayBackground} />
+        </TouchableWithoutFeedback>
+        
+        <View style={styles.centeredControls}>
+          <WorkoutControls onShowFinishAlert={onShowFinishAlert} />
+        </View>
+      </ReanimatedAnimated.View>
+    </View>
+  );
+};
 
 const WorkoutProgress: React.FC<WorkoutProgressProps> = ({
   segments
@@ -308,10 +530,23 @@ const WorkoutControls: React.FC<WorkoutControlsProps> = ({ onShowFinishAlert }) 
   };
 
   const getCenterButtonText = () => {
-    if (status === 'exercising' || status === 'resting' || status === 'rest-ending') {
-      return activeWorkout?.isPaused ? 'RESUME' : 'PAUSE';
+    switch (status) {
+      case 'preparing':
+      case 'rest-ending':
+      case 'exercise-transition':
+        return 'START';
+      case 'exercising':
+        return activeWorkout?.isPaused ? 'RESUME' : 'PAUSE';
+      case 'resting':
+        return activeWorkout?.isPaused ? 'RESUME' : 'PAUSE';
+      case 'set-complete':
+        return 'REST';
+      case 'selected':
+        return 'BEGIN';
+      case 'inactive':
+      default:
+        return 'START';
     }
-    return 'PAUSE'; // No icons, just text
   };
 
   const getRightButtonText = () => {
@@ -363,20 +598,59 @@ const WorkoutControls: React.FC<WorkoutControlsProps> = ({ onShowFinishAlert }) 
   };
 
   const handleCenterButton = async () => {
-    // Center button handles pause/resume for exercising and rest states
     try {
-      if (status === 'exercising' || status === 'resting' || status === 'rest-ending') {
-        if (activeWorkout?.isPaused) {
-          const resumeResult = await dispatch(resumeSet());
-          const resumeData = unwrapResult(resumeResult);
-          console.log('Resume set result:', resumeData);
-        } else {
-          const pauseResult = await dispatch(pauseSet({ reason: 'User requested pause' }));
-          const pauseData = unwrapResult(pauseResult);
-          console.log('Pause set result:', pauseData);
-        }
+      switch (status) {
+        case 'inactive':
+          // START - Select workout to begin
+          const selectResult = await dispatch(selectWorkout(mihasWorkout));
+          const selectData = unwrapResult(selectResult);
+          console.log('Select workout result:', selectData);
+          break;
+        case 'selected':
+          // BEGIN - Start exercise preparation
+          const prepResult = await dispatch(startExercisePreparation());
+          const prepData = unwrapResult(prepResult);
+          console.log('Start exercise preparation result:', prepData);
+          break;
+        case 'preparing':
+        case 'rest-ending':
+        case 'exercise-transition':
+          // START - Begin the set
+          const confirmResult = await dispatch(confirmReadyAndStartSet());
+          const confirmData = unwrapResult(confirmResult);
+          console.log('Confirm ready and start set result:', confirmData);
+          break;
+        case 'exercising':
+          // PAUSE/RESUME
+          if (activeWorkout?.isPaused) {
+            const resumeResult = await dispatch(resumeSet());
+            const resumeData = unwrapResult(resumeResult);
+            console.log('Resume set result:', resumeData);
+          } else {
+            const pauseResult = await dispatch(pauseSet({ reason: 'User requested pause' }));
+            const pauseData = unwrapResult(pauseResult);
+            console.log('Pause set result:', pauseData);
+          }
+          break;
+        case 'resting':
+          // PAUSE/RESUME
+          if (activeWorkout?.isPaused) {
+            const resumeResult = await dispatch(resumeSet());
+            const resumeData = unwrapResult(resumeResult);
+            console.log('Resume set result:', resumeData);
+          } else {
+            const pauseResult = await dispatch(pauseSet({ reason: 'User requested pause' }));
+            const pauseData = unwrapResult(pauseResult);
+            console.log('Pause set result:', pauseData);
+          }
+          break;
+        case 'set-complete':
+          // REST - Start rest period
+          const restResult = await dispatch(startRest());
+          const restData = unwrapResult(restResult);
+          console.log('Start rest result:', restData);
+          break;
       }
-      // Do nothing for other states
     } catch (error) {
       console.error('Center button action failed:', error);
     }
@@ -387,7 +661,7 @@ const WorkoutControls: React.FC<WorkoutControlsProps> = ({ onShowFinishAlert }) 
     try {
       switch (status) {
         case 'inactive':
-          const selectResult = await dispatch(selectWorkout(sampleWorkoutSession));
+          const selectResult = await dispatch(selectWorkout(mihasWorkout));
           const selectData = unwrapResult(selectResult);
           console.log('Select workout result:', selectData);
           break;
@@ -463,65 +737,46 @@ const WorkoutControls: React.FC<WorkoutControlsProps> = ({ onShowFinishAlert }) 
   // Simple 3-Button Layout
   return (
     <View style={workoutControlsStyles.container}>
-      {/* Current Exercise Info */}
-      {currentExercise && (
-        <View style={workoutControlsStyles.exerciseInfo}>
-          <Text style={[workoutControlsStyles.exerciseTitle, { color: nucleus.light.global.grey["90"] }]}>
-            {currentExercise.name}
-          </Text>
-          <Text style={[workoutControlsStyles.exerciseDetails, { color: nucleus.light.global.grey["70"] }]}>
-            Set {(activeWorkout?.currentSetIndex || 0) + 1} of {currentExercise.sets.length} • 
-            Exercise {(activeWorkout?.currentExerciseIndex || 0) + 1} of {activeWorkout?.totalExercises || 0}
-          </Text>
-        </View>
-      )}
-
-      {/* Status Indicator */}
-      <View style={workoutControlsStyles.statusContainer}>
-        <Text style={[workoutControlsStyles.statusText, { color: nucleus.light.global.blue["60"] }]}>
-          {status.toUpperCase().replace('-', ' ')}
-          {activeWorkout?.isPaused && ' (PAUSED)'}
-        </Text>
-      </View>
-
-      {/* 3-Button Controls */}
-      <View style={workoutControlsStyles.threeButtonContainer}>
-        {/* Left Button */}
-        <Button
-          mode="outlined"
-          style={workoutControlsStyles.sideButton}
-          labelStyle={[workoutControlsStyles.sideButtonLabel, { color: nucleus.light.global.blue["60"] }]}
-          contentStyle={workoutControlsStyles.sideButtonContent}
-          compact={false}
+      {/* Compact 3-Button Controls */}
+      <View style={workoutControlsStyles.compactButtonContainer}>
+        {/* Left Button - Tour */}
+        <TouchableOpacity
+          style={workoutControlsStyles.tourButton}
           onPress={handleLeftButton}
         >
-          {getLeftButtonText()}
-        </Button>
+          <Image
+            source={require('../assets/icons/back.svg')}
+            style={workoutControlsStyles.tourIcon}
+            contentFit="contain"
+          />
+        </TouchableOpacity>
 
         {/* Center Button */}
         <Button
-          mode="contained"
-          style={[workoutControlsStyles.centerButton, { backgroundColor: nucleus.light.global.blue["70"] }]}
-          labelStyle={[workoutControlsStyles.centerButtonLabel, { color: nucleus.light.global.white }]}
-          contentStyle={workoutControlsStyles.centerButtonContent}
+          mode="outlined"
+          style={workoutControlsStyles.compactCenterButton}
+          labelStyle={workoutControlsStyles.compactCenterButtonLabel}
+          contentStyle={workoutControlsStyles.compactCenterButtonContent}
           compact={false}
           onPress={handleCenterButton}
         >
           {getCenterButtonText()}
         </Button>
 
-        {/* Right Button */}
-        <Button
-          mode="outlined"
-          style={workoutControlsStyles.sideButton}
-          labelStyle={[workoutControlsStyles.sideButtonLabel, { color: nucleus.light.global.blue["60"] }]}
-          contentStyle={workoutControlsStyles.sideButtonContent}
-          compact={false}
+        {/* Right Button - Tour */}
+        <TouchableOpacity
+          style={workoutControlsStyles.tourButton}
           onPress={handleRightButton}
         >
-          {getRightButtonText()}
-        </Button>
+          <Image
+            source={require('../assets/icons/back.svg')}
+            style={workoutControlsStyles.tourIconFlipped}
+            contentFit="contain"
+          />
+        </TouchableOpacity>
       </View>
+
+     
 
       
     </View>
@@ -530,8 +785,73 @@ const WorkoutControls: React.FC<WorkoutControlsProps> = ({ onShowFinishAlert }) 
 
 const workoutControlsStyles = StyleSheet.create({
   container: {
-    padding: 16,
-    gap: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tourButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderWidth: 1.5,
+    borderColor: nucleus.light.global.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: 'rgba(185, 230, 255, 0.40)',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 25,
+    elevation: 25,
+  },
+  tourIcon: {
+    width: 20,
+    height: 20,
+    tintColor: nucleus.light.global.white,
+  },
+  tourIconFlipped: {
+    width: 20,
+    height: 20,
+    tintColor: nucleus.light.global.white,
+    transform: [{ scaleX: -1 }],
+  },
+
+  
+  compactButtonContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    marginTop: 8,
+  },
+ 
+  
+  compactCenterButton: {
+    borderRadius: 32,
+    minHeight: 56,
+    minWidth: 100,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderWidth: 1.5,
+    borderColor: nucleus.light.global.white,
+    shadowColor: 'rgba(185, 230, 255, 0.40)',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 25,
+    elevation: 25,
+  },
+  compactCenterButtonLabel: {
+    color: nucleus.light.global.white,
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 14,
+    lineHeight: 18,
+    marginVertical: 0,
+    includeFontPadding: false,
+  },
+  compactCenterButtonContent: {
+    minHeight: 56,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   exerciseInfo: {
     alignItems: 'center',
@@ -1245,6 +1565,15 @@ export default function ActiveWorkoutScreen() {
   const activeWorkout = useSelector(selectActiveWorkout);
   const currentExercise = useSelector(selectCurrentExercise);
   const status = useSelector(selectWorkoutStatus);
+  const dispatch = useAppDispatch();
+
+  // Auto-select workout when status is inactive
+  useEffect(() => {
+    if (status === 'inactive') {
+      console.log('🏋️ Auto-selecting Miha\'s workout...');
+      dispatch(selectWorkout(mihasWorkout));
+    }
+  }, [status, dispatch]);
 
   // ElevenLabs Conversation state
   const [conversationToken, setConversationToken] = useState<string | null>(null);
@@ -1754,8 +2083,6 @@ export default function ActiveWorkoutScreen() {
 
   const progressSegments = generateProgressSegments();
 
-  const dispatch = useAppDispatch();
-
   const handleFinishWorkout = async () => {
     try {
       // Dispatch finish workout early action
@@ -1794,14 +2121,19 @@ export default function ActiveWorkoutScreen() {
       style={[styles.fullScreen, { backgroundColor: nucleus.light.semantic.bg.subtle }]}
     >
       <SystemBars style="dark" />
-      <SafeAreaView style={[styles.container, { backgroundColor: nucleus.light.semantic.bg.subtle }]} edges={['top','bottom']}>
+      <SafeAreaView style={[styles.container, { backgroundColor: nucleus.light.semantic.bg.subtle }]} edges={['bottom']}>
         <ReanimatedAnimated.View 
           entering={FadeIn.duration(500).delay(200)}
           style={styles.mainContent}
         >
           <View style={styles.topContainer}>
-            {/* Workout Controls */}
-            <WorkoutControls onShowFinishAlert={() => setShowFinishAlert(true)} />
+            {/* Exercise Video - Full width */}
+            <VideoContainer 
+              currentExercise={currentExercise}
+              status={status}
+              activeWorkout={activeWorkout}
+              onShowFinishAlert={() => setShowFinishAlert(true)}
+            />
           </View>
           
           <View style={styles.workoutStatusContainer}>
@@ -1867,8 +2199,96 @@ const styles = StyleSheet.create({
     width: '100%',
     aspectRatio: 1.2,
     flexDirection: 'column',
-    alignItems: 'center',
+    alignItems: 'stretch',
     alignSelf: 'stretch',
+  },
+  videoContainer: {
+    flex: 1,
+    width: '100%',
+    position: 'relative',
+  },
+  videoTouchArea: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 5,
+  },
+  controlsOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+  },
+  overlayBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  centeredControls: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    pointerEvents: 'box-none',
+  },
+  bottomLayout: {
+    position: 'absolute',
+    bottom: 10,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    paddingHorizontal: 20,
+  },
+  exerciseNameContainer: {
+    flex: 1,
+    alignItems: 'flex-start',
+    zIndex: 15,
+  },
+  exerciseName: {
+    color: nucleus.light.global.white,
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 18,
+    lineHeight: 22,
+    includeFontPadding: false,
+    textShadowColor: 'rgba(0, 0, 0, 0.7)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  statusContainer: {
+    flex: 1,
+    alignItems: 'flex-end',
+    zIndex: 15,
+  },
+  statusInfo: {
+    color: nucleus.light.global.blue["30"],
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 12,
+    lineHeight: 14,
+    letterSpacing: 0.5,
+    includeFontPadding: false,
+    textShadowColor: 'rgba(0, 0, 0, 0.7)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  hiddenTouchArea: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 15,
   },
   workoutStatusContainer: {
     display: 'flex',

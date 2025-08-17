@@ -70,6 +70,150 @@ const formatDateForDelimiter = (date: Date) => {
   }
 };
 
+// Lookup table for tool call names to human-readable messages
+const getToolCallMessage = (toolName: string, parameters?: any) => {
+  switch (toolName) {
+    // Music tools (10)
+    case 'start_music':
+      if (parameters?.intensity) {
+        return `Starting ${parameters.intensity} intensity music`;
+      }
+      return 'Starting music';
+      
+    case 'pause_music':
+      return 'Pausing music';
+      
+    case 'resume_music':
+      return 'Resuming music';
+      
+    case 'stop_music':
+      return 'Stopping music';
+      
+    case 'set_volume':
+      if (parameters?.volume !== undefined) {
+        return `Setting volume to ${parameters.volume}%`;
+      }
+      return 'Adjusting volume';
+      
+    case 'skip_next':
+      return 'Skipping to next song';
+      
+    case 'skip_previous':
+      return 'Going to previous song';
+      
+    case 'get_music_status':
+      return 'Checking music status';
+      
+    case 'play_playlist':
+      if (parameters?.playlist) {
+        return `Playing playlist "${parameters.playlist}"`;
+      }
+      if (parameters?.name) {
+        return `Playing playlist "${parameters.name}"`;
+      }
+      return 'Playing playlist';
+      
+    case 'play_song':
+      if (parameters?.song) {
+        return `Playing "${parameters.song}"`;
+      }
+      if (parameters?.title) {
+        return `Playing "${parameters.title}"`;
+      }
+      return 'Playing song';
+    
+    // Workout tools (13)
+    case 'start_set':
+      return 'Starting the set';
+      
+    case 'complete_set':
+      return 'Set completed';
+      
+    case 'pause_set':
+      if (parameters?.reason) {
+        return `Pausing set (${parameters.reason})`;
+      }
+      return 'Pausing the set';
+      
+    case 'resume_set':
+      return 'Resuming the set';
+      
+    case 'restart_set':
+      return 'Restarting the set';
+      
+    case 'extend_rest':
+      if (parameters?.seconds !== undefined) {
+        return `Extending rest by ${parameters.seconds}s`;
+      }
+      if (parameters?.duration !== undefined) {
+        return `Extending rest by ${parameters.duration}s`;
+      }
+      return 'Extending rest time';
+      
+    case 'jump_to_set':
+      if (parameters?.setNumber !== undefined) {
+        return `Jumping to set ${parameters.setNumber}`;
+      }
+      if (parameters?.set !== undefined) {
+        return `Jumping to set ${parameters.set}`;
+      }
+      return 'Jumping to set';
+      
+    case 'adjust_weight':
+      if (parameters?.weight !== undefined) {
+        const unit = parameters?.unit || 'kg';
+        return `Adjusting weight to ${parameters.weight}${unit}`;
+      }
+      if (parameters?.newWeight !== undefined) {
+        const unit = parameters?.unit || 'kg';
+        return `Adjusting weight to ${parameters.newWeight}${unit}`;
+      }
+      return 'Adjusting weight';
+      
+    case 'adjust_reps':
+      if (parameters?.reps !== undefined) {
+        return `Adjusting to ${parameters.reps} reps`;
+      }
+      if (parameters?.newReps !== undefined) {
+        return `Adjusting to ${parameters.newReps} reps`;
+      }
+      return 'Adjusting reps';
+      
+    case 'adjust_rest_time':
+      if (parameters?.seconds !== undefined) {
+        return `Setting rest time to ${parameters.seconds}s`;
+      }
+      if (parameters?.time !== undefined) {
+        return `Setting rest time to ${parameters.time}s`;
+      }
+      if (parameters?.newTime !== undefined) {
+        return `Setting rest time to ${parameters.newTime}s`;
+      }
+      return 'Adjusting rest time';
+      
+    case 'get_workout_status':
+      return 'Getting workout status';
+      
+    case 'get_exercise_instructions':
+      if (parameters?.exercise) {
+        return `Getting instructions for ${parameters.exercise}`;
+      }
+      return 'Getting exercise instructions';
+      
+    case 'pause_for_issue':
+      if (parameters?.issue) {
+        return `Pausing workout (${parameters.issue})`;
+      }
+      if (parameters?.reason) {
+        return `Pausing workout (${parameters.reason})`;
+      }
+      return 'Pausing for issue';
+    
+    default:
+      return `Performing ${toolName}`;
+  }
+};
+
   // Helper function to check if we need a date delimiter
 const shouldShowDateDelimiter = (currentMessage: ChatMessage, previousMessage?: ChatMessage) => {
   if (!previousMessage) return true;
@@ -122,7 +266,7 @@ const processConversationEvent = (event: ConversationEvent, source: Role): Exten
       return {
         ...baseMessage,
         role: 'assistant',
-        content: `🔧 Tool Call: ${toolEvent.client_tool_call.tool_name}\nParameters: ${JSON.stringify(toolEvent.client_tool_call.parameters, null, 2)}`.trim(),
+        content: getToolCallMessage(toolEvent.client_tool_call.tool_name, toolEvent.client_tool_call.parameters),
         eventType: 'tool_call',
       } as ExtendedChatMessage;
 
@@ -562,6 +706,15 @@ export default function ChatComponent({
                 {renderMessageText(message.content)}
               </Text>
             </Animated.View>
+          </View>
+        );
+      } else if (isExtendedMessage && extendedMessage.eventType === 'tool_call') {
+        // Tool call - render as subtle text, not a bubble
+        renderedItems.push(
+          <View key={message.id} style={styles.toolCallContainer}>
+            <Text style={styles.toolCallText}>
+              {message.content}
+            </Text>
           </View>
         );
       } else {
@@ -1381,5 +1534,23 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     position: 'relative',
     maxWidth: '80%',
+  },
+  
+  // Tool call styles
+  toolCallContainer: {
+    alignSelf: 'center',
+    marginVertical: 4,
+    paddingHorizontal: 16,
+  },
+  toolCallText: {
+    fontFamily: 'PlusJakartaSans-Regular',
+    fontSize: 14,
+    fontStyle: 'italic',
+    fontWeight: '400',
+    lineHeight: 21,
+    letterSpacing: 0,
+    color: nucleus.light.global.grey['70'],
+    textAlign: 'center',
+    opacity: 0.8,
   },
 }); 

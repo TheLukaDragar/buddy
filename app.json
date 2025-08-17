@@ -73,7 +73,8 @@
             "enforceNavigationBarContrast": false
           }
         }
-      ]
+      ],
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true
