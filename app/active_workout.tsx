@@ -1,3 +1,4 @@
+import { unwrapResult } from '@reduxjs/toolkit';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { BackHandler, Dimensions, Modal, StyleSheet, View } from 'react-native';
@@ -15,27 +16,37 @@ import ReanimatedAnimated, {
   withTiming
 } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useDispatch, useSelector } from 'react-redux';
+import { useSelector } from 'react-redux';
 import { nucleus } from '../Buddy_variables.js';
 import ChatComponent from '../components/ChatComponent';
 import { useBuddyTheme } from '../constants/BuddyTheme';
 import { sampleWorkoutSession } from '../data/sampleWorkouts';
+import { contextBridgeService } from '../services/contextBridgeService';
+import { store } from '../store';
 import {
   adjustReps,
+  adjustRestTime,
   adjustWeight,
+  completeExercise,
   completeSet,
   confirmReadyAndStartSet,
   finishWorkoutEarly,
+  getExerciseInstructions,
+  getWorkoutStatus,
   jumpToSet,
   pauseSet,
   resumeSet,
+  selectWorkout,
+  startRest
+} from '../store/actions/workoutActions';
+import { useAppDispatch } from '../store/hooks';
+import {
   selectActiveWorkout,
   selectCurrentExercise,
   selectCurrentSet,
   selectTimers,
-  selectWorkout,
   selectWorkoutStatus,
-  startRest
+  setVoiceAgentStatus
 } from '../store/slices/workoutSlice';
 
 import type { ConversationEvent, ConversationStatus, Mode, Role } from '@elevenlabs/react-native';
@@ -115,11 +126,22 @@ const WorkoutProgress: React.FC<WorkoutProgressProps> = ({
     let remainingTime = segments[segmentIndex]?.duration || 45;
     
     if (status === 'exercising') {
-      // For sets, use elapsed time
+      // For sets, use actual timer remaining time from Redux
       const targetDuration = currentSet.targetTime || 45;
-      const elapsed = elapsedTime;
-      progress = Math.min((elapsed / targetDuration) * 100, 100);
-      remainingTime = Math.max(0, targetDuration - elapsed);
+      
+      // Use actual remaining time from timer state (in milliseconds, convert to seconds)
+      if (timers.setTimer && timers.setTimer.remaining) {
+        const remainingSeconds = Math.max(0, Math.floor(timers.setTimer.remaining / 1000));
+        remainingTime = remainingSeconds;
+        // Calculate progress based on how much time has passed from original duration
+        const elapsedFromOriginal = targetDuration - remainingSeconds;
+        progress = Math.min((elapsedFromOriginal / targetDuration) * 100, 100);
+      } else {
+        // Fallback to elapsed time calculation
+        const elapsed = elapsedTime;
+        progress = Math.min((elapsed / targetDuration) * 100, 100);
+        remainingTime = Math.max(0, targetDuration - elapsed);
+      }
     } else if (status === 'set-complete') {
       // Show completed set
       progress = 100;
@@ -267,11 +289,12 @@ interface WorkoutControlsProps {
 }
 
 const WorkoutControls: React.FC<WorkoutControlsProps> = ({ onShowFinishAlert }) => {
-  const dispatch = useDispatch();
+  const dispatch = useAppDispatch();
   const status = useSelector(selectWorkoutStatus);
   const activeWorkout = useSelector(selectActiveWorkout);
   const currentExercise = useSelector(selectCurrentExercise);
   const currentSet = useSelector(selectCurrentSet);
+  const timers = useSelector(selectTimers);
   
   // State for adjustment inputs
   const [showAdjustments, setShowAdjustments] = useState(false);
@@ -296,95 +319,144 @@ const WorkoutControls: React.FC<WorkoutControlsProps> = ({ onShowFinishAlert }) 
     return '→'; // Always show right button
   };
 
-  const handleLeftButton = () => {
+  const handleLeftButton = async () => {
     // Left button goes back ONE STATE in workflow and clears progress
-    switch (status) {
-      case 'inactive':
-        // Can't go back from inactive
-        break;
-      case 'preparing':
-        // Can't go back from preparing (it's the start of a set)
-        break;
-      case 'exercising':
-        // Go back to preparing (restart preparation)
-        // Clear any set progress and go back to preparing
-        dispatch(jumpToSet({ targetSetNumber: (activeWorkout?.currentSetIndex || 0) + 1, reason: 'User went back' }));
-        break;
-      case 'set-complete':
-        // Go back to exercising (restart the set)
-        dispatch(confirmReadyAndStartSet());
-        break;
-      case 'resting':
-        // Go back to set-complete (undo rest start)
-        // Need to implement: go back to set-complete state
-        console.log('TODO: Go back from resting to set-complete');
-        break;
-      case 'rest-ending':
-        // Go back to resting (undo 10s warning)
-        // Need to implement: restart rest timer
-        console.log('TODO: Go back from rest-ending to resting');
-        break;
-      case 'exercise-transition':
-        // Go back to preparing the last set of previous exercise
-        console.log('TODO: Go back from exercise-transition');
-        break;
+    try {
+      switch (status) {
+        case 'inactive':
+          // Can't go back from inactive
+          break;
+        case 'preparing':
+          // Can't go back from preparing (it's the start of a set)
+          break;
+        case 'exercising':
+          // Go back to preparing (restart preparation)
+          // Clear any set progress and go back to preparing
+          const jumpResult = await dispatch(jumpToSet({ targetSetNumber: (activeWorkout?.currentSetIndex || 0) + 1, reason: 'User went back' }));
+          const jumpData = unwrapResult(jumpResult);
+          console.log('Jump to set result:', jumpData);
+          break;
+        case 'set-complete':
+          // Go back to exercising (restart the set)
+          const startResult = await dispatch(confirmReadyAndStartSet());
+          const startData = unwrapResult(startResult);
+          console.log('Confirm ready and start set result:', startData);
+          break;
+        case 'resting':
+          // Go back to set-complete (undo rest start)
+          // Need to implement: go back to set-complete state
+          console.log('TODO: Go back from resting to set-complete');
+          break;
+        case 'rest-ending':
+          // Go back to resting (undo 10s warning)
+          // Need to implement: restart rest timer
+          console.log('TODO: Go back from rest-ending to resting');
+          break;
+        case 'exercise-transition':
+          // Go back to preparing the last set of previous exercise
+          console.log('TODO: Go back from exercise-transition');
+          break;
+      }
+    } catch (error) {
+      console.error('Left button action failed:', error);
     }
   };
 
-  const handleCenterButton = () => {
+  const handleCenterButton = async () => {
     // Center button handles pause/resume for exercising and rest states
-    if (status === 'exercising' || status === 'resting' || status === 'rest-ending') {
-      if (activeWorkout?.isPaused) {
-        dispatch(resumeSet());
-      } else {
-        dispatch(pauseSet({ reason: 'User requested pause' }));
+    try {
+      if (status === 'exercising' || status === 'resting' || status === 'rest-ending') {
+        if (activeWorkout?.isPaused) {
+          const resumeResult = await dispatch(resumeSet());
+          const resumeData = unwrapResult(resumeResult);
+          console.log('Resume set result:', resumeData);
+        } else {
+          const pauseResult = await dispatch(pauseSet({ reason: 'User requested pause' }));
+          const pauseData = unwrapResult(pauseResult);
+          console.log('Pause set result:', pauseData);
+        }
+      }
+      // Do nothing for other states
+    } catch (error) {
+      console.error('Center button action failed:', error);
+    }
+  };
+
+  const handleRightButton = async () => {
+    // Right button goes FORWARD in workflow
+    try {
+      switch (status) {
+        case 'inactive':
+          const selectResult = await dispatch(selectWorkout(sampleWorkoutSession));
+          const selectData = unwrapResult(selectResult);
+          console.log('Select workout result:', selectData);
+          break;
+        case 'preparing':
+        case 'rest-ending':
+        case 'exercise-transition':
+          const confirmResult = await dispatch(confirmReadyAndStartSet());
+          const confirmData = unwrapResult(confirmResult);
+          console.log('Confirm ready and start set result:', confirmData);
+          break;
+        case 'exercising':
+          const completeResult = await dispatch(completeSet({}));
+          const completeData = unwrapResult(completeResult);
+          console.log('Complete set result:', completeData);
+          break;
+        case 'set-complete':
+          const restResult = await dispatch(startRest());
+          const restData = unwrapResult(restResult);
+          console.log('Start rest result:', restData);
+          break;
+        case 'resting':
+          // Check if this is the last set - if so, complete exercise instead of starting new set
+          if (timers.restTimer?.isLastSet) {
+            const completeExerciseResult = await dispatch(completeExercise());
+            const completeExerciseData = unwrapResult(completeExerciseResult);
+            console.log('Complete exercise result:', completeExerciseData);
+          } else {
+            const skipRestResult = await dispatch(confirmReadyAndStartSet()); // Skip rest
+            const skipRestData = unwrapResult(skipRestResult);
+            console.log('Skip rest result:', skipRestData);
+          }
+          break;
+      }
+    } catch (error) {
+      console.error('Right button action failed:', error);
+    }
+  };
+
+  const handleAdjustWeight = async () => {
+    if (newWeight && currentSet) {
+      try {
+        const adjustResult = await dispatch(adjustWeight({ 
+          newWeight: parseFloat(newWeight), 
+          reason: 'User adjustment' 
+        }));
+        const adjustData = unwrapResult(adjustResult);
+        console.log('Adjust weight result:', adjustData);
+        setNewWeight('');
+        setShowAdjustments(false);
+      } catch (error) {
+        console.error('Adjust weight failed:', error);
       }
     }
-    // Do nothing for other states
   };
 
-  const handleRightButton = () => {
-    // Right button goes FORWARD in workflow
-    switch (status) {
-      case 'inactive':
-        dispatch(selectWorkout(sampleWorkoutSession));
-        break;
-      case 'preparing':
-      case 'rest-ending':
-      case 'exercise-transition':
-        dispatch(confirmReadyAndStartSet());
-        break;
-      case 'exercising':
-        dispatch(completeSet());
-        break;
-      case 'set-complete':
-        dispatch(startRest());
-        break;
-      case 'resting':
-        dispatch(confirmReadyAndStartSet()); // Skip rest
-        break;
-    }
-  };
-
-  const handleAdjustWeight = () => {
-    if (newWeight && currentSet) {
-      dispatch(adjustWeight({ 
-        newWeight: parseFloat(newWeight), 
-        reason: 'User adjustment' 
-      }));
-      setNewWeight('');
-      setShowAdjustments(false);
-    }
-  };
-
-  const handleAdjustReps = () => {
+  const handleAdjustReps = async () => {
     if (newReps && currentSet) {
-      dispatch(adjustReps({ 
-        newReps: parseInt(newReps), 
-        reason: 'User adjustment' 
-      }));
-      setNewReps('');
-      setShowAdjustments(false);
+      try {
+        const adjustResult = await dispatch(adjustReps({ 
+          newReps: parseInt(newReps), 
+          reason: 'User adjustment' 
+        }));
+        const adjustData = unwrapResult(adjustResult);
+        console.log('Adjust reps result:', adjustData);
+        setNewReps('');
+        setShowAdjustments(false);
+      } catch (error) {
+        console.error('Adjust reps failed:', error);
+      }
     }
   };
 
@@ -1182,8 +1254,303 @@ export default function ActiveWorkoutScreen() {
   const [canSendFeedback, setCanSendFeedback] = useState<boolean>(false);
   const agentId = 'agent_7501k2pbpjmqe2et3qh3634a66rv';
   
-  // Initialize conversation with handlers
+  // Initialize conversation with handlers and client tools
   const conversation = useConversation({
+    clientTools: {
+      // Workout Tools (13)
+      start_set: async (params: unknown) => {
+        try {
+          const result = await dispatch(confirmReadyAndStartSet());
+          const data = unwrapResult(result);
+          console.log('🎯 [Client Tool] start_set result:', data);
+          return JSON.stringify(data);
+        } catch (error) {
+          console.error('❌ [Client Tool] start_set failed:', error);
+          return JSON.stringify({ success: false, message: `Failed to start set: ${error}` });
+        }
+      },
+      
+      complete_set: async (params: unknown) => {
+        try {
+          const typedParams = params as { actualReps?: number };
+          const result = await dispatch(completeSet({ actualReps: typedParams?.actualReps }));
+          const data = unwrapResult(result);
+          console.log('🎯 [Client Tool] complete_set result:', data);
+          return JSON.stringify(data);
+        } catch (error) {
+          console.error('❌ [Client Tool] complete_set failed:', error);
+          return JSON.stringify({ success: false, message: `Failed to complete set: ${error}` });
+        }
+      },
+      
+      pause_set: async (params: unknown) => {
+        try {
+          const typedParams = params as { reason: string };
+          const result = await dispatch(pauseSet({ reason: typedParams.reason }));
+          const data = unwrapResult(result);
+          console.log('🎯 [Client Tool] pause_set result:', data);
+          return JSON.stringify(data);
+        } catch (error) {
+          console.error('❌ [Client Tool] pause_set failed:', error);
+          return JSON.stringify({ success: false, message: `Failed to pause set: ${error}` });
+        }
+      },
+      
+      resume_set: async (params: unknown) => {
+        try {
+          const result = await dispatch(resumeSet());
+          const data = unwrapResult(result);
+          console.log('🎯 [Client Tool] resume_set result:', data);
+          return JSON.stringify(data);
+        } catch (error) {
+          console.error('❌ [Client Tool] resume_set failed:', error);
+          return JSON.stringify({ success: false, message: `Failed to resume set: ${error}` });
+        }
+      },
+      
+      restart_set: async (params: unknown) => {
+        try {
+          const typedParams = params as { reason: string };
+          const state = store.getState();
+          const currentSetNumber = (state.workout.activeWorkout?.currentSetIndex || 0) + 1;
+          const result = await dispatch(jumpToSet({ targetSetNumber: currentSetNumber, reason: typedParams.reason }));
+          const data = unwrapResult(result);
+          console.log('🎯 [Client Tool] restart_set result:', data);
+          return JSON.stringify(data);
+        } catch (error) {
+          console.error('❌ [Client Tool] restart_set failed:', error);
+          return JSON.stringify({ success: false, message: `Failed to restart set: ${error}` });
+        }
+      },
+      
+      extend_rest: async (params: unknown) => {
+        try {
+          const typedParams = params as { additionalSeconds: number; reason?: string };
+          
+          if (!typedParams.additionalSeconds || typedParams.additionalSeconds <= 0) {
+            throw new Error('additionalSeconds must be a positive number');
+          }
+          
+          const state = store.getState();
+          const workoutState = state.workout;
+          const reason = typedParams.reason || 'Agent extended rest period';
+          
+          if (!workoutState.activeWorkout) {
+            throw new Error('No active workout to extend rest for');
+          }
+          
+          // Handle different workout states
+          if (workoutState.status === 'resting') {
+            // User is currently resting - extend the active rest timer and restart countdown
+            if (!workoutState.timers.restTimer) {
+              throw new Error('No active rest timer to extend');
+            }
+            
+            const currentRemaining = Math.floor(workoutState.timers.restTimer.remaining / 1000);
+            const newRestTime = currentRemaining + typedParams.additionalSeconds;
+            
+            // Dispatch the rest time adjustment (this will restart the timer via middleware)
+            const result = await dispatch(adjustRestTime({ newRestTime, reason }));
+            const data = unwrapResult(result);
+            
+            return JSON.stringify({
+              ...data,
+              action: 'extended_active_rest',
+              message: `Extended current rest by ${typedParams.additionalSeconds}s. Timer restarted with ${newRestTime}s total.`,
+              wasActivelyResting: true,
+              wasPaused: workoutState.activeWorkout.isPaused
+            });
+            
+          } else if (workoutState.status === 'exercising' || workoutState.status === 'preparing') {
+            // User is exercising or preparing - set rest time for next rest period
+            if (!workoutState.activeWorkout.currentSet) {
+              throw new Error('No current set to adjust rest time for');
+            }
+            
+            const currentRestTime = workoutState.activeWorkout.currentSet.restTimeAfter;
+            if (typeof currentRestTime !== 'number') {
+              throw new Error('Current set has no defined rest time to extend');
+            }
+            
+            const newRestTime = currentRestTime + typedParams.additionalSeconds;
+            const result = await dispatch(adjustRestTime({ newRestTime, reason }));
+            const data = unwrapResult(result);
+            
+            return JSON.stringify({
+              ...data,
+              action: 'extended_next_rest',
+              message: `Extended rest time for next rest period by ${typedParams.additionalSeconds}s (will be ${newRestTime}s total).`,
+              wasActivelyResting: false,
+              currentState: workoutState.status
+            });
+            
+          } else {
+            // Invalid state for rest extension
+            throw new Error(`Cannot extend rest during ${workoutState.status} state. Only during exercising, preparing, or resting.`);
+          }
+          
+        } catch (error) {
+          console.error('❌ [Client Tool] extend_rest failed:', error);
+          return JSON.stringify({ 
+            success: false, 
+            message: `Failed to extend rest: ${error instanceof Error ? error.message : error}` 
+          });
+        }
+      },
+      
+      jump_to_set: async (params: unknown) => {
+        try {
+          const typedParams = params as { setNumber: number; targetSetNumber?: number; reason?: string };
+          // Handle both parameter names for compatibility 
+          const targetSetNumber = typedParams.setNumber || typedParams.targetSetNumber;
+          const reason = typedParams.reason || 'Agent navigation';
+          
+          if (!targetSetNumber) {
+            throw new Error('Missing setNumber parameter');
+          }
+          
+          const result = await dispatch(jumpToSet({ targetSetNumber, reason }));
+          const data = unwrapResult(result);
+          console.log('🎯 [Client Tool] jump_to_set result:', data);
+          return JSON.stringify(data);
+        } catch (error) {
+          console.error('❌ [Client Tool] jump_to_set failed:', error);
+          return JSON.stringify({ success: false, message: `Failed to jump to set: ${error}` });
+        }
+      },
+      
+      adjust_weight: async (params: unknown) => {
+        try {
+          const typedParams = params as { newWeight: number; reason: string };
+          const result = await dispatch(adjustWeight({ newWeight: typedParams.newWeight, reason: typedParams.reason }));
+          const data = unwrapResult(result);
+          console.log('🎯 [Client Tool] adjust_weight result:', data);
+          return JSON.stringify(data);
+        } catch (error) {
+          console.error('❌ [Client Tool] adjust_weight failed:', error);
+          return JSON.stringify({ success: false, message: `Failed to adjust weight: ${error}` });
+        }
+      },
+      
+      adjust_reps: async (params: unknown) => {
+        try {
+          const typedParams = params as { newReps: number; reason: string };
+          const result = await dispatch(adjustReps({ newReps: typedParams.newReps, reason: typedParams.reason }));
+          const data = unwrapResult(result);
+          console.log('🎯 [Client Tool] adjust_reps result:', data);
+          return JSON.stringify(data);
+        } catch (error) {
+          console.error('❌ [Client Tool] adjust_reps failed:', error);
+          return JSON.stringify({ success: false, message: `Failed to adjust reps: ${error}` });
+        }
+      },
+      
+      adjust_rest_time: async (params: unknown) => {
+        try {
+          const typedParams = params as { newRestTime: number; reason: string };
+          const result = await dispatch(adjustRestTime({ newRestTime: typedParams.newRestTime, reason: typedParams.reason }));
+          const data = unwrapResult(result);
+          console.log('🎯 [Client Tool] adjust_rest_time result:', data);
+          return JSON.stringify(data);
+        } catch (error) {
+          console.error('❌ [Client Tool] adjust_rest_time failed:', error);
+          return JSON.stringify({ success: false, message: `Failed to adjust rest time: ${error}` });
+        }
+      },
+      
+      get_workout_status: async (params: unknown) => {
+        try {
+          const result = await dispatch(getWorkoutStatus());
+          const data = unwrapResult(result);
+          console.log('🎯 [Client Tool] get_workout_status result:', data);
+          return JSON.stringify(data);
+        } catch (error) {
+          console.error('❌ [Client Tool] get_workout_status failed:', error);
+          return JSON.stringify({ success: false, message: `Failed to get workout status: ${error}` });
+        }
+      },
+      
+      get_exercise_instructions: async (params: unknown) => {
+        try {
+          const result = await dispatch(getExerciseInstructions());
+          const data = unwrapResult(result);
+          console.log('🎯 [Client Tool] get_exercise_instructions result:', data);
+          return JSON.stringify(data);
+        } catch (error) {
+          console.error('❌ [Client Tool] get_exercise_instructions failed:', error);
+          return JSON.stringify({ success: false, message: `Failed to get exercise instructions: ${error}` });
+        }
+      },
+      
+      pause_for_issue: async (params: unknown) => {
+        try {
+          const typedParams = params as { reason: string };
+          const result = await dispatch(pauseSet({ reason: typedParams.reason }));
+          const data = unwrapResult(result);
+          console.log('🎯 [Client Tool] pause_for_issue result:', data);
+          return JSON.stringify(data);
+        } catch (error) {
+          console.error('❌ [Client Tool] pause_for_issue failed:', error);
+          return JSON.stringify({ success: false, message: `Failed to pause for issue: ${error}` });
+        }
+      },
+      
+      // Music Tools (10) - Placeholder implementations
+      start_music: async (params: unknown) => {
+        const typedParams = params as { intensity: string };
+        console.log('🎵 [Client Tool] start_music called with intensity:', typedParams?.intensity);
+        return JSON.stringify({ success: true, message: `Music started with ${typedParams?.intensity || 'medium'} intensity` });
+      },
+      
+      pause_music: async (params: unknown) => {
+        console.log('🎵 [Client Tool] pause_music called');
+        return JSON.stringify({ success: true, message: 'Music paused' });
+      },
+      
+      resume_music: async (params: unknown) => {
+        console.log('🎵 [Client Tool] resume_music called');
+        return JSON.stringify({ success: true, message: 'Music resumed' });
+      },
+      
+      stop_music: async (params: unknown) => {
+        console.log('🎵 [Client Tool] stop_music called');
+        return JSON.stringify({ success: true, message: 'Music stopped' });
+      },
+      
+      set_volume: async (params: unknown) => {
+        const typedParams = params as { level: number };
+        console.log('🎵 [Client Tool] set_volume called with level:', typedParams?.level);
+        return JSON.stringify({ success: true, message: `Volume set to ${typedParams?.level || 50}%` });
+      },
+      
+      skip_next: async (params: unknown) => {
+        console.log('🎵 [Client Tool] skip_next called');
+        return JSON.stringify({ success: true, message: 'Skipped to next song' });
+      },
+      
+      skip_previous: async (params: unknown) => {
+        console.log('🎵 [Client Tool] skip_previous called');
+        return JSON.stringify({ success: true, message: 'Skipped to previous song' });
+      },
+      
+      get_music_status: async (params: unknown) => {
+        console.log('🎵 [Client Tool] get_music_status called');
+        return JSON.stringify({ success: true, message: 'Music is playing', data: { isPlaying: true, volume: 75, currentSong: 'Workout Mix' } });
+      },
+      
+      play_playlist: async (params: unknown) => {
+        const typedParams = params as { playlistName: string };
+        console.log('🎵 [Client Tool] play_playlist called with:', typedParams?.playlistName);
+        return JSON.stringify({ success: true, message: `Playing playlist: ${typedParams?.playlistName || 'Default'}` });
+      },
+      
+      play_song: async (params: unknown) => {
+        const typedParams = params as { songName: string };
+        console.log('🎵 [Client Tool] play_song called with:', typedParams?.songName);
+        return JSON.stringify({ success: true, message: `Playing song: ${typedParams?.songName || 'Unknown'}` });
+      }
+    },
+    
     onConnect: ({ conversationId }: { conversationId: string }) => {
       console.log('Connected to ElevenLabs conversation', conversationId);
       setConversationStatus('connected');
@@ -1191,6 +1558,9 @@ export default function ActiveWorkoutScreen() {
     onDisconnect: (details: string) => {
       console.log('Disconnected from ElevenLabs conversation', details);
       setConversationStatus('disconnected');
+      
+      // Unregister voice message callbacks when disconnected
+      contextBridgeService.unregisterCallbacks();
     },
     onMessage: ({ message, source }: { message: ConversationEvent; source: Role }) => {
       console.log('ElevenLabs message received:', message, 'from:', source);
@@ -1209,9 +1579,24 @@ export default function ActiveWorkoutScreen() {
     onModeChange: ({ mode }: { mode: Mode }) => {
       console.log('ElevenLabs conversation mode changed:', mode);
       setConversationMode(mode);
+      
+      // Update the context bridge service with the current mode
+      contextBridgeService.setConversationMode(mode);
     },
     onStatusChange: ({ status }: { status: ConversationStatus }) => {
       console.log('ElevenLabs conversation status changed:', status);
+
+
+      //bug never in state connected! upon change to state connecting wait 3 seonds then dispach 
+      if (status === 'connecting') {
+        setTimeout(() => {
+          dispatch(setVoiceAgentStatus(true));
+        }, 3000);
+      }
+
+
+
+
       setConversationStatus(status);
     },
     onCanSendFeedbackChange: ({ canSendFeedback: canSend }: { canSendFeedback: boolean }) => {
@@ -1294,23 +1679,7 @@ export default function ActiveWorkoutScreen() {
     }
   };
 
-  // Function to send text message
-  const sendTextMessage = async (message: string) => {
-    try {
-      await conversation.sendUserMessage(message);
-    } catch (error) {
-      console.error('Failed to send text message:', error);
-    }
-  };
 
-  // Function to send contextual update
-  const sendContextualUpdate = async (context: string) => {
-    try {
-      await conversation.sendContextualUpdate(context);
-    } catch (error) {
-      console.error('Failed to send contextual update:', error);
-    }
-  };
 
   // Function to send feedback
   const sendFeedback = async (liked: boolean) => {
@@ -1329,6 +1698,24 @@ export default function ActiveWorkoutScreen() {
       console.error('Failed to signal user activity:', error);
     }
   };
+
+  // Register conversation object directly when connected
+  useEffect(() => {
+    if (conversation) {
+      console.log('🎙️ Registering voice callbacks - conversation fully connected');
+      contextBridgeService.registerCallbacks({
+        sendMessage: conversation.sendUserMessage,
+        sendContext: conversation.sendContextualUpdate,
+      });
+    }
+  }, [conversationStatus, conversation]);
+
+  // Cleanup callbacks on component unmount (backup)
+  useEffect(() => {
+    return () => {
+      contextBridgeService.unregisterCallbacks();
+    };
+  }, []);
 
   // Generate progress segments from current exercise
   const generateProgressSegments = (): ProgressSegment[] => {
@@ -1367,17 +1754,24 @@ export default function ActiveWorkoutScreen() {
 
   const progressSegments = generateProgressSegments();
 
-  const dispatch = useDispatch();
+  const dispatch = useAppDispatch();
 
-  const handleFinishWorkout = () => {
-    // Dispatch finish workout early action
-    dispatch(finishWorkoutEarly());
-    setShowFinishAlert(false);
-    
-    // Show completion message
-    setTimeout(() => {
-      router.back();
-    }, 1000);
+  const handleFinishWorkout = async () => {
+    try {
+      // Dispatch finish workout early action
+      const finishResult = await dispatch(finishWorkoutEarly());
+      const finishData = unwrapResult(finishResult);
+      console.log('Finish workout early result:', finishData);
+      setShowFinishAlert(false);
+      
+      // Show completion message
+      setTimeout(() => {
+        router.back();
+      }, 1000);
+    } catch (error) {
+      console.error('Finish workout failed:', error);
+      setShowFinishAlert(false);
+    }
   };
 
   const handleContinueWorkout = () => {

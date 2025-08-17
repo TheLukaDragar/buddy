@@ -53,6 +53,9 @@ export default function ConversationScreen() {
       canSendFeedback: boolean;
     }) => {
       console.log(`🔊 Can send feedback: ${canSendFeedback}`);
+    },
+    clientTools: {
+     
     }
   });
 
