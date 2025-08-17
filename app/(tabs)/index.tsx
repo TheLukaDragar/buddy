@@ -168,7 +168,6 @@ export default function ExploreScreen() {
 
   // Week calendar data
   const weeks = [1, 2, 3, 4, 5, 6, 7, 8];
-  const [activeWeek, setActiveWeek] = useState(3); // Current week
   const completedWeeks = [1, 2]; // Completed weeks (exclude current week)
 
   // Helper function to format date as YYYY-MM-DD
@@ -193,6 +192,31 @@ export default function ExploreScreen() {
     monday.setDate(today.getDate() - daysToMonday + (weekOffset * 7));
     return monday;
   };
+
+  // Helper function to calculate current week based on today's date
+  const getCurrentWeekNumber = () => {
+    const today = new Date();
+    const currentDay = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    const daysToMonday = currentDay === 0 ? 6 : currentDay - 1; // Days to previous Monday
+    
+    // Get current week's Monday
+    const currentWeekMonday = new Date(today);
+    currentWeekMonday.setDate(today.getDate() - daysToMonday);
+    
+    // Check which week this Monday corresponds to in our 8-week plan
+    for (let week = 0; week < 8; week++) {
+      const weekStart = getWeekStartDate(week);
+      if (weekStart.toDateString() === currentWeekMonday.toDateString()) {
+        return week + 1; // Return 1-based week number
+      }
+    }
+    
+    // Default to week 1 if no match found
+    return 1;
+  };
+
+  // Active week state
+  const [activeWeek, setActiveWeek] = useState(getCurrentWeekNumber()); // Current week based on today's date
 
   // Generate 8-week workout plan
   const generateWorkoutPlan = () => {

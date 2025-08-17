@@ -485,6 +485,15 @@ const workoutSlice = createSlice({
       const { newWeight, reason } = action.payload;
       const oldWeight = state.activeWorkout!.currentSet!.targetWeight || 0;
       
+      // Update current set and all subsequent sets in current exercise
+      const currentExercise = state.activeWorkout!.currentExercise!;
+      const currentSetIndex = state.activeWorkout!.currentSetIndex;
+      
+      for (let i = currentSetIndex; i < currentExercise.sets.length; i++) {
+        currentExercise.sets[i].targetWeight = newWeight;
+      }
+      
+      // Update the current active set reference
       state.activeWorkout!.currentSet!.targetWeight = newWeight;
       
       state.activeWorkout!.adjustmentsMade.push({
@@ -502,6 +511,15 @@ const workoutSlice = createSlice({
       const { newReps, reason } = action.payload;
       const oldReps = state.activeWorkout!.currentSet!.targetReps;
       
+      // Update current set and all subsequent sets in current exercise
+      const currentExercise = state.activeWorkout!.currentExercise!;
+      const currentSetIndex = state.activeWorkout!.currentSetIndex;
+      
+      for (let i = currentSetIndex; i < currentExercise.sets.length; i++) {
+        currentExercise.sets[i].targetReps = newReps;
+      }
+      
+      // Update the current active set reference
       state.activeWorkout!.currentSet!.targetReps = newReps;
       
       state.activeWorkout!.adjustmentsMade.push({
@@ -519,6 +537,15 @@ const workoutSlice = createSlice({
       const { newRestTime, reason } = action.payload;
       const oldRestTime = state.activeWorkout!.currentSet!.restTimeAfter || 60;
       
+      // Update current set and all subsequent sets in current exercise
+      const currentExercise = state.activeWorkout!.currentExercise!;
+      const currentSetIndex = state.activeWorkout!.currentSetIndex;
+      
+      for (let i = currentSetIndex; i < currentExercise.sets.length; i++) {
+        currentExercise.sets[i].restTimeAfter = newRestTime;
+      }
+      
+      // Update the current active set reference
       state.activeWorkout!.currentSet!.restTimeAfter = newRestTime;
       
       state.activeWorkout!.adjustmentsMade.push({

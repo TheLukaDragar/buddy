@@ -227,7 +227,7 @@ const shouldShowDateDelimiter = (currentMessage: ChatMessage, previousMessage?: 
 // Helper function to process conversation events into displayable messages
 const processConversationEvent = (event: ConversationEvent, source: Role): ExtendedChatMessage | null => {
   // Ignore ping events and interruption events
-  if (event.type === 'ping' || event.type === 'interruption') {
+  if (event.type === 'ping' || event.type === 'interruption' || event.type === 'conversation_initiation_metadata') {
     return null;
   }
   
@@ -548,6 +548,11 @@ export default function ChatComponent({
 
   // Trigger animation only on first mount
   useEffect(() => {
+    // Collapse input after 100ms (default state)
+    setTimeout(() => {
+      handleCollapseInput();
+    }, 500);
+
     // Animate messages after main animation completes
     setTimeout(() => {
       Animated.parallel([

@@ -206,11 +206,15 @@ const VideoContainer: React.FC<VideoContainerProps> = ({
   const [controlsVisible, setControlsVisible] = useState(true);
   const controlsOpacity = useSharedValue(1);
 
-  // Auto-show controls when paused/preparing
+  // Auto-show controls when paused/preparing, hide when exercising
   useEffect(() => {
     if (status === 'paused' || activeWorkout?.isPaused || status === 'preparing') {
       setControlsVisible(true);
       controlsOpacity.value = withTiming(1, { duration: 300 });
+    } else if (status === 'exercising') {
+      // Hide controls immediately when exercising starts
+      setControlsVisible(false);
+      controlsOpacity.value = withTiming(0, { duration: 300 });
     }
   }, [status, activeWorkout?.isPaused]);
 
@@ -2091,10 +2095,8 @@ export default function ActiveWorkoutScreen() {
       console.log('Finish workout early result:', finishData);
       setShowFinishAlert(false);
       
-      // Show completion message
-      setTimeout(() => {
-        router.back();
-      }, 1000);
+      // Navigate back immediately
+      router.back();
     } catch (error) {
       console.error('Finish workout failed:', error);
       setShowFinishAlert(false);

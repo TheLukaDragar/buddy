@@ -22,7 +22,7 @@ const initialState: ChatState = {
   messages: [],
   isLoading: false,
   error: null,
-  isInputCollapsed: false,
+  isInputCollapsed: true,
 };
 
 const chatSlice = createSlice({

@@ -421,7 +421,10 @@ startAppListening({
     // Generate context message for rest time adjustment
     const { newRestTime, reason } = action.payload;
     const oldRestTime = workoutState.activeWorkout?.currentSet?.restTimeAfter || 60;
-    const contextMessage = `SYSTEM: rest-time-adjusted - Rest time changed to ${newRestTime}s. Reason: ${reason}.`;
+    const currentSetIndex = workoutState.activeWorkout?.currentSetIndex || 0;
+    const totalSets = workoutState.activeWorkout?.currentExercise?.sets.length || 0;
+    const remainingSets = totalSets - currentSetIndex;
+    const contextMessage = `SYSTEM: rest-time-adjusted - Rest time changed from ${oldRestTime}s to ${newRestTime}s for current set and all ${remainingSets} remaining sets. Reason: ${reason}.`;
     
     dispatch(addContextMessage({
       event: 'rest-time-adjusted',
@@ -471,7 +474,10 @@ startAppListening({
     const { newWeight, reason } = action.payload;
     const state = getState() as RootState;
     const oldWeight = state.workout.activeWorkout?.currentSet?.targetWeight || 0;
-    const contextMessage = `SYSTEM: weight-adjusted - Weight changed to ${newWeight}kg. Reason: ${reason}.`;
+    const currentSetIndex = state.workout.activeWorkout?.currentSetIndex || 0;
+    const totalSets = state.workout.activeWorkout?.currentExercise?.sets.length || 0;
+    const remainingSets = totalSets - currentSetIndex;
+    const contextMessage = `SYSTEM: weight-adjusted - Weight changed from ${oldWeight}kg to ${newWeight}kg for current set and all ${remainingSets} remaining sets. Reason: ${reason}.`;
     
     dispatch(addContextMessage({
       event: 'weight-adjusted',
@@ -494,7 +500,10 @@ startAppListening({
     const { newReps, reason } = action.payload;
     const state = getState() as RootState;
     const oldReps = state.workout.activeWorkout?.currentSet?.targetReps || 0;
-    const contextMessage = `SYSTEM: reps-adjusted - Reps changed to ${newReps}. Reason: ${reason}.`;
+    const currentSetIndex = state.workout.activeWorkout?.currentSetIndex || 0;
+    const totalSets = state.workout.activeWorkout?.currentExercise?.sets.length || 0;
+    const remainingSets = totalSets - currentSetIndex;
+    const contextMessage = `SYSTEM: reps-adjusted - Reps changed from ${oldReps} to ${newReps} for current set and all ${remainingSets} remaining sets. Reason: ${reason}.`;
     
     dispatch(addContextMessage({
       event: 'reps-adjusted',
@@ -686,52 +695,63 @@ startAppListening({
       
       // Always send context sync when agent connects (don't check needsContextSync)
       if (workoutState.activeWorkout) {
-        console.log('🎙️ [Workout Middleware] Voice agent connected, syncing context');
+        console.log('🎙️ [Workout Middleware] Voice agent connected, will sync context in 2s');
         
-        // Build context sync message
-        const context = workoutState.activeWorkout;
-        const currentExercise = context.currentExercise;
-        const currentSet = context.currentSet;
-        
-        if (currentExercise && currentSet) {
-          const setProgress = `${context.currentSetIndex + 1}/${currentExercise.sets.length}`;
-          const exerciseProgress = `${context.currentExerciseIndex + 1}/${context.totalExercises}`;
+        // Add delay to allow agent to fully connect
+        setTimeout(() => {
+          console.log('🎙️ [Workout Middleware] Sending delayed context sync');
           
-          let contextMessage = `CONTEXT SYNC: Currently in "${workoutState.session?.name}" workout. `;
-          contextMessage += `Exercise ${exerciseProgress}: "${currentExercise.name}". `;
-          contextMessage += `Set ${setProgress} (${currentSet.targetReps} reps`;
+          // Get fresh state after delay
+          const freshState = getState() as RootState;
+          const freshWorkoutState = freshState.workout;
           
-          if (currentSet.targetWeight) {
-            contextMessage += ` at ${currentSet.targetWeight}kg`;
+          if (!freshWorkoutState.activeWorkout) return;
+          
+          // Build context sync message
+          const context = freshWorkoutState.activeWorkout;
+          const currentExercise = context.currentExercise;
+          const currentSet = context.currentSet;
+          
+          if (currentExercise && currentSet) {
+            const setProgress = `${context.currentSetIndex + 1}/${currentExercise.sets.length}`;
+            const exerciseProgress = `${context.currentExerciseIndex + 1}/${context.totalExercises}`;
+            
+            let contextMessage = `CONTEXT SYNC: Currently in "${freshWorkoutState.session?.name}" workout. `;
+            contextMessage += `Exercise ${exerciseProgress}: "${currentExercise.name}". `;
+            contextMessage += `Set ${setProgress} (${currentSet.targetReps} reps`;
+            
+            if (currentSet.targetWeight) {
+              contextMessage += ` at ${currentSet.targetWeight}kg`;
+            }
+            
+            contextMessage += `). State: ${freshWorkoutState.status}`;
+            
+            // Add time information if relevant
+            if (freshWorkoutState.status === 'exercising') {
+              contextMessage += `. Set timer: ${Math.floor((context.elapsedTime || 0) / 1000)}s elapsed`;
+              if (context.isPaused) {
+                contextMessage += ' (PAUSED)';
+              }
+            } else if (freshWorkoutState.status === 'resting' && freshWorkoutState.timers.restTimer) {
+              const remaining = Math.floor(freshWorkoutState.timers.restTimer.remaining / 1000);
+              contextMessage += `. Rest timer: ${remaining}s remaining`;
+              if (context.isPaused) {
+                contextMessage += ' (PAUSED)';
+              }
+            }
+            
+            contextMessage += '. User just connected to voice assistant.';
+            
+            // Send context sync via voice message service
+            contextBridgeService.sendContextualUpdate(contextMessage).then((success) => {
+              if (success) {
+                console.log('🎙️ [Workout Middleware] Context sync sent successfully');
+              } else {
+                console.log('🎙️ [Workout Middleware] Context sync failed - voice agent not available');
+              }
+            });
           }
-          
-          contextMessage += `). State: ${workoutState.status}`;
-          
-          // Add time information if relevant
-          if (workoutState.status === 'exercising') {
-            contextMessage += `. Set timer: ${Math.floor((context.elapsedTime || 0) / 1000)}s elapsed`;
-            if (context.isPaused) {
-              contextMessage += ' (PAUSED)';
-            }
-          } else if (workoutState.status === 'resting' && workoutState.timers.restTimer) {
-            const remaining = Math.floor(workoutState.timers.restTimer.remaining / 1000);
-            contextMessage += `. Rest timer: ${remaining}s remaining`;
-            if (context.isPaused) {
-              contextMessage += ' (PAUSED)';
-            }
-          }
-          
-          contextMessage += '. User just connected to voice assistant.';
-          
-          // Send context sync via voice message service
-          contextBridgeService.sendContextualUpdate(contextMessage).then((success) => {
-            if (success) {
-              console.log('🎙️ [Workout Middleware] Context sync sent successfully');
-            } else {
-              console.log('🎙️ [Workout Middleware] Context sync failed - voice agent not available');
-            }
-          });
-        }
+        }, 2000);
       }
     }
   },
