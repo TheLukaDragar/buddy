@@ -574,6 +574,45 @@ const workoutSlice = createSlice({
       // Middleware will handle context message generation
     },
 
+    extendRest: (state, action: PayloadAction<{ additionalSeconds: number }>) => {
+      const { additionalSeconds } = action.payload;
+      
+      if (['resting', 'rest-ending'].includes(state.status)) {
+        if (state.timers.restTimer) {
+          // Extend existing rest timer
+          const currentRemaining = state.timers.restTimer.remaining;
+          const extendedTime = currentRemaining + (additionalSeconds * 1000);
+          
+          state.timers.restTimer.remaining = extendedTime;
+          state.timers.restTimer.duration += (additionalSeconds * 1000);
+          
+          // Update status based on new remaining time
+          if (extendedTime > 10000) {
+            state.status = 'resting';
+          } else {
+            state.status = 'rest-ending';
+          }
+        } else {
+          // Create a new rest timer with just the additional time (don't modify set's rest time)
+          const baseRestDuration = state.activeWorkout?.currentSet?.restTimeAfter || 60;
+          const extendedDuration = additionalSeconds; // Only use the additional time
+          const timestamp = Date.now();
+          
+          state.timers.restTimer = {
+            active: true,
+            startTime: timestamp,
+            duration: extendedDuration * 1000,
+            remaining: extendedDuration * 1000,
+            isLastSet: false, // middleware will determine this
+          };
+          
+          state.status = 'resting';
+        }
+      }
+      
+      // Middleware will handle context message generation and timer restart
+    },
+
     // Clear processed context messages
     clearProcessedContextMessages: (state) => {
       state.contextMessages = [];
@@ -709,6 +748,7 @@ export const {
   adjustWeight,
   adjustReps,
   adjustRestTime,
+  extendRest,
   jumpToSet,
   previousSet,
   nextSet,

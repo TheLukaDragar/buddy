@@ -1,6 +1,7 @@
 import { useBuddyTheme } from '@/constants/BuddyTheme';
 import { Image } from 'expo-image';
 import React, { useState } from 'react';
+import { useSelector } from 'react-redux';
 import { Alert, StyleSheet, View } from 'react-native';
 import { ActivityIndicator, Button, Card, IconButton, Text } from 'react-native-paper';
 import { nucleus } from '../Buddy_variables.js';
@@ -31,13 +32,16 @@ export default function SpotifyPlayer() {
   // No auth sync needed - using direct Redux integration
 
   // RTK Query hooks
+  // Get workout state to control polling
+  const activeWorkout = useSelector((state: any) => state.workout?.activeWorkout);
+  
   const { 
     data: playbackState, 
     isLoading: playbackLoading, 
     refetch: refetchPlayback 
   } = useGetCurrentPlaybackStateQuery(undefined, {
     skip: !spotifyConnected,
-    pollingInterval: 5000, // Poll every 5 seconds for live updates
+    pollingInterval: (spotifyConnected && activeWorkout) ? 5000 : 0, // Only poll during active workout
   });
 
   const { 

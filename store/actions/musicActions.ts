@@ -360,6 +360,67 @@ export const getTracks = createAsyncThunk(
 );
 
 /**
+ * Helper function to ensure we have an active device
+ */
+const ensureActiveDevice = async () => {
+  try {
+    // Get available devices
+    const devicesResult = store.dispatch(
+      spotifyApi.endpoints.getAvailableDevices.initiate()
+    );
+    const devices = await devicesResult.unwrap();
+    
+    console.log('[Music] Device check - devices found:', devices.devices.length);
+    console.log('[Music] Device check - hasActiveDevice:', devices.hasActiveDevice);
+    console.log('[Music] Device check - all devices:', devices.devices.map(d => ({
+      name: d.name, 
+      type: d.type, 
+      is_active: d.is_active, 
+      is_restricted: d.is_restricted
+    })));
+    
+    // If we already have an active device, don't transfer - just use it
+    if (devices.hasActiveDevice) {
+      const activeDevice = devices.devices.find(d => d.is_active);
+      console.log('[Music] Using existing active device:', activeDevice?.name);
+      return { success: true, deviceId: activeDevice?.id };
+    }
+    
+    // Only transfer if no active device - find the first available device and activate it
+    const availableDevice = devices.devices.find(d => !d.is_restricted);
+    if (availableDevice) {
+      console.log(`[Music] No active device, transferring to: ${availableDevice.name}`);
+      
+      const transferResult = store.dispatch(
+        spotifyApi.endpoints.transferPlayback.initiate({
+          deviceId: availableDevice.id,
+          play: false // Don't start playing yet
+        })
+      );
+      await transferResult.unwrap();
+      
+      // Wait a moment for the transfer to complete
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      return { success: true, deviceId: availableDevice.id };
+    }
+    
+    console.log('[Music] No devices available at all');
+    return { 
+      success: false, 
+      error: "No Spotify devices available. Please open Spotify on your phone, computer, or speaker and try again." 
+    };
+    
+  } catch (error: any) {
+    console.log('[Music] Device check failed with error:', error);
+    return { 
+      success: false, 
+      error: error.data?.enhancedMessage || "Failed to connect to Spotify device" 
+    };
+  }
+};
+
+/**
  * Play a specific track from the current playlist
  */
 export const playTrack = createAsyncThunk(
@@ -378,12 +439,22 @@ export const playTrack = createAsyncThunk(
       };
     }
     
+    // Ensure we have an active device before trying to play
+    const deviceCheck = await ensureActiveDevice();
+    if (!deviceCheck.success) {
+      return rejectWithValue({
+        message: deviceCheck.error || "No active Spotify device"
+      });
+    }
+    
     try {
       // Handle track name search with fuzzy matching
       if (trackName) {
         if (!selectedPlaylist) {
           return rejectWithValue({ message: "No playlist selected for track search" });
         }
+
+        console.log(`[Music] Searching for specific track: "${trackName}" - will fetch full playlist`);
 
         // Get current playlist tracks to search
         let tracks: any[] = [];
@@ -431,24 +502,22 @@ export const playTrack = createAsyncThunk(
           });
         }
 
-        // Play the matched track at its position in the playlist
-        if (selectedPlaylist.id === 'liked') {
-          const playLikedSongs = store.dispatch(
-            spotifyApi.endpoints.startPlayback.initiate({
-              context_uri: selectedPlaylist.uri,
-              offset: { position: matchedTrack.index }
-            })
-          );
-          await playLikedSongs.unwrap();
-        } else {
-          const playPlaylist = store.dispatch(
-            spotifyApi.endpoints.startPlayback.initiate({
-              context_uri: `spotify:playlist:${selectedPlaylist.id}`,
-              offset: { position: matchedTrack.index }
-            })
-          );
-          await playPlaylist.unwrap();
+        // Play the matched track in playlist context with offset using track URI
+        const playbackParams: any = {
+          context_uri: selectedPlaylist.id === 'liked' 
+            ? selectedPlaylist.uri 
+            : `spotify:playlist:${selectedPlaylist.id}`,
+          offset: { uri: matchedTrack.uri }
+        };
+        
+        if (deviceCheck.deviceId) {
+          playbackParams.deviceId = deviceCheck.deviceId;
         }
+        
+        const playResult = store.dispatch(
+          spotifyApi.endpoints.startPlayback.initiate(playbackParams)
+        );
+        await playResult.unwrap();
 
         return {
           success: true,
@@ -460,11 +529,18 @@ export const playTrack = createAsyncThunk(
         };
       } else if (trackUri) {
         // Play specific track by URI
-        const playTrack = store.dispatch(
-          spotifyApi.endpoints.playTrack.initiate({ trackUri })
-        );
+        const playbackParams: any = {
+          uris: [trackUri]
+        };
         
-        await playTrack.unwrap();
+        if (deviceCheck.deviceId) {
+          playbackParams.deviceId = deviceCheck.deviceId;
+        }
+        
+        const playResult = store.dispatch(
+          spotifyApi.endpoints.startPlayback.initiate(playbackParams)
+        );
+        await playResult.unwrap();
         
         return {
           success: true,
@@ -472,24 +548,23 @@ export const playTrack = createAsyncThunk(
           message: 'Playing selected track'
         };
       } else if (selectedPlaylist) {
-        // Play playlist from beginning or specific index
-        if (selectedPlaylist.id === 'liked') {
-          // For Liked Songs, use the direct context URI
-          const playLikedSongs = store.dispatch(
-            spotifyApi.endpoints.startPlayback.initiate({
-              context_uri: selectedPlaylist.uri // This is now spotify:user:<username>:collection
-            })
-          );
-          await playLikedSongs.unwrap();
-        } else {
-          // For regular playlists
-          const playPlaylist = store.dispatch(
-            spotifyApi.endpoints.playPlaylist.initiate({
-              playlistId: selectedPlaylist.id
-            })
-          );
-          await playPlaylist.unwrap();
+        // General "play music" - just start playlist without fetching all tracks (fast)
+        console.log(`[Music] Playing playlist "${selectedPlaylist.name}" - no track fetching needed`);
+        
+        const playbackParams: any = {
+          context_uri: selectedPlaylist.id === 'liked' 
+            ? selectedPlaylist.uri 
+            : `spotify:playlist:${selectedPlaylist.id}`
+        };
+        
+        if (deviceCheck.deviceId) {
+          playbackParams.deviceId = deviceCheck.deviceId;
         }
+        
+        const playResult = store.dispatch(
+          spotifyApi.endpoints.startPlayback.initiate(playbackParams)
+        );
+        await playResult.unwrap();
         
         return {
           success: true,
@@ -528,12 +603,22 @@ export const skipNext = createAsyncThunk(
       };
     }
     
+    // Ensure we have an active device
+    const deviceCheck = await ensureActiveDevice();
+    if (!deviceCheck.success) {
+      return rejectWithValue({
+        message: deviceCheck.error || "No active Spotify device"
+      });
+    }
+    
     try {
+      console.log('[Music] Calling nextTrack API...');
       const nextTrack = store.dispatch(
         spotifyApi.endpoints.nextTrack.initiate({})
       );
       
-      await nextTrack.unwrap();
+      const result = await nextTrack.unwrap();
+      console.log('[Music] NextTrack API result:', result);
       
       return {
         success: true,
@@ -608,12 +693,14 @@ export const pauseMusic = createAsyncThunk(
       };
     }
     
+    // For pause, we don't need to ensure device - just try to pause
     try {
       const pauseMusic = store.dispatch(
         spotifyApi.endpoints.pauseMusic.initiate({})
       );
       
-      await pauseMusic.unwrap();
+      const result = await pauseMusic.unwrap();
+      console.log('[Music] Pause API success result:', result);
       
       return {
         success: true,
@@ -622,6 +709,20 @@ export const pauseMusic = createAsyncThunk(
       };
       
     } catch (error: any) {
+      console.log('[Music] Pause API error:', error);
+      
+      // Handle 403 "Restriction violated" - pause likely worked despite error
+      if (error.status === 403 && 
+          error.data?.error?.message?.includes('Restriction violated')) {
+        console.log('[Music] Pause restriction error but pause likely worked');
+        return {
+          success: true,
+          platform: 'spotify',
+          message: 'Music paused'
+        };
+      }
+      
+      
       return rejectWithValue({
         message: "Failed to pause music",
         error: error.data?.enhancedMessage || error.message
@@ -648,9 +749,38 @@ export const resumeMusic = createAsyncThunk(
       };
     }
     
+    // Ensure we have an active device
+    const deviceCheck = await ensureActiveDevice();
+    if (!deviceCheck.success) {
+      return rejectWithValue({
+        message: deviceCheck.error || "No active Spotify device"
+      });
+    }
+    
     try {
+      // Get the selected playlist to resume with correct context
+      const selectedPlaylist = state.music.selectedPlaylist;
+      
+      let playParams: any = {};
+      
+      // If we have a selected playlist, use it as context
+      if (selectedPlaylist) {
+        const contextUri = selectedPlaylist.id === 'liked' 
+          ? selectedPlaylist.uri 
+          : `spotify:playlist:${selectedPlaylist.id}`;
+        playParams.contextUri = contextUri;
+        console.log(`[Music] Resuming with playlist context: ${selectedPlaylist.name}`);
+      } else {
+        console.log('[Music] Resuming without specific context (last playing item)');
+      }
+      
+      // Ensure device if needed
+      if (deviceCheck.deviceId) {
+        playParams.deviceId = deviceCheck.deviceId;
+      }
+      
       const playMusic = store.dispatch(
-        spotifyApi.endpoints.playMusic.initiate({})
+        spotifyApi.endpoints.playMusic.initiate(playParams)
       );
       
       await playMusic.unwrap();
@@ -662,6 +792,19 @@ export const resumeMusic = createAsyncThunk(
       };
       
     } catch (error: any) {
+      console.log('[Music] Resume API error:', error);
+      
+      // Handle 403 "Restriction violated" - resume likely worked despite error
+      if (error.status === 403 && 
+          error.data?.error?.message?.includes('Restriction violated')) {
+        console.log('[Music] Resume restriction error but resume likely worked');
+        return {
+          success: true,
+          platform: 'spotify',
+          message: 'Music resumed'
+        };
+      }
+      
       return rejectWithValue({
         message: "Failed to resume music",
         error: error.data?.enhancedMessage || error.message
@@ -771,6 +914,85 @@ export const getMusicStatus = createAsyncThunk(
     } catch (error: any) {
       return rejectWithValue({
         message: "Failed to get music status",
+        error: error.data?.enhancedMessage || error.message
+      });
+    }
+  }
+);
+
+/**
+ * Sync selected playlist to Spotify (prepare for playback without starting)
+ * Called when entering workout to ensure playlist context is ready
+ */
+export const syncPlaylistToSpotify = createAsyncThunk(
+  'music/syncPlaylistToSpotify',
+  async (_, { getState, rejectWithValue }) => {
+    const state = getState() as RootState;
+    const isSpotifyAuth = state.spotifyAuth.accessToken && state.spotifyAuth.user;
+    const selectedPlaylist = state.music.selectedPlaylist;
+    const selectedMusicOption = state.music.selectedMusicOption;
+    
+    if (!isSpotifyAuth || selectedMusicOption === 'app' || !selectedPlaylist) {
+      return {
+        success: true,
+        message: 'No Spotify playlist to sync',
+        synced: false
+      };
+    }
+    
+    // Ensure we have an active device first
+    const deviceCheck = await ensureActiveDevice();
+    if (!deviceCheck.success) {
+      return rejectWithValue({
+        message: deviceCheck.error || "No active Spotify device for playlist sync"
+      });
+    }
+    
+    try {
+      console.log(`[Music] Syncing playlist "${selectedPlaylist.name}" to Spotify (no playback)`);
+      
+      // Set the playlist context in Spotify but don't start playing (play: false)
+      const contextUri = selectedPlaylist.id === 'liked' 
+        ? selectedPlaylist.uri 
+        : `spotify:playlist:${selectedPlaylist.id}`;
+      
+      // Set playlist context without starting playback
+      const syncParams: any = {
+        contextUri: contextUri
+      };
+      
+      if (deviceCheck.deviceId) {
+        syncParams.deviceId = deviceCheck.deviceId;
+      }
+      
+      // Use playMusic endpoint with the playlist context but don't auto-play
+      // This sets up the context so when play/resume is called, it plays from this playlist
+      const contextResult = store.dispatch(
+        spotifyApi.endpoints.playMusic.initiate(syncParams)
+      );
+      await contextResult.unwrap();
+      
+      // Immediately pause to prevent auto-play
+      const pauseResult = store.dispatch(
+        spotifyApi.endpoints.pauseMusic.initiate({})
+      );
+      await pauseResult.unwrap();
+      
+      // Small delay to let sync complete
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      return {
+        success: true,
+        platform: 'spotify',
+        playlist: selectedPlaylist.name,
+        message: `Playlist "${selectedPlaylist.name}" synced to Spotify (ready to play)`,
+        synced: true
+      };
+      
+    } catch (error: any) {
+      console.log('[Music] Playlist sync failed:', error);
+      return rejectWithValue({
+        message: "Failed to sync playlist to Spotify",
         error: error.data?.enhancedMessage || error.message
       });
     }

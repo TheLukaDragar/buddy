@@ -1,6 +1,7 @@
 import { useBuddyTheme } from '@/constants/BuddyTheme';
 import React, { useState } from 'react';
 import { ScrollView, StatusBar, StyleSheet, View } from 'react-native';
+import { useSelector } from 'react-redux';
 import { ActivityIndicator, Button, Card, Chip, Divider, Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { nucleus } from '../../Buddy_variables.js';
@@ -44,9 +45,12 @@ export default function SpotifyDemoScreen() {
     skip: !isAuthenticated,
   });
 
+  // Get workout state to control polling
+  const activeWorkout = useSelector((state: any) => state.workout?.activeWorkout);
+  
   const { data: playbackState, isLoading: playbackLoading } = useGetCurrentPlaybackStateQuery(undefined, {
     skip: !isAuthenticated,
-    pollingInterval: 5000,
+    pollingInterval: (isAuthenticated && activeWorkout) ? 5000 : 0, // Only poll during active workout
   });
 
   const { data: topTracks, isLoading: topTracksLoading } = useGetTopTracksQuery(

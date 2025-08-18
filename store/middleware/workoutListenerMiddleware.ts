@@ -2,30 +2,31 @@ import { createListenerMiddleware, isAnyOf, type TypedStartListening } from '@re
 import { contextBridgeService } from '../../services/contextBridgeService';
 import type { AppDispatch, RootState } from '../index';
 import {
-    addContextMessage,
-    adjustReps,
-    adjustRestTime,
-    adjustWeight,
-    clearProcessedContextMessages,
-    completeExercise,
-    completeSet,
-    completeWorkout,
-    confirmReadyAndStartSet,
-    finishWorkoutEarly,
-    jumpToSet,
-    nextSet,
-    pauseSet,
-    previousSet,
-    restTimerExpired,
-    resumeSet,
-    selectWorkout,
-    setTimerExpired,
-    setVoiceAgentStatus,
-    startExercisePreparation,
-    startRest,
-    triggerRestEnding,
-    updateRestTimer,
-    updateSetTimer
+  addContextMessage,
+  adjustReps,
+  adjustRestTime,
+  adjustWeight,
+  clearProcessedContextMessages,
+  completeExercise,
+  completeSet,
+  completeWorkout,
+  confirmReadyAndStartSet,
+  finishWorkoutEarly,
+  jumpToSet,
+  nextSet,
+  pauseSet,
+  previousSet,
+  restTimerExpired,
+  resumeSet,
+  selectWorkout,
+  setTimerExpired,
+  setVoiceAgentStatus,
+  startExercisePreparation,
+  startRest,
+  triggerRestEnding,
+  updateRestTimer,
+  updateSetTimer,
+  extendRest,
 } from '../slices/workoutSlice';
 
 // Create the listener middleware with proper typing
@@ -465,6 +466,65 @@ startAppListening({
   },
 });
 
+// Listener for rest extension
+startAppListening({
+  actionCreator: extendRest,
+  effect: async (action, listenerApi) => {
+    console.log('🎯 [Middleware] extendRest listener triggered!');
+    console.log('🎯 [Middleware] action.payload:', action.payload);
+    
+    const { dispatch, getState } = listenerApi;
+    const state = getState() as RootState;
+    const workoutState = state.workout;
+    
+    // Generate context message for rest extension
+    const { additionalSeconds } = action.payload;
+    const currentRestRemaining = workoutState.timers.restTimer?.remaining || 0;
+    const newTotalTime = currentRestRemaining + (additionalSeconds * 1000);
+    const contextMessage = `SYSTEM: rest-extended - Rest time extended by ${additionalSeconds} seconds. Current rest now has ${Math.ceil(newTotalTime / 1000)} seconds remaining.`;
+    
+    dispatch(addContextMessage({
+      event: 'rest-extended',
+      message: contextMessage,
+      data: { additionalSeconds, newRemaining: Math.ceil(newTotalTime / 1000) },
+    }));
+    
+    contextBridgeService.sendContextualUpdate(contextMessage).catch(err => 
+      console.log('🎙️ Could not send rest extension context:', err)
+    );
+    
+    // If currently resting, extend or start the active timer
+    if (['resting', 'rest-ending'].includes(workoutState.status)) {
+      console.log('⏰ [Workout Middleware] Extending rest timer by', additionalSeconds, 'seconds');
+      
+      // Clear existing timers first
+      if (activeTimers.restTimer) {
+        clearTimeout(activeTimers.restTimer);
+      }
+      if (activeTimers.restUpdateInterval) {
+        clearInterval(activeTimers.restUpdateInterval);
+      }
+      
+      // Get updated state after the slice has processed the extension
+      const updatedState = getState() as RootState;
+      const restTimer = updatedState.workout.timers.restTimer;
+      
+      if (restTimer) {
+        // Start timer updates with the new extended time
+        startTimerUpdates(0, restTimer.remaining, 'rest', dispatch);
+        
+        // Set up warning timer if we have more than 10 seconds left
+        if (restTimer.remaining > 10000) {
+          const warningTime = restTimer.remaining - 10000;
+          activeTimers.restTimer = setTimeout(() => {
+            dispatch(triggerRestEnding());
+          }, warningTime) as ReturnType<typeof setTimeout>;
+        }
+      }
+    }
+  },
+});
+
 // Listener for weight adjustment
 startAppListening({
   actionCreator: adjustWeight,
@@ -737,6 +797,21 @@ startAppListening({
               contextMessage += `. Rest timer: ${remaining}s remaining`;
               if (context.isPaused) {
                 contextMessage += ' (PAUSED)';
+              }
+            }
+            
+            // Add Spotify music status if available
+            const musicState = freshState.music;
+            const spotifyAuth = freshState.spotifyAuth;
+            
+            if (spotifyAuth.accessToken && spotifyAuth.user) {
+              if (musicState.selectedPlaylist) {
+                contextMessage += `. MUSIC: Currently have "${musicState.selectedPlaylist.name}" playlist selected on Spotify`;
+                if (musicState.selectedPlaylist.tracks?.total) {
+                  contextMessage += ` (${musicState.selectedPlaylist.tracks.total} tracks)`;
+                }
+              } else {
+                contextMessage += `. MUSIC: Spotify connected but no playlist selected`;
               }
             }
             

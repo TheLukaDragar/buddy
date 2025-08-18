@@ -1,0 +1,524 @@
+{
+  "tools": [
+    {
+      "type": "client",
+      "name": "get_playlists",
+      "description": "Get available playlists including user's liked songs and app music options",
+      "expects_response": true,
+      "parameters": [],
+      "dynamic_variables": {
+        "dynamic_variable_placeholders": {}
+      },
+      "assignments": [],
+      "disable_interruptions": true,
+      "force_pre_tool_speech": "auto",
+      "response_timeout_secs": 3
+    },
+    {
+      "type": "client",
+      "name": "select_playlist",
+      "description": "Select a playlist to be the active one for navigation",
+      "expects_response": true,
+      "parameters": [
+        {
+          "id": "playlistId",
+          "type": "string",
+          "description": "The ID of the playlist to select, or 'liked' for liked songs",
+          "dynamic_variable": "",
+          "required": true,
+          "constant_value": "",
+          "value_type": "llm_prompt"
+        }
+      ],
+      "dynamic_variables": {
+        "dynamic_variable_placeholders": {}
+      },
+      "assignments": [],
+      "disable_interruptions": true,
+      "force_pre_tool_speech": "auto",
+      "response_timeout_secs": 2
+    },
+    {
+      "type": "client",
+      "name": "get_tracks",
+      "description": "Get tracks from the currently selected playlist",
+      "expects_response": true,
+      "parameters": [],
+      "dynamic_variables": {
+        "dynamic_variable_placeholders": {}
+      },
+      "assignments": [],
+      "disable_interruptions": true,
+      "force_pre_tool_speech": "auto",
+      "response_timeout_secs": 3
+    },
+    {
+      "type": "client",
+      "name": "play_track",
+      "description": "Play a specific track or start the current playlist",
+      "expects_response": true,
+      "parameters": [
+        {
+          "id": "trackUri",
+          "type": "string",
+          "description": "Spotify URI of specific track to play (optional)",
+          "dynamic_variable": "",
+          "required": false,
+          "constant_value": "",
+          "value_type": "llm_prompt"
+        },
+        {
+          "id": "trackIndex",
+          "type": "number",
+          "description": "Index of track in playlist to play (optional)",
+          "dynamic_variable": "",
+          "required": false,
+          "constant_value": "",
+          "value_type": "llm_prompt"
+        }
+      ],
+      "dynamic_variables": {
+        "dynamic_variable_placeholders": {}
+      },
+      "assignments": [],
+      "disable_interruptions": true,
+      "force_pre_tool_speech": "auto",
+      "response_timeout_secs": 2
+    },
+    {
+      "type": "client",
+      "name": "pause_music",
+      "description": "Pause music",
+      "expects_response": true,
+      "parameters": [],
+      "dynamic_variables": {
+        "dynamic_variable_placeholders": {}
+      },
+      "assignments": [],
+      "disable_interruptions": true,
+      "force_pre_tool_speech": "auto",
+      "response_timeout_secs": 1
+    },
+    {
+      "type": "client",
+      "name": "resume_music",
+      "description": "Resume music",
+      "expects_response": true,
+      "parameters": [],
+      "dynamic_variables": {
+        "dynamic_variable_placeholders": {}
+      },
+      "assignments": [],
+      "disable_interruptions": true,
+      "force_pre_tool_speech": "auto",
+      "response_timeout_secs": 1
+    },
+    {
+      "type": "client",
+      "name": "set_volume",
+      "description": "Set music volume 0-100",
+      "expects_response": true,
+      "parameters": [
+        {
+          "id": "volume",
+          "type": "number",
+          "description": "Volume level from 0 to 100",
+          "dynamic_variable": "",
+          "required": true,
+          "constant_value": "",
+          "value_type": "llm_prompt"
+        }
+      ],
+      "dynamic_variables": {
+        "dynamic_variable_placeholders": {}
+      },
+      "assignments": [],
+      "disable_interruptions": true,
+      "force_pre_tool_speech": "auto",
+      "response_timeout_secs": 1
+    },
+    {
+      "type": "client",
+      "name": "skip_next",
+      "description": "Skip to next track",
+      "expects_response": true,
+      "parameters": [],
+      "dynamic_variables": {
+        "dynamic_variable_placeholders": {}
+      },
+      "assignments": [],
+      "disable_interruptions": true,
+      "force_pre_tool_speech": "auto",
+      "response_timeout_secs": 1
+    },
+    {
+      "type": "client",
+      "name": "skip_previous",
+      "description": "Go to previous track",
+      "expects_response": true,
+      "parameters": [],
+      "dynamic_variables": {
+        "dynamic_variable_placeholders": {}
+      },
+      "assignments": [],
+      "disable_interruptions": true,
+      "force_pre_tool_speech": "auto",
+      "response_timeout_secs": 1
+    },
+    {
+      "type": "client",
+      "name": "get_music_status",
+      "description": "Check current music state",
+      "expects_response": true,
+      "parameters": [],
+      "dynamic_variables": {
+        "dynamic_variable_placeholders": {}
+      },
+      "assignments": [],
+      "disable_interruptions": true,
+      "force_pre_tool_speech": "auto",
+      "response_timeout_secs": 2
+    },
+    {
+      "type": "client",
+      "name": "start_set",
+      "description": "Begin exercise set timer",
+      "expects_response": true,
+      "parameters": [],
+      "dynamic_variables": {
+        "dynamic_variable_placeholders": {}
+      },
+      "assignments": [],
+      "disable_interruptions": true,
+      "force_pre_tool_speech": "auto",
+      "response_timeout_secs": 1
+    },
+    {
+      "type": "client",
+      "name": "complete_set",
+      "description": "Mark set completed early",
+      "expects_response": true,
+      "parameters": [
+        {
+          "id": "actualReps",
+          "type": "number",
+          "description": "Actual reps completed (optional)",
+          "dynamic_variable": "",
+          "required": false,
+          "constant_value": "",
+          "value_type": "llm_prompt"
+        }
+      ],
+      "dynamic_variables": {
+        "dynamic_variable_placeholders": {}
+      },
+      "assignments": [],
+      "disable_interruptions": true,
+      "force_pre_tool_speech": "auto",
+      "response_timeout_secs": 1
+    },
+    {
+      "type": "client",
+      "name": "pause_set",
+      "description": "Pause active set",
+      "expects_response": true,
+      "parameters": [
+        {
+          "id": "reason",
+          "type": "string",
+          "description": "Reason for pausing (optional)",
+          "dynamic_variable": "",
+          "required": false,
+          "constant_value": "",
+          "value_type": "llm_prompt"
+        }
+      ],
+      "dynamic_variables": {
+        "dynamic_variable_placeholders": {}
+      },
+      "assignments": [],
+      "disable_interruptions": true,
+      "force_pre_tool_speech": "auto",
+      "response_timeout_secs": 1
+    },
+    {
+      "type": "client",
+      "name": "resume_set",
+      "description": "Resume paused set",
+      "expects_response": true,
+      "parameters": [],
+      "dynamic_variables": {
+        "dynamic_variable_placeholders": {}
+      },
+      "assignments": [],
+      "disable_interruptions": true,
+      "force_pre_tool_speech": "auto",
+      "response_timeout_secs": 1
+    },
+    {
+      "type": "client",
+      "name": "restart_set",
+      "description": "Restart set from beginning",
+      "expects_response": true,
+      "parameters": [],
+      "dynamic_variables": {
+        "dynamic_variable_placeholders": {}
+      },
+      "assignments": [],
+      "disable_interruptions": true,
+      "force_pre_tool_speech": "auto",
+      "response_timeout_secs": 1
+    },
+    {
+      "type": "client",
+      "name": "extend_rest",
+      "description": "Add time to rest period",
+      "expects_response": true,
+      "parameters": [
+        {
+          "id": "additionalSeconds",
+          "type": "number",
+          "description": "Additional seconds to add to rest (optional)",
+          "dynamic_variable": "",
+          "required": false,
+          "constant_value": "",
+          "value_type": "llm_prompt"
+        }
+      ],
+      "dynamic_variables": {
+        "dynamic_variable_placeholders": {}
+      },
+      "assignments": [],
+      "disable_interruptions": true,
+      "force_pre_tool_speech": "auto",
+      "response_timeout_secs": 1
+    },
+    {
+      "type": "client",
+      "name": "jump_to_set",
+      "description": "Jump to specific set number and prepare it",
+      "expects_response": true,
+      "parameters": [
+        {
+          "id": "setNumber",
+          "type": "number",
+          "description": "Set number to jump to",
+          "dynamic_variable": "",
+          "required": true,
+          "constant_value": "",
+          "value_type": "llm_prompt"
+        }
+      ],
+      "dynamic_variables": {
+        "dynamic_variable_placeholders": {}
+      },
+      "assignments": [],
+      "disable_interruptions": true,
+      "force_pre_tool_speech": "auto",
+      "response_timeout_secs": 1
+    },
+    {
+      "type": "client",
+      "name": "adjust_weight",
+      "description": "Modify exercise weight",
+      "expects_response": true,
+      "parameters": [
+        {
+          "id": "newWeight",
+          "type": "number",
+          "description": "New weight value",
+          "dynamic_variable": "",
+          "required": true,
+          "constant_value": "",
+          "value_type": "llm_prompt"
+        },
+        {
+          "id": "reason",
+          "type": "string",
+          "description": "Reason for weight adjustment (optional)",
+          "dynamic_variable": "",
+          "required": false,
+          "constant_value": "",
+          "value_type": "llm_prompt"
+        }
+      ],
+      "dynamic_variables": {
+        "dynamic_variable_placeholders": {}
+      },
+      "assignments": [],
+      "disable_interruptions": true,
+      "force_pre_tool_speech": "auto",
+      "response_timeout_secs": 1
+    },
+    {
+      "type": "client",
+      "name": "adjust_reps",
+      "description": "Modify rep count",
+      "expects_response": true,
+      "parameters": [
+        {
+          "id": "newReps",
+          "type": "number",
+          "description": "New rep count",
+          "dynamic_variable": "",
+          "required": true,
+          "constant_value": "",
+          "value_type": "llm_prompt"
+        },
+        {
+          "id": "reason",
+          "type": "string",
+          "description": "Reason for rep adjustment (optional)",
+          "dynamic_variable": "",
+          "required": false,
+          "constant_value": "",
+          "value_type": "llm_prompt"
+        }
+      ],
+      "dynamic_variables": {
+        "dynamic_variable_placeholders": {}
+      },
+      "assignments": [],
+      "disable_interruptions": true,
+      "force_pre_tool_speech": "auto",
+      "response_timeout_secs": 1
+    },
+    {
+      "type": "client",
+      "name": "adjust_rest_time",
+      "description": "Modify rest duration",
+      "expects_response": true,
+      "parameters": [
+        {
+          "id": "newTime",
+          "type": "number",
+          "description": "New rest time in seconds",
+          "dynamic_variable": "",
+          "required": true,
+          "constant_value": "",
+          "value_type": "llm_prompt"
+        },
+        {
+          "id": "reason",
+          "type": "string",
+          "description": "Reason for rest time adjustment (optional)",
+          "dynamic_variable": "",
+          "required": false,
+          "constant_value": "",
+          "value_type": "llm_prompt"
+        }
+      ],
+      "dynamic_variables": {
+        "dynamic_variable_placeholders": {}
+      },
+      "assignments": [],
+      "disable_interruptions": true,
+      "force_pre_tool_speech": "auto",
+      "response_timeout_secs": 1
+    },
+    {
+      "type": "client",
+      "name": "get_workout_status",
+      "description": "Check workout progress",
+      "expects_response": true,
+      "parameters": [],
+      "dynamic_variables": {
+        "dynamic_variable_placeholders": {}
+      },
+      "assignments": [],
+      "disable_interruptions": true,
+      "force_pre_tool_speech": "auto",
+      "response_timeout_secs": 1
+    },
+    {
+      "type": "client",
+      "name": "get_exercise_instructions",
+      "description": "Get form guidance",
+      "expects_response": true,
+      "parameters": [],
+      "dynamic_variables": {
+        "dynamic_variable_placeholders": {}
+      },
+      "assignments": [],
+      "disable_interruptions": true,
+      "force_pre_tool_speech": "auto",
+      "response_timeout_secs": 1
+    },
+    {
+      "type": "client",
+      "name": "pause_for_issue",
+      "description": "Pause for safety/form issues",
+      "expects_response": true,
+      "parameters": [
+        {
+          "id": "reason",
+          "type": "string",
+          "description": "Reason for pausing (safety, form, etc.)",
+          "dynamic_variable": "",
+          "required": true,
+          "constant_value": "",
+          "value_type": "llm_prompt"
+        }
+      ],
+      "dynamic_variables": {
+        "dynamic_variable_placeholders": {}
+      },
+      "assignments": [],
+      "disable_interruptions": true,
+      "force_pre_tool_speech": "auto",
+      "response_timeout_secs": 1
+    },
+    {
+      "type": "client",
+      "name": "get_battery_level",
+      "description": "Check device battery",
+      "expects_response": true,
+      "parameters": [],
+      "dynamic_variables": {
+        "dynamic_variable_placeholders": {}
+      },
+      "assignments": [],
+      "disable_interruptions": true,
+      "force_pre_tool_speech": "auto",
+      "response_timeout_secs": 1
+    },
+    {
+      "type": "client",
+      "name": "change_brightness",
+      "description": "Adjust screen brightness",
+      "expects_response": true,
+      "parameters": [
+        {
+          "id": "brightness",
+          "type": "number",
+          "description": "Brightness level from 0 to 100",
+          "dynamic_variable": "",
+          "required": true,
+          "constant_value": "",
+          "value_type": "llm_prompt"
+        }
+      ],
+      "dynamic_variables": {
+        "dynamic_variable_placeholders": {}
+      },
+      "assignments": [],
+      "disable_interruptions": true,
+      "force_pre_tool_speech": "auto",
+      "response_timeout_secs": 1
+    },
+    {
+      "type": "client",
+      "name": "flash_screen",
+      "description": "Flash screen notification",
+      "expects_response": true,
+      "parameters": [],
+      "dynamic_variables": {
+        "dynamic_variable_placeholders": {}
+      },
+      "assignments": [],
+      "disable_interruptions": true,
+      "force_pre_tool_speech": "auto",
+      "response_timeout_secs": 1
+    }
+  ]
+}

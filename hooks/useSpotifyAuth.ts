@@ -210,12 +210,30 @@ export const useSpotifyAuth = () => {
 
       if (data.access_token) {
         console.log('[Spotify Auth] Token refresh successful');
-        dispatch(updateAccessToken({
-          accessToken: data.access_token,
-          expiresIn: data.expires_in || 3600,
-        }));
+        
+        // Check if Spotify provided a new refresh token
+        if (data.refresh_token) {
+          console.log('[Spotify Auth] New refresh token provided, updating both tokens');
+          dispatch(setTokens({
+            accessToken: data.access_token,
+            refreshToken: data.refresh_token,
+            expiresIn: data.expires_in || 3600,
+          }));
+        } else {
+          console.log('[Spotify Auth] No new refresh token, keeping existing one');
+          dispatch(updateAccessToken({
+            accessToken: data.access_token,
+            expiresIn: data.expires_in || 3600,
+          }));
+        }
+        
         return data.access_token;
       } else {
+        console.error('[Spotify Auth] Token refresh failed - no access token returned:', data);
+        // if (data.error === 'invalid_grant') {
+        //   console.log('[Spotify Auth] Refresh token revoked, clearing auth data');
+        //   dispatch(clearAuth());
+        // }
         throw new Error(data.error_description || 'Failed to refresh token');
       }
     } catch (error) {

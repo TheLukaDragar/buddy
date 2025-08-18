@@ -1,7 +1,7 @@
 import type { BaseQueryFn, FetchArgs, FetchBaseQueryError } from '@reduxjs/toolkit/query';
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import type { RootState } from '../index';
-import { selectTokenNeedsRefresh, selectValidToken, updateAccessToken } from '../slices/spotifyAuthSlice';
+import { selectTokenNeedsRefresh, selectValidToken, setTokens, updateAccessToken } from '../slices/spotifyAuthSlice';
 
 // Spotify API Types
 export interface SpotifyTrack {
@@ -100,9 +100,9 @@ const spotifyBaseQuery: BaseQueryFn<
   const state = api.getState() as RootState;
   let token = selectValidToken(state);
   
-  // Auto-refresh token if needed
+  // Auto-refresh token if needed  
   if (!token && selectTokenNeedsRefresh(state)) {
-    const refreshToken = state.spotifyAuth.refreshToken;
+    const refreshToken = state.spotifyAuth?.refreshToken;
     if (refreshToken) {
       try {
         console.log('[Spotify API] Auto-refreshing expired token...');
@@ -118,12 +118,30 @@ const spotifyBaseQuery: BaseQueryFn<
 
         const data = await response.json();
         if (data.access_token) {
-          api.dispatch(updateAccessToken({
-            accessToken: data.access_token,
-            expiresIn: data.expires_in || 3600,
-          }));
+          // Check if Spotify provided a new refresh token
+          if (data.refresh_token) {
+            console.log('[Spotify API] New refresh token provided, updating both tokens');
+            api.dispatch(setTokens({
+              accessToken: data.access_token,
+              refreshToken: data.refresh_token,
+              expiresIn: data.expires_in || 3600,
+            }));
+          } else {
+            console.log('[Spotify API] No new refresh token, keeping existing one');
+            api.dispatch(updateAccessToken({
+              accessToken: data.access_token,
+              expiresIn: data.expires_in || 3600,
+            }));
+          }
           token = data.access_token;
           console.log('[Spotify API] Token auto-refresh successful');
+        } else {
+          console.error('[Spotify API] Auto-refresh failed - no access token returned:', data);
+          // If refresh token is invalid/revoked, clear all auth data
+        //   if (data.error === 'invalid_grant') {
+        //     console.log('[Spotify API] Refresh token revoked, clearing auth data');
+        //     api.dispatch(clearAuth());
+        //   }
         }
       } catch (error) {
         console.error('[Spotify API] Auto-refresh failed:', error);
@@ -148,9 +166,28 @@ const spotifyBaseQuery: BaseQueryFn<
       headers.set('Content-Type', 'application/json');
       return headers;
     },
+    responseHandler: async (response) => {
+      // Handle empty responses (204, etc.) without trying to parse JSON
+      if (response.status === 204) {
+        return {};
+      }
+      
+      // Check if response has content
+      const contentType = response.headers.get('content-type');
+      const contentLength = response.headers.get('content-length');
+      
+      // If no content or not JSON, return empty object
+      if (contentLength === '0' || !contentType?.includes('application/json')) {
+        return {};
+      }
+      
+      // For JSON responses, parse normally
+      return response.json();
+    },
   });
 
   let result = await baseQuery(args, api, extraOptions);
+  
 
   // Handle successful 204 responses (No Content) - these are successful operations
   if (result.error?.status === 204) {

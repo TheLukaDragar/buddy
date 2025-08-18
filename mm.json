@@ -1,0 +1,171 @@
+{
+    "music_tools": [
+      {
+        "type": "client",
+        "name": "get_playlists",
+        "description": "Get available playlists including user's liked songs and app music options",
+        "disable_interruptions": true,
+        "force_pre_tool_speech": "auto",
+        "assignments": [],
+        "expects_response": true,
+        "response_timeout_secs": 3,
+        "parameters": [],
+        "dynamic_variables": {
+          "dynamic_variable_placeholders": {}
+        }
+      },
+      {
+        "type": "client",
+        "name": "select_playlist",
+        "description": "Select a playlist to be the active one for navigation",
+        "disable_interruptions": true,
+        "force_pre_tool_speech": "auto",
+        "assignments": [],
+        "expects_response": true,
+        "response_timeout_secs": 2,
+        "parameters": [
+          {
+            "name": "playlistId",
+            "type": "string",
+            "description": "The ID of the playlist to select, or 'liked' for liked songs",
+            "required": true
+          }
+        ],
+        "dynamic_variables": {
+          "dynamic_variable_placeholders": {}
+        }
+      },
+      {
+        "type": "client",
+        "name": "get_tracks",
+        "description": "Get tracks from the currently selected playlist",
+        "disable_interruptions": true,
+        "force_pre_tool_speech": "auto",
+        "assignments": [],
+        "expects_response": true,
+        "response_timeout_secs": 3,
+        "parameters": [],
+        "dynamic_variables": {
+          "dynamic_variable_placeholders": {}
+        }
+      },
+      {
+        "type": "client",
+        "name": "play_track",
+        "description": "Play a specific track or start the current playlist",
+        "disable_interruptions": true,
+        "force_pre_tool_speech": "auto",
+        "assignments": [],
+        "expects_response": true,
+        "response_timeout_secs": 2,
+        "parameters": [
+          {
+            "name": "trackUri",
+            "type": "string",
+            "description": "Spotify URI of specific track to play (optional)",
+            "required": false
+          },
+          {
+            "name": "trackIndex",
+            "type": "number",
+            "description": "Index of track in playlist to play (optional)",
+            "required": false
+          }
+        ],
+        "dynamic_variables": {
+          "dynamic_variable_placeholders": {}
+        }
+      },
+      {
+        "type": "client",
+        "name": "skip_next",
+        "description": "Skip to next track in current playlist",
+        "disable_interruptions": true,
+        "force_pre_tool_speech": "auto",
+        "assignments": [],
+        "expects_response": true,
+        "response_timeout_secs": 1,
+        "parameters": [],
+        "dynamic_variables": {
+          "dynamic_variable_placeholders": {}
+        }
+      },
+      {
+        "type": "client",
+        "name": "skip_previous",
+        "description": "Skip to previous track in current playlist",
+        "disable_interruptions": true,
+        "force_pre_tool_speech": "auto",
+        "assignments": [],
+        "expects_response": true,
+        "response_timeout_secs": 1,
+        "parameters": [],
+        "dynamic_variables": {
+          "dynamic_variable_placeholders": {}
+        }
+      },
+      {
+        "type": "client",
+        "name": "pause_music",
+        "description": "Pause current music playback",
+        "disable_interruptions": true,
+        "force_pre_tool_speech": "auto",
+        "assignments": [],
+        "expects_response": true,
+        "response_timeout_secs": 1,
+        "parameters": [],
+        "dynamic_variables": {
+          "dynamic_variable_placeholders": {}
+        }
+      },
+      {
+        "type": "client",
+        "name": "resume_music",
+        "description": "Resume paused music playback",
+        "disable_interruptions": true,
+        "force_pre_tool_speech": "auto",
+        "assignments": [],
+        "expects_response": true,
+        "response_timeout_secs": 1,
+        "parameters": [],
+        "dynamic_variables": {
+          "dynamic_variable_placeholders": {}
+        }
+      },
+      {
+        "type": "client",
+        "name": "set_volume",
+        "description": "Set music playback volume",
+        "disable_interruptions": true,
+        "force_pre_tool_speech": "auto",
+        "assignments": [],
+        "expects_response": true,
+        "response_timeout_secs": 1,
+        "parameters": [
+          {
+            "name": "volume",
+            "type": "number",
+            "description": "Volume level from 0-100",
+            "required": true
+          }
+        ],
+        "dynamic_variables": {
+          "dynamic_variable_placeholders": {}
+        }
+      },
+      {
+        "type": "client",
+        "name": "get_music_status",
+        "description": "Get current music playback status and information",
+        "disable_interruptions": true,
+        "force_pre_tool_speech": "auto",
+        "assignments": [],
+        "expects_response": true,
+        "response_timeout_secs": 2,
+        "parameters": [],
+        "dynamic_variables": {
+          "dynamic_variable_placeholders": {}
+        }
+      }
+    ]
+  }

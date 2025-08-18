@@ -69,7 +69,8 @@ export const store = configureStore({
   devTools: false, // Disable built-in devTools
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
-      serializableCheck: {
+      // Disable SerializableStateInvariantMiddleware in development to prevent slowdowns
+      serializableCheck: __DEV__ ? false : {
         ignoredActions: [
           enhancedApi.util.resetApiState.type, 
           'persist/PERSIST', 

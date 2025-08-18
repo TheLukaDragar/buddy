@@ -9,6 +9,7 @@ import {
   completeSet as completeSetReducer,
   completeWorkout as completeWorkoutReducer,
   confirmReadyAndStartSet as confirmReadyAndStartSetReducer,
+  extendRest as extendRestReducer,
   finishWorkoutEarly as finishWorkoutEarlyReducer,
   jumpToSet as jumpToSetReducer,
   nextSet as nextSetReducer,
@@ -307,6 +308,29 @@ export const adjustRestTime = createAsyncThunk(
   }
 )
 
+export const extendRest = createAsyncThunk(
+  'workout/extendRest',
+  async ({ additionalSeconds }: { additionalSeconds: number }, { getState, dispatch, rejectWithValue }) => {
+    const state = getState() as RootState
+    
+    if (!['resting', 'rest-ending'].includes(state.workout.status)) {
+      return rejectWithValue(`Can only extend rest during rest period, currently: ${state.workout.status}`)
+    }
+
+    if (!state.workout.activeWorkout?.currentSet) {
+      return rejectWithValue('No active workout to extend rest for')
+    }
+
+    dispatch(extendRestReducer({ additionalSeconds }))
+    
+    return { 
+      success: true,
+      message: `Extended current rest by ${additionalSeconds} seconds`,
+      additionalSeconds 
+    }
+  }
+)
+
 export const jumpToSet = createAsyncThunk(
   'workout/jumpToSet',
   async ({ targetSetNumber, reason }: { targetSetNumber: number; reason: string }, { getState, dispatch, rejectWithValue }) => {
@@ -466,7 +490,7 @@ export const complete_set = completeSet
 export const pause_set = pauseSet
 export const resume_set = resumeSet
 export const restart_set = jumpToSet // restart = jump to same set
-export const extend_rest = adjustRestTime // extend by adding time
+export const extend_rest = extendRest // extend current rest only
 export const jump_to_set = jumpToSet
 export const adjust_weight = adjustWeight
 export const adjust_reps = adjustReps

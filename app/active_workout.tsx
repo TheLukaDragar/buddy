@@ -1,8 +1,8 @@
 import { unwrapResult } from '@reduxjs/toolkit';
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { BackHandler, Dimensions, Modal, StyleSheet, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { SystemBars } from 'react-native-edge-to-edge';
 import { PanGestureHandler } from 'react-native-gesture-handler';
@@ -35,7 +35,8 @@ import {
   selectPlaylist,
   setVolume,
   skipNext,
-  skipPrevious
+  skipPrevious,
+  syncPlaylistToSpotify
 } from '../store/actions/musicActions';
 import {
   adjustReps,
@@ -55,7 +56,9 @@ import {
   startRest
 } from '../store/actions/workoutActions';
 import { useAppDispatch } from '../store/hooks';
+import { hideMiniPlayer, showMiniPlayer } from '../store/slices/musicSlice';
 import {
+  extendRest,
   selectActiveWorkout,
   selectCurrentExercise,
   selectCurrentSet,
@@ -67,6 +70,7 @@ import {
 import type { ConversationEvent, ConversationStatus, Mode, Role } from '@elevenlabs/react-native';
 import { useConversation } from '@elevenlabs/react-native';
 import { AnimatedAIButton } from '../components/AnimatedAIButton';
+import SpotifyPlayerMini from '../components/SpotifyPlayerMini';
 import { useAuth } from '../contexts/AuthContext';
 import { useMicrophonePermission } from '../hooks/useMicrophonePermission';
 
@@ -206,6 +210,7 @@ interface VideoContainerProps {
   activeWorkout?: any;
   onShowFinishAlert: () => void;
   onHideControls?: () => void;
+  dispatch: any;
 }
 
 const VideoContainer: React.FC<VideoContainerProps> = ({ 
@@ -213,7 +218,8 @@ const VideoContainer: React.FC<VideoContainerProps> = ({
   status, 
   activeWorkout, 
   onShowFinishAlert,
-  onHideControls 
+  onHideControls,
+  dispatch
 }) => {
   const [controlsVisible, setControlsVisible] = useState(true);
   const controlsOpacity = useSharedValue(1);
@@ -245,12 +251,14 @@ const VideoContainer: React.FC<VideoContainerProps> = ({
   const showControls = () => {
     setControlsVisible(true);
     controlsOpacity.value = withTiming(1, { duration: 300 });
+    dispatch(showMiniPlayer());
   };
 
   const hideControls = () => {
     if (status !== 'paused' && !activeWorkout?.isPaused && status !== 'preparing') {
       setControlsVisible(false);
       controlsOpacity.value = withTiming(0, { duration: 300 });
+      dispatch(hideMiniPlayer());
     }
   };
 
@@ -294,9 +302,13 @@ const VideoContainer: React.FC<VideoContainerProps> = ({
         style={[styles.controlsOverlay, animatedOverlayStyle]} 
         pointerEvents={controlsVisible ? 'auto' : 'none'}
       >
+
+
         <TouchableWithoutFeedback onPress={hideControls}>
           <View style={styles.overlayBackground} />
         </TouchableWithoutFeedback>
+
+        {/* Spotify Player Mini removed from here - now rendered as global overlay */}
         
         <View style={styles.centeredControls}>
           <WorkoutControls onShowFinishAlert={onShowFinishAlert} />
@@ -385,21 +397,29 @@ const WorkoutProgress: React.FC<WorkoutProgressProps> = ({
       progress = 100;
       remainingTime = 0;
     } else if (status === 'resting' || status === 'rest-ending') {
-      // For rest, use the displayed time from activeWorkout
-      const restDuration = currentSet.restTimeAfter || 60;
-      
-      if (activeWorkout?.timeRemaining !== undefined) {
-        // timeRemaining is already in seconds from Redux store
-        const remainingSec = Math.max(0, activeWorkout.timeRemaining);
-        const elapsedSec = Math.max(0, restDuration - remainingSec);
+      // For rest, use the actual rest timer duration from Redux state
+      if (timers.restTimer) {
+        // Use actual timer duration (which may have been extended)
+        const actualRestDuration = Math.floor(timers.restTimer.duration / 1000);
+        const remainingSec = Math.max(0, Math.floor(timers.restTimer.remaining / 1000));
+        const elapsedSec = Math.max(0, actualRestDuration - remainingSec);
         
-        // Calculate progress based on elapsed time vs total duration
-        progress = Math.min((elapsedSec / restDuration) * 100, 100);
+        // Calculate progress based on elapsed time vs actual timer duration
+        progress = Math.min((elapsedSec / actualRestDuration) * 100, 100);
+        remainingTime = remainingSec;
+      } else if (activeWorkout?.timeRemaining !== undefined) {
+        // Fallback to activeWorkout timeRemaining if no timer
+        const fallbackDuration = currentSet.restTimeAfter || 60;
+        const remainingSec = Math.max(0, activeWorkout.timeRemaining);
+        const elapsedSec = Math.max(0, fallbackDuration - remainingSec);
+        
+        progress = Math.min((elapsedSec / fallbackDuration) * 100, 100);
         remainingTime = Math.floor(remainingSec);
       } else {
-        // No timer active, show 0 progress
+        // No timer active, show 0 progress with original duration
+        const originalDuration = currentSet.restTimeAfter || 60;
         progress = 0;
-        remainingTime = restDuration;
+        remainingTime = originalDuration;
       }
     } else if (status === 'preparing') {
       // Preparing for set, show 0 progress
@@ -621,6 +641,24 @@ const WorkoutControls: React.FC<WorkoutControlsProps> = ({ onShowFinishAlert }) 
           const selectResult = await dispatch(selectWorkout(mihasWorkout));
           const selectData = unwrapResult(selectResult);
           console.log('Select workout result:', selectData);
+          
+          // // Sync playlist to Spotify after workout selection
+          // const state = store.getState();
+          // const musicState = state.music;
+          // const spotifyAuth = state.spotifyAuth;
+          
+          // if (spotifyAuth.accessToken && spotifyAuth.user && musicState.selectedPlaylist) {
+          //   console.log('🎵 [Center Button] Syncing selected playlist to Spotify...');
+          //   try {
+          //     const syncResult = await dispatch(syncPlaylistToSpotify());
+          //     const syncData = unwrapResult(syncResult);
+          //     if (syncData?.synced) {
+          //       console.log(`🎵 [Center Button] Playlist "${syncData.playlist}" synced to Spotify`);
+          //     }
+          //   } catch (error) {
+          //     console.log('🎵 [Center Button] Failed to sync playlist:', error);
+          //   }
+          // }
           break;
         case 'selected':
           // BEGIN - Start exercise preparation
@@ -680,6 +718,24 @@ const WorkoutControls: React.FC<WorkoutControlsProps> = ({ onShowFinishAlert }) 
           const selectResult = await dispatch(selectWorkout(mihasWorkout));
           const selectData = unwrapResult(selectResult);
           console.log('Select workout result:', selectData);
+          
+          // Sync playlist to Spotify after workout selection
+          const state = store.getState();
+          const musicState = state.music;
+          const spotifyAuth = state.spotifyAuth;
+          
+          if (spotifyAuth.accessToken && spotifyAuth.user && musicState.selectedPlaylist) {
+            console.log('🎵 [Right Button] Syncing selected playlist to Spotify...');
+            try {
+              const syncResult = await dispatch(syncPlaylistToSpotify());
+              const syncData = unwrapResult(syncResult);
+              if (syncData?.synced) {
+                console.log(`🎵 [Right Button] Playlist "${syncData.playlist}" synced to Spotify`);
+              }
+            } catch (error) {
+              console.log('🎵 [Right Button] Failed to sync playlist:', error);
+            }
+          }
           break;
         case 'preparing':
         case 'rest-ending':
@@ -1581,6 +1637,7 @@ export default function ActiveWorkoutScreen() {
   const activeWorkout = useSelector(selectActiveWorkout);
   const currentExercise = useSelector(selectCurrentExercise);
   const status = useSelector(selectWorkoutStatus);
+  const timers = useSelector(selectTimers);
   const dispatch = useAppDispatch();
 
   // Auto-select workout when status is inactive
@@ -1590,6 +1647,27 @@ export default function ActiveWorkoutScreen() {
       dispatch(selectWorkout(mihasWorkout));
     }
   }, [status, dispatch]);
+
+  // // Sync selected playlist to Spotify when screen is first shown
+  // useFocusEffect(
+  //   useCallback(() => {
+  //     const state = store.getState();
+  //     const musicState = state.music;
+  //     const spotifyAuth = state.spotifyAuth;
+      
+  //     if (spotifyAuth.accessToken && spotifyAuth.user && musicState.selectedPlaylist) {
+  //       console.log('🎵 [Active Workout] Screen focused - syncing selected playlist to Spotify...');
+        
+  //       dispatch(syncPlaylistToSpotify()).then((result: any) => {
+  //         if (result.payload?.synced) {
+  //           console.log(`🎵 [Active Workout] Playlist "${result.payload.playlist}" synced to Spotify`);
+  //         }
+  //       }).catch((error: any) => {
+  //         console.log('🎵 [Active Workout] Failed to sync playlist:', error);
+  //       });
+  //     }
+  //   }, [dispatch])
+  // );
 
   // ElevenLabs Conversation state
   const [conversationToken, setConversationToken] = useState<string | null>(null);
@@ -1617,6 +1695,7 @@ export default function ActiveWorkoutScreen() {
       
       complete_set: async (params: unknown) => {
         try {
+          console.log('🎯 [Client Tool] complete_set called with params:', params);
           const typedParams = params as { actualReps?: number };
           const result = await dispatch(completeSet({ actualReps: typedParams?.actualReps }));
           const data = unwrapResult(result);
@@ -1670,6 +1749,7 @@ export default function ActiveWorkoutScreen() {
       
       extend_rest: async (params: unknown) => {
         try {
+          console.log('🎯 [Client Tool] extend_rest called with params:', params);
           const typedParams = params as { additionalSeconds: number; reason?: string };
           
           if (!typedParams.additionalSeconds || typedParams.additionalSeconds <= 0) {
@@ -1680,59 +1760,29 @@ export default function ActiveWorkoutScreen() {
           const workoutState = state.workout;
           const reason = typedParams.reason || 'Agent extended rest period';
           
+          console.log('🎯 [Client Tool] extend_rest - current workout status:', workoutState.status);
+          console.log('🎯 [Client Tool] extend_rest - has rest timer:', !!workoutState.timers.restTimer);
+          
           if (!workoutState.activeWorkout) {
             throw new Error('No active workout to extend rest for');
           }
           
-          // Handle different workout states
-          if (workoutState.status === 'resting') {
-            // User is currently resting - extend the active rest timer and restart countdown
-            if (!workoutState.timers.restTimer) {
-              throw new Error('No active rest timer to extend');
-            }
-            
-            const currentRemaining = Math.floor(workoutState.timers.restTimer.remaining / 1000);
-            const newRestTime = currentRemaining + typedParams.additionalSeconds;
-            
-            // Dispatch the rest time adjustment (this will restart the timer via middleware)
-            const result = await dispatch(adjustRestTime({ newRestTime, reason }));
-            const data = unwrapResult(result);
-            
-            return JSON.stringify({
-              ...data,
-              action: 'extended_active_rest',
-              message: `Extended current rest by ${typedParams.additionalSeconds}s. Timer restarted with ${newRestTime}s total.`,
-              wasActivelyResting: true,
-              wasPaused: workoutState.activeWorkout.isPaused
-            });
-            
-          } else if (workoutState.status === 'exercising' || workoutState.status === 'preparing') {
-            // User is exercising or preparing - set rest time for next rest period
-            if (!workoutState.activeWorkout.currentSet) {
-              throw new Error('No current set to adjust rest time for');
-            }
-            
-            const currentRestTime = workoutState.activeWorkout.currentSet.restTimeAfter;
-            if (typeof currentRestTime !== 'number') {
-              throw new Error('Current set has no defined rest time to extend');
-            }
-            
-            const newRestTime = currentRestTime + typedParams.additionalSeconds;
-            const result = await dispatch(adjustRestTime({ newRestTime, reason }));
-            const data = unwrapResult(result);
-            
-            return JSON.stringify({
-              ...data,
-              action: 'extended_next_rest',
-              message: `Extended rest time for next rest period by ${typedParams.additionalSeconds}s (will be ${newRestTime}s total).`,
-              wasActivelyResting: false,
-              currentState: workoutState.status
-            });
-            
-          } else {
-            // Invalid state for rest extension
-            throw new Error(`Cannot extend rest during ${workoutState.status} state. Only during exercising, preparing, or resting.`);
-          }
+          // Always use extendRest action to avoid affecting future sets
+          console.log('🎯 [Client Tool] extend_rest - dispatching extendRest with', typedParams.additionalSeconds, 'seconds');
+          
+          // Dispatch the rest extension (this will extend/create the timer via middleware)
+          const result = await dispatch(extendRest({ additionalSeconds: typedParams.additionalSeconds }));
+          const data = unwrapResult(result);
+          
+          console.log('🎯 [Client Tool] extend_rest result:', data);
+          
+          return JSON.stringify({
+            ...data,
+            action: 'extended_rest',
+            message: `Extended rest by ${typedParams.additionalSeconds}s`,
+            currentState: workoutState.status,
+            wasActivelyResting: workoutState.status === 'resting'
+          });
           
         } catch (error) {
           console.error('❌ [Client Tool] extend_rest failed:', error);
@@ -1891,6 +1941,14 @@ export default function ActiveWorkoutScreen() {
           }));
           const data = unwrapResult(result);
           console.log('🎵 [Client Tool] play_track result:', data);
+          
+          // Show mini player on successful music tool call
+          dispatch(showMiniPlayer());
+          // Auto-hide after 4 seconds
+          setTimeout(() => {
+            dispatch(hideMiniPlayer());
+          }, 4000);
+          
           return JSON.stringify(data);
         } catch (error) {
           console.error('❌ [Client Tool] play_track failed:', error);
@@ -1903,6 +1961,13 @@ export default function ActiveWorkoutScreen() {
           const result = await dispatch(skipNext());
           const data = unwrapResult(result);
           console.log('🎵 [Client Tool] skip_next result:', data);
+          
+          // Show mini player on successful music tool call
+          dispatch(showMiniPlayer());
+          setTimeout(() => {
+            dispatch(hideMiniPlayer());
+          }, 4000);
+          
           return JSON.stringify(data);
         } catch (error) {
           console.error('❌ [Client Tool] skip_next failed:', error);
@@ -1915,6 +1980,13 @@ export default function ActiveWorkoutScreen() {
           const result = await dispatch(skipPrevious());
           const data = unwrapResult(result);
           console.log('🎵 [Client Tool] skip_previous result:', data);
+          
+          // Show mini player on successful music tool call
+          dispatch(showMiniPlayer());
+          setTimeout(() => {
+            dispatch(hideMiniPlayer());
+          }, 4000);
+          
           return JSON.stringify(data);
         } catch (error) {
           console.error('❌ [Client Tool] skip_previous failed:', error);
@@ -1927,6 +1999,13 @@ export default function ActiveWorkoutScreen() {
           const result = await dispatch(pauseMusic());
           const data = unwrapResult(result);
           console.log('🎵 [Client Tool] pause_music result:', data);
+          
+          // Show mini player on successful music tool call
+          dispatch(showMiniPlayer());
+          setTimeout(() => {
+            dispatch(hideMiniPlayer());
+          }, 4000);
+          
           return JSON.stringify(data);
         } catch (error) {
           console.error('❌ [Client Tool] pause_music failed:', error);
@@ -1939,6 +2018,13 @@ export default function ActiveWorkoutScreen() {
           const result = await dispatch(resumeMusic());
           const data = unwrapResult(result);
           console.log('🎵 [Client Tool] resume_music result:', data);
+          
+          // Show mini player on successful music tool call
+          dispatch(showMiniPlayer());
+          setTimeout(() => {
+            dispatch(hideMiniPlayer());
+          }, 4000);
+          
           return JSON.stringify(data);
         } catch (error) {
           console.error('❌ [Client Tool] resume_music failed:', error);
@@ -2080,6 +2166,10 @@ export default function ActiveWorkoutScreen() {
         }
       }
 
+      // Get current music state for dynamic variables
+      const currentState = store.getState();
+      const musicState = currentState.music;
+
       await conversation.startSession({
         agentId: agentId,
         conversationToken: token,
@@ -2087,6 +2177,8 @@ export default function ActiveWorkoutScreen() {
           user_name: user?.user_metadata?.full_name || user?.email?.split('@')[0] || "User",
           user_activity: "starting_workout_session",
           app_context: "fitness_workout_assistant",
+          selected_playlist: musicState.selectedPlaylist?.name || "No playlist selected",
+          
         }
       });
     } catch (error) {
@@ -2141,9 +2233,9 @@ export default function ActiveWorkoutScreen() {
     };
   }, []);
 
-  // Generate progress segments from current exercise
-  const generateProgressSegments = (): ProgressSegment[] => {
-    if (!currentExercise) {
+  // Generate progress segments from current exercise (reactive to current timer state)
+  const generateProgressSegments = (currentTimers: any): ProgressSegment[] => {
+    if (!currentExercise || !activeWorkout) {
       // Default segments for demo
       return [
         { type: 'set', duration: 45 },
@@ -2156,6 +2248,8 @@ export default function ActiveWorkoutScreen() {
     }
     
     const segments: ProgressSegment[] = [];
+    const currentSetIndex = activeWorkout.currentSetIndex;
+    
     currentExercise.sets.forEach((set, index) => {
       // Add set segment
       segments.push({
@@ -2164,11 +2258,23 @@ export default function ActiveWorkoutScreen() {
       });
       
       // Add rest segment if the set has restTimeAfter defined
-      // This includes rest after the last set if it has a rest period
       if (set.restTimeAfter && set.restTimeAfter > 0) {
+        let restDuration = set.restTimeAfter;
+        
+        // If this is the current rest segment and we have an active rest timer, use the timer's duration
+        const currentRestSegmentIndex = (currentSetIndex * 2) + 1; // Each set + rest = 2 segments per set
+        const thisRestSegmentIndex = (index * 2) + 1;
+        
+        if (thisRestSegmentIndex === currentRestSegmentIndex && 
+            (status === 'resting' || status === 'rest-ending') && 
+            currentTimers.restTimer) {
+          // Use the actual timer duration (includes extensions)
+          restDuration = Math.floor(currentTimers.restTimer.duration / 1000);
+        }
+        
         segments.push({
           type: 'rest',
-          duration: set.restTimeAfter,
+          duration: restDuration,
         });
       }
     });
@@ -2176,7 +2282,7 @@ export default function ActiveWorkoutScreen() {
     return segments;
   };
 
-  const progressSegments = generateProgressSegments();
+  const progressSegments = generateProgressSegments(timers);
 
   const handleFinishWorkout = async () => {
     try {
@@ -2226,6 +2332,7 @@ export default function ActiveWorkoutScreen() {
               status={status}
               activeWorkout={activeWorkout}
               onShowFinishAlert={() => setShowFinishAlert(true)}
+              dispatch={dispatch}
             />
           </View>
           
@@ -2271,6 +2378,11 @@ export default function ActiveWorkoutScreen() {
         }
         onContinue={handleContinueWorkout}
         onFinish={handleFinishWorkout}
+      />
+
+      {/* Spotify Player Mini - Global Overlay */}
+      <SpotifyPlayerMini 
+        onPress={() => console.log('Player pressed - navigate to full player')}
       />
     </ReanimatedAnimated.View>
   );

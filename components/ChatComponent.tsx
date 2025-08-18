@@ -73,7 +73,7 @@ const formatDateForDelimiter = (date: Date) => {
 // Lookup table for tool call names to human-readable messages
 const getToolCallMessage = (toolName: string, parameters?: any) => {
   switch (toolName) {
-    // Music tools (10)
+    // Music tools (14)
     case 'start_music':
       if (parameters?.intensity) {
         return `Starting ${parameters.intensity} intensity music`;
@@ -121,6 +121,33 @@ const getToolCallMessage = (toolName: string, parameters?: any) => {
         return `Playing "${parameters.title}"`;
       }
       return 'Playing song';
+      
+    case 'play_track':
+      if (parameters?.trackName) {
+        return `Playing "${parameters.trackName}"`;
+      }
+      if (parameters?.trackIndex !== undefined) {
+        return `Playing track ${parameters.trackIndex + 1}`;
+      }
+      return 'Playing track';
+      
+    case 'get_tracks':
+      return 'Getting playlist tracks';
+      
+    case 'select_playlist':
+      if (parameters?.playlist) {
+        return `Selecting playlist "${parameters.playlist}"`;
+      }
+      if (parameters?.name) {
+        return `Selecting playlist "${parameters.name}"`;
+      }
+      if (parameters?.playlistName) {
+        return `Selecting playlist "${parameters.playlistName}"`;
+      }
+      return 'Selecting playlist';
+      
+    case 'get_playlists':
+      return 'Getting available playlists';
     
     // Workout tools (13)
     case 'start_set':

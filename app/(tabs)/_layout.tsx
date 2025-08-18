@@ -172,6 +172,12 @@ export default function TabLayout() {
             title: 'Spotify Demo',
           }}
         />
+        <Tabs.Screen
+          name="music-test"
+          options={{
+            title: 'Music Test',
+          }}
+        />
       </Tabs>
       
       {/* Custom centered tab bar with SafeAreaView */}
@@ -223,7 +229,7 @@ export default function TabLayout() {
               <Animated.View style={[styles.tab3, animatedSideTabsStyle]}>
                 <Pressable 
                   style={styles.tab3Button}
-                  onPress={() => router.push('/spotify-demo')}
+                  onPress={() => router.push('/music-test')}
                 >
                   <Image
                     source={require("../../assets/icons/user.svg")}

@@ -1,0 +1,864 @@
+{
+  "exported_at": "2025-08-18T16:36:02.056117",
+  "tools": {
+    "tools": [
+      {
+        "id": "tool_0901k2x6tt58e9a8h6pa134997r2",
+        "tool_config": {
+          "type": "client",
+          "name": "get_exercise_instructions",
+          "description": "Get form guidance",
+          "response_timeout_secs": 8,
+          "disable_interruptions": false,
+          "force_pre_tool_speech": false,
+          "assignments": [],
+          "parameters": {
+            "type": "object",
+            "required": [],
+            "description": "",
+            "properties": {}
+          },
+          "expects_response": true,
+          "dynamic_variables": {
+            "dynamic_variable_placeholders": {}
+          }
+        },
+        "access_info": {
+          "is_creator": true,
+          "creator_name": "Luka dragar",
+          "creator_email": "dragarstain2@gmail.com",
+          "role": "admin"
+        },
+        "usage_stats": {
+          "total_calls": 4,
+          "avg_latency_secs": 0.14
+        }
+      },
+      {
+        "id": "tool_1501k2x6tq7zfh9vpd6kf7ch4m5y",
+        "tool_config": {
+          "type": "client",
+          "name": "play_track",
+          "description": "Play a specific track by name (fuzzy search) or start the current playlist",
+          "response_timeout_secs": 15,
+          "disable_interruptions": false,
+          "force_pre_tool_speech": false,
+          "assignments": [],
+          "parameters": {
+            "type": "object",
+            "required": [],
+            "description": "",
+            "properties": {
+              "trackUri": {
+                "type": "string",
+                "description": "Spotify track URI (optional, plays current track if not provided)",
+                "dynamic_variable": "",
+                "constant_value": ""
+              },
+              "trackIndex": {
+                "type": "number",
+                "description": "Track index in current playlist (optional)",
+                "dynamic_variable": "",
+                "constant_value": ""
+              },
+              "trackName": {
+                "type": "string",
+                "description": "Name of the track to search and play (fuzzy matching supported)",
+                "dynamic_variable": "",
+                "constant_value": ""
+              }
+            }
+          },
+          "expects_response": true,
+          "dynamic_variables": {
+            "dynamic_variable_placeholders": {}
+          }
+        },
+        "access_info": {
+          "is_creator": true,
+          "creator_name": "Luka dragar",
+          "creator_email": "dragarstain2@gmail.com",
+          "role": "admin"
+        },
+        "usage_stats": {
+          "total_calls": 109,
+          "avg_latency_secs": 1.61
+        }
+      },
+      {
+        "id": "tool_1601k2x6tsy2ehdrxnb56xrt0jvc",
+        "tool_config": {
+          "type": "client",
+          "name": "get_tracks",
+          "description": "Get tracks from the currently selected playlist",
+          "response_timeout_secs": 15,
+          "disable_interruptions": false,
+          "force_pre_tool_speech": false,
+          "assignments": [],
+          "parameters": {
+            "type": "object",
+            "required": [],
+            "description": "",
+            "properties": {}
+          },
+          "expects_response": true,
+          "dynamic_variables": {
+            "dynamic_variable_placeholders": {}
+          }
+        },
+        "access_info": {
+          "is_creator": true,
+          "creator_name": "Luka dragar",
+          "creator_email": "dragarstain2@gmail.com",
+          "role": "admin"
+        },
+        "usage_stats": {
+          "total_calls": 7,
+          "avg_latency_secs": 0.22
+        }
+      },
+      {
+        "id": "tool_2601k2x6trswfkbb77pptxpd241z",
+        "tool_config": {
+          "type": "client",
+          "name": "restart_set",
+          "description": "Restart set from beginning",
+          "response_timeout_secs": 5,
+          "disable_interruptions": false,
+          "force_pre_tool_speech": false,
+          "assignments": [],
+          "parameters": {
+            "type": "object",
+            "required": [],
+            "description": "",
+            "properties": {}
+          },
+          "expects_response": true,
+          "dynamic_variables": {
+            "dynamic_variable_placeholders": {}
+          }
+        },
+        "access_info": {
+          "is_creator": true,
+          "creator_name": "Luka dragar",
+          "creator_email": "dragarstain2@gmail.com",
+          "role": "admin"
+        },
+        "usage_stats": {
+          "total_calls": 0,
+          "avg_latency_secs": 0.0
+        }
+      },
+      {
+        "id": "tool_3501k2x6tvqve26802nzsnmzv467",
+        "tool_config": {
+          "type": "client",
+          "name": "select_playlist",
+          "description": "Select a playlist to be the active one for navigation",
+          "response_timeout_secs": 10,
+          "disable_interruptions": false,
+          "force_pre_tool_speech": false,
+          "assignments": [],
+          "parameters": {
+            "type": "object",
+            "required": [
+              "playlistId"
+            ],
+            "description": "",
+            "properties": {
+              "playlistId": {
+                "type": "string",
+                "description": "The ID or name of the playlist to select (supports fuzzy matching)",
+                "dynamic_variable": "",
+                "constant_value": ""
+              }
+            }
+          },
+          "expects_response": true,
+          "dynamic_variables": {
+            "dynamic_variable_placeholders": {}
+          }
+        },
+        "access_info": {
+          "is_creator": true,
+          "creator_name": "Luka dragar",
+          "creator_email": "dragarstain2@gmail.com",
+          "role": "admin"
+        },
+        "usage_stats": {
+          "total_calls": 55,
+          "avg_latency_secs": 0.51
+        }
+      },
+      {
+        "id": "tool_3601k2x6ttc9f9qtbjz54kv6gqwe",
+        "tool_config": {
+          "type": "client",
+          "name": "get_music_status",
+          "description": "Check current music state",
+          "response_timeout_secs": 8,
+          "disable_interruptions": false,
+          "force_pre_tool_speech": false,
+          "assignments": [],
+          "parameters": {
+            "type": "object",
+            "required": [],
+            "description": "",
+            "properties": {}
+          },
+          "expects_response": true,
+          "dynamic_variables": {
+            "dynamic_variable_placeholders": {}
+          }
+        },
+        "access_info": {
+          "is_creator": true,
+          "creator_name": "Luka dragar",
+          "creator_email": "dragarstain2@gmail.com",
+          "role": "admin"
+        },
+        "usage_stats": {
+          "total_calls": 21,
+          "avg_latency_secs": 0.15
+        }
+      },
+      {
+        "id": "tool_4401k2x6ts15fdt996dvrkc2k6cf",
+        "tool_config": {
+          "type": "client",
+          "name": "extend_rest",
+          "description": "Add time to rest period",
+          "response_timeout_secs": 5,
+          "disable_interruptions": false,
+          "force_pre_tool_speech": false,
+          "assignments": [],
+          "parameters": {
+            "type": "object",
+            "required": [],
+            "description": "",
+            "properties": {
+              "additionalSeconds": {
+                "type": "number",
+                "description": "Additional seconds to add to rest (optional)",
+                "dynamic_variable": "",
+                "constant_value": ""
+              }
+            }
+          },
+          "expects_response": true,
+          "dynamic_variables": {
+            "dynamic_variable_placeholders": {}
+          }
+        },
+        "access_info": {
+          "is_creator": true,
+          "creator_name": "Luka dragar",
+          "creator_email": "dragarstain2@gmail.com",
+          "role": "admin"
+        },
+        "usage_stats": {
+          "total_calls": 13,
+          "avg_latency_secs": 0.23
+        }
+      },
+      {
+        "id": "tool_5601k2x6ttkbeazva3ge7qqwgmtv",
+        "tool_config": {
+          "type": "client",
+          "name": "adjust_weight",
+          "description": "Modify exercise weight",
+          "response_timeout_secs": 5,
+          "disable_interruptions": false,
+          "force_pre_tool_speech": false,
+          "assignments": [],
+          "parameters": {
+            "type": "object",
+            "required": [
+              "newWeight"
+            ],
+            "description": "",
+            "properties": {
+              "newWeight": {
+                "type": "number",
+                "description": "New weight value",
+                "dynamic_variable": "",
+                "constant_value": ""
+              },
+              "reason": {
+                "type": "string",
+                "description": "Reason for weight adjustment (optional)",
+                "dynamic_variable": "",
+                "constant_value": ""
+              }
+            }
+          },
+          "expects_response": true,
+          "dynamic_variables": {
+            "dynamic_variable_placeholders": {}
+          }
+        },
+        "access_info": {
+          "is_creator": true,
+          "creator_name": "Luka dragar",
+          "creator_email": "dragarstain2@gmail.com",
+          "role": "admin"
+        },
+        "usage_stats": {
+          "total_calls": 2,
+          "avg_latency_secs": 0.33
+        }
+      },
+      {
+        "id": "tool_6201k2x6tqphew2ayzhj37g1gwgb",
+        "tool_config": {
+          "type": "client",
+          "name": "pause_music",
+          "description": "Pause music",
+          "response_timeout_secs": 5,
+          "disable_interruptions": false,
+          "force_pre_tool_speech": false,
+          "assignments": [],
+          "parameters": {
+            "type": "object",
+            "required": [],
+            "description": "",
+            "properties": {}
+          },
+          "expects_response": true,
+          "dynamic_variables": {
+            "dynamic_variable_placeholders": {}
+          }
+        },
+        "access_info": {
+          "is_creator": true,
+          "creator_name": "Luka dragar",
+          "creator_email": "dragarstain2@gmail.com",
+          "role": "admin"
+        },
+        "usage_stats": {
+          "total_calls": 7,
+          "avg_latency_secs": 1.14
+        }
+      },
+      {
+        "id": "tool_6401k2x6tv23esgsdxk2zkgt4p5h",
+        "tool_config": {
+          "type": "client",
+          "name": "skip_next",
+          "description": "Skip to next track",
+          "response_timeout_secs": 8,
+          "disable_interruptions": false,
+          "force_pre_tool_speech": false,
+          "assignments": [],
+          "parameters": {
+            "type": "object",
+            "required": [],
+            "description": "",
+            "properties": {}
+          },
+          "expects_response": true,
+          "dynamic_variables": {
+            "dynamic_variable_placeholders": {}
+          }
+        },
+        "access_info": {
+          "is_creator": true,
+          "creator_name": "Luka dragar",
+          "creator_email": "dragarstain2@gmail.com",
+          "role": "admin"
+        },
+        "usage_stats": {
+          "total_calls": 14,
+          "avg_latency_secs": 0.81
+        }
+      },
+      {
+        "id": "tool_6501k2x6tsfmej3vnqn1sbm6efz0",
+        "tool_config": {
+          "type": "client",
+          "name": "resume_music",
+          "description": "Resume music",
+          "response_timeout_secs": 8,
+          "disable_interruptions": false,
+          "force_pre_tool_speech": false,
+          "assignments": [],
+          "parameters": {
+            "type": "object",
+            "required": [],
+            "description": "",
+            "properties": {}
+          },
+          "expects_response": true,
+          "dynamic_variables": {
+            "dynamic_variable_placeholders": {}
+          }
+        },
+        "access_info": {
+          "is_creator": true,
+          "creator_name": "Luka dragar",
+          "creator_email": "dragarstain2@gmail.com",
+          "role": "admin"
+        },
+        "usage_stats": {
+          "total_calls": 11,
+          "avg_latency_secs": 0.28
+        }
+      },
+      {
+        "id": "tool_6601k2x6tqxef6vbss80k5fa5qk9",
+        "tool_config": {
+          "type": "client",
+          "name": "get_playlists",
+          "description": "Get available playlists including user's liked songs and app music options",
+          "response_timeout_secs": 10,
+          "disable_interruptions": false,
+          "force_pre_tool_speech": false,
+          "assignments": [],
+          "parameters": {
+            "type": "object",
+            "required": [],
+            "description": "",
+            "properties": {}
+          },
+          "expects_response": true,
+          "dynamic_variables": {
+            "dynamic_variable_placeholders": {}
+          }
+        },
+        "access_info": {
+          "is_creator": true,
+          "creator_name": "Luka dragar",
+          "creator_email": "dragarstain2@gmail.com",
+          "role": "admin"
+        },
+        "usage_stats": {
+          "total_calls": 7,
+          "avg_latency_secs": 0.16
+        }
+      },
+      {
+        "id": "tool_6801k2x6trjwex2agcm0rwdwcya9",
+        "tool_config": {
+          "type": "client",
+          "name": "start_set",
+          "description": "Begin exercise set timer",
+          "response_timeout_secs": 5,
+          "disable_interruptions": false,
+          "force_pre_tool_speech": false,
+          "assignments": [],
+          "parameters": {
+            "type": "object",
+            "required": [],
+            "description": "",
+            "properties": {}
+          },
+          "expects_response": true,
+          "dynamic_variables": {
+            "dynamic_variable_placeholders": {}
+          }
+        },
+        "access_info": {
+          "is_creator": true,
+          "creator_name": "Luka dragar",
+          "creator_email": "dragarstain2@gmail.com",
+          "role": "admin"
+        },
+        "usage_stats": {
+          "total_calls": 17,
+          "avg_latency_secs": 0.29
+        }
+      },
+      {
+        "id": "tool_7201k2x6tvgseptbqze4y2b9p023",
+        "tool_config": {
+          "type": "client",
+          "name": "get_workout_status",
+          "description": "Check workout progress",
+          "response_timeout_secs": 8,
+          "disable_interruptions": false,
+          "force_pre_tool_speech": false,
+          "assignments": [],
+          "parameters": {
+            "type": "object",
+            "required": [],
+            "description": "",
+            "properties": {}
+          },
+          "expects_response": true,
+          "dynamic_variables": {
+            "dynamic_variable_placeholders": {}
+          }
+        },
+        "access_info": {
+          "is_creator": true,
+          "creator_name": "Luka dragar",
+          "creator_email": "dragarstain2@gmail.com",
+          "role": "admin"
+        },
+        "usage_stats": {
+          "total_calls": 24,
+          "avg_latency_secs": 0.19
+        }
+      },
+      {
+        "id": "tool_7301k2x6tqf3eg7aqrdtdsyfa2kt",
+        "tool_config": {
+          "type": "client",
+          "name": "resume_set",
+          "description": "Resume paused set",
+          "response_timeout_secs": 5,
+          "disable_interruptions": false,
+          "force_pre_tool_speech": false,
+          "assignments": [],
+          "parameters": {
+            "type": "object",
+            "required": [],
+            "description": "",
+            "properties": {}
+          },
+          "expects_response": true,
+          "dynamic_variables": {
+            "dynamic_variable_placeholders": {}
+          }
+        },
+        "access_info": {
+          "is_creator": true,
+          "creator_name": "Luka dragar",
+          "creator_email": "dragarstain2@gmail.com",
+          "role": "admin"
+        },
+        "usage_stats": {
+          "total_calls": 0,
+          "avg_latency_secs": 0.0
+        }
+      },
+      {
+        "id": "tool_7801k2x6tttjet9akj0yew6ee32v",
+        "tool_config": {
+          "type": "client",
+          "name": "pause_for_issue",
+          "description": "Pause for safety/form issues",
+          "response_timeout_secs": 5,
+          "disable_interruptions": false,
+          "force_pre_tool_speech": false,
+          "assignments": [],
+          "parameters": {
+            "type": "object",
+            "required": [
+              "reason"
+            ],
+            "description": "",
+            "properties": {
+              "reason": {
+                "type": "string",
+                "description": "Reason for pausing (safety, form, etc.)",
+                "dynamic_variable": "",
+                "constant_value": ""
+              }
+            }
+          },
+          "expects_response": true,
+          "dynamic_variables": {
+            "dynamic_variable_placeholders": {}
+          }
+        },
+        "access_info": {
+          "is_creator": true,
+          "creator_name": "Luka dragar",
+          "creator_email": "dragarstain2@gmail.com",
+          "role": "admin"
+        },
+        "usage_stats": {
+          "total_calls": 1,
+          "avg_latency_secs": 0.22
+        }
+      },
+      {
+        "id": "tool_7901k2x6ts8be3vr6gygr35rc4wt",
+        "tool_config": {
+          "type": "client",
+          "name": "set_volume",
+          "description": "Set music volume 0-100",
+          "response_timeout_secs": 5,
+          "disable_interruptions": true,
+          "force_pre_tool_speech": false,
+          "assignments": [],
+          "parameters": {
+            "type": "object",
+            "required": [
+              "volume"
+            ],
+            "description": "",
+            "properties": {
+              "volume": {
+                "type": "number",
+                "description": "Volume level from 0 to 100",
+                "dynamic_variable": "",
+                "constant_value": ""
+              }
+            }
+          },
+          "expects_response": true,
+          "dynamic_variables": {
+            "dynamic_variable_placeholders": {}
+          }
+        },
+        "access_info": {
+          "is_creator": true,
+          "creator_name": "Luka dragar",
+          "creator_email": "dragarstain2@gmail.com",
+          "role": "admin"
+        },
+        "usage_stats": {
+          "total_calls": 6,
+          "avg_latency_secs": 0.41
+        }
+      },
+      {
+        "id": "tool_8001k2qgc0a2ev9rj58pb15cfb4c",
+        "tool_config": {
+          "type": "client",
+          "name": "jump_to_set",
+          "description": "Jump to specific set number and prepare it",
+          "response_timeout_secs": 8,
+          "disable_interruptions": false,
+          "force_pre_tool_speech": false,
+          "assignments": [],
+          "parameters": {
+            "type": "object",
+            "required": [
+              "setNumber"
+            ],
+            "description": "",
+            "properties": {
+              "setNumber": {
+                "type": "number",
+                "description": "Set number to jump to",
+                "dynamic_variable": "",
+                "constant_value": ""
+              }
+            }
+          },
+          "expects_response": true,
+          "dynamic_variables": {
+            "dynamic_variable_placeholders": {}
+          }
+        },
+        "access_info": {
+          "is_creator": true,
+          "creator_name": "Luka dragar",
+          "creator_email": "dragarstain2@gmail.com",
+          "role": "admin"
+        },
+        "usage_stats": {
+          "total_calls": 9,
+          "avg_latency_secs": 0.35
+        }
+      },
+      {
+        "id": "tool_8501k2x6trbqerwbd13jw0fs3n5e",
+        "tool_config": {
+          "type": "client",
+          "name": "skip_previous",
+          "description": "Go to previous track",
+          "response_timeout_secs": 8,
+          "disable_interruptions": false,
+          "force_pre_tool_speech": false,
+          "assignments": [],
+          "parameters": {
+            "type": "object",
+            "required": [],
+            "description": "",
+            "properties": {}
+          },
+          "expects_response": true,
+          "dynamic_variables": {
+            "dynamic_variable_placeholders": {}
+          }
+        },
+        "access_info": {
+          "is_creator": true,
+          "creator_name": "Luka dragar",
+          "creator_email": "dragarstain2@gmail.com",
+          "role": "admin"
+        },
+        "usage_stats": {
+          "total_calls": 0,
+          "avg_latency_secs": 0.0
+        }
+      },
+      {
+        "id": "tool_8901k2x6tsprew99qmh4aycn9v64",
+        "tool_config": {
+          "type": "client",
+          "name": "pause_set",
+          "description": "Pause active set",
+          "response_timeout_secs": 5,
+          "disable_interruptions": false,
+          "force_pre_tool_speech": false,
+          "assignments": [],
+          "parameters": {
+            "type": "object",
+            "required": [],
+            "description": "",
+            "properties": {
+              "reason": {
+                "type": "string",
+                "description": "Reason for pausing (optional)",
+                "dynamic_variable": "",
+                "constant_value": ""
+              }
+            }
+          },
+          "expects_response": true,
+          "dynamic_variables": {
+            "dynamic_variable_placeholders": {}
+          }
+        },
+        "access_info": {
+          "is_creator": true,
+          "creator_name": "Luka dragar",
+          "creator_email": "dragarstain2@gmail.com",
+          "role": "admin"
+        },
+        "usage_stats": {
+          "total_calls": 0,
+          "avg_latency_secs": 0.0
+        }
+      },
+      {
+        "id": "tool_9001k2x6twchea0bv5wyqa09grrf",
+        "tool_config": {
+          "type": "client",
+          "name": "adjust_rest_time",
+          "description": "Modify rest duration",
+          "response_timeout_secs": 5,
+          "disable_interruptions": false,
+          "force_pre_tool_speech": false,
+          "assignments": [],
+          "parameters": {
+            "type": "object",
+            "required": [
+              "newTime"
+            ],
+            "description": "",
+            "properties": {
+              "newTime": {
+                "type": "number",
+                "description": "New rest time in seconds",
+                "dynamic_variable": "",
+                "constant_value": ""
+              },
+              "reason": {
+                "type": "string",
+                "description": "Reason for rest time adjustment (optional)",
+                "dynamic_variable": "",
+                "constant_value": ""
+              }
+            }
+          },
+          "expects_response": true,
+          "dynamic_variables": {
+            "dynamic_variable_placeholders": {}
+          }
+        },
+        "access_info": {
+          "is_creator": true,
+          "creator_name": "Luka dragar",
+          "creator_email": "dragarstain2@gmail.com",
+          "role": "admin"
+        },
+        "usage_stats": {
+          "total_calls": 1,
+          "avg_latency_secs": 0.22
+        }
+      },
+      {
+        "id": "tool_9601k2x6tr4ffp2ahzn43f3pm4t4",
+        "tool_config": {
+          "type": "client",
+          "name": "adjust_reps",
+          "description": "Modify rep count",
+          "response_timeout_secs": 5,
+          "disable_interruptions": false,
+          "force_pre_tool_speech": false,
+          "assignments": [],
+          "parameters": {
+            "type": "object",
+            "required": [
+              "newReps"
+            ],
+            "description": "",
+            "properties": {
+              "newReps": {
+                "type": "number",
+                "description": "New rep count",
+                "dynamic_variable": "",
+                "constant_value": ""
+              },
+              "reason": {
+                "type": "string",
+                "description": "Reason for rep adjustment (optional)",
+                "dynamic_variable": "",
+                "constant_value": ""
+              }
+            }
+          },
+          "expects_response": true,
+          "dynamic_variables": {
+            "dynamic_variable_placeholders": {}
+          }
+        },
+        "access_info": {
+          "is_creator": true,
+          "creator_name": "Luka dragar",
+          "creator_email": "dragarstain2@gmail.com",
+          "role": "admin"
+        },
+        "usage_stats": {
+          "total_calls": 1,
+          "avg_latency_secs": 0.21
+        }
+      },
+      {
+        "id": "tool_9801k2x6tv9hend9r77gnyyvtjwt",
+        "tool_config": {
+          "type": "client",
+          "name": "complete_set",
+          "description": "Mark set completed early",
+          "response_timeout_secs": 5,
+          "disable_interruptions": false,
+          "force_pre_tool_speech": false,
+          "assignments": [],
+          "parameters": {
+            "type": "object",
+            "required": [],
+            "description": "",
+            "properties": {
+              "actualReps": {
+                "type": "number",
+                "description": "Actual reps completed (optional)",
+                "dynamic_variable": "",
+                "constant_value": ""
+              }
+            }
+          },
+          "expects_response": true,
+          "dynamic_variables": {
+            "dynamic_variable_placeholders": {}
+          }
+        },
+        "access_info": {
+          "is_creator": true,
+          "creator_name": "Luka dragar",
+          "creator_email": "dragarstain2@gmail.com",
+          "role": "admin"
+        },
+        "usage_stats": {
+          "total_calls": 9,
+          "avg_latency_secs": 0.15
+        }
+      }
+    ]
+  }
+}

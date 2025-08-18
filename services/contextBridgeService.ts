@@ -46,7 +46,7 @@ class ContextBridgeService {
    */
   setConversationMode(mode: 'speaking' | 'listening' | null) {
     this.conversationMode = mode;
-    console.log('🎙️ Conversation mode updated:', mode);
+    //rconsole.log('🎙️ Conversation mode updated:', mode);
   }
 
   /**

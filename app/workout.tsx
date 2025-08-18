@@ -383,6 +383,8 @@ export default function WorkoutScreen() {
           </View>
         </Animated.ScrollView>
 
+        
+
         {/* Floating Button Container */}
         <View style={styles.floatingButtonWrapper}>
           <BlurView intensity={100} tint="light" style={styles.floatingButtonContainer}>

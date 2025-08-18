@@ -28,6 +28,9 @@ export interface MusicState {
   lastUsedMusicOption: 'app' | 'spotify';
   lastUsedPlaylist: SelectedPlaylist | null;
   lastUsedAppMusic: string | null;
+  
+  // Mini player state
+  miniPlayerVisible: boolean;
 }
 
 const initialState: MusicState = {
@@ -40,6 +43,7 @@ const initialState: MusicState = {
   lastUsedMusicOption: 'spotify',
   lastUsedPlaylist: null,
   lastUsedAppMusic: null,
+  miniPlayerVisible: false,
 };
 
 const musicSlice = createSlice({
@@ -113,6 +117,19 @@ const musicSlice = createSlice({
 
     // Reset music state
     resetMusicState: () => initialState,
+
+    // Mini player visibility controls
+    showMiniPlayer: (state) => {
+      state.miniPlayerVisible = true;
+    },
+
+    hideMiniPlayer: (state) => {
+      state.miniPlayerVisible = false;
+    },
+
+    toggleMiniPlayer: (state) => {
+      state.miniPlayerVisible = !state.miniPlayerVisible;
+    },
   },
 });
 
@@ -126,6 +143,12 @@ export const {
   restoreLastUsedMusic,
   clearMusicSelection,
   resetMusicState,
+  showMiniPlayer,
+  hideMiniPlayer,
+  toggleMiniPlayer,
 } = musicSlice.actions;
+
+// Selectors
+export const selectMiniPlayerVisible = (state: { music: MusicState }) => state.music.miniPlayerVisible;
 
 export default musicSlice.reducer;
