@@ -1,20 +1,25 @@
 import { Image } from "expo-image";
 import React, { useEffect, useState } from 'react';
-import { Dimensions, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Dimensions, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { PanGestureHandler } from 'react-native-gesture-handler';
 import Animated, {
-    Easing,
-    Extrapolate,
-    interpolate,
-    runOnJS,
-    useAnimatedGestureHandler,
-    useAnimatedStyle,
-    useSharedValue,
-    withSpring,
-    withTiming,
+  Easing,
+  Extrapolate,
+  interpolate,
+  runOnJS,
+  useAnimatedGestureHandler,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
 } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { nucleus } from '../Buddy_variables';
+import { useSpotifyAuth } from '../hooks/useSpotifyAuth';
+import { useGetUserPlaylistsQuery } from '../store/api/spotifyApi';
+import { useAppDispatch, useAppSelector } from '../store/hooks';
+import { SelectedPlaylist, setMusicOption, setSelectedAppMusic, setSelectedPlaylist } from '../store/slices/musicSlice';
+import SpotifyConnectModal from './SpotifyConnectModal';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -25,8 +30,220 @@ interface MusicModalProps {
 
 export default function MusicModal({ visible, onClose }: MusicModalProps) {
   const insets = useSafeAreaInsets();
-  const [selectedMusicOption, setSelectedMusicOption] = useState<string>('spotify');
-  const [selectedMusicCard, setSelectedMusicCard] = useState<string | null>('beast-mode');
+  const dispatch = useAppDispatch();
+  const [showSpotifyConnect, setShowSpotifyConnect] = useState(false);
+  
+  // Redux state
+  const { selectedMusicOption, selectedPlaylist, selectedAppMusic } = useAppSelector(state => state.music);
+  
+  // Spotify auth
+  const { isAuthenticated, loading: spotifyLoading } = useSpotifyAuth();
+
+  // Fetch user's Spotify playlists when authenticated (20 playlists)
+  const { data: playlistsData, isLoading: playlistsLoading } = useGetUserPlaylistsQuery({ limit: 20 }, {
+    skip: !isAuthenticated || selectedMusicOption !== 'spotify' || spotifyLoading,
+  });
+
+  // Log playlist data when it loads
+  useEffect(() => {
+    if (playlistsData) {
+      console.log(`📀 Loaded ${playlistsData.items?.length || 0} playlists (${playlistsData.total} total)`);
+    }
+  }, [playlistsData]);
+
+  // Log music state changes
+  useEffect(() => {
+    console.log('🎵 Music State Changed:', {
+      option: selectedMusicOption,
+      playlist: selectedPlaylist ? `${selectedPlaylist.name} (${selectedPlaylist.tracks?.total} tracks)` : null,
+      appMusic: selectedAppMusic
+    });
+  }, [selectedMusicOption, selectedPlaylist, selectedAppMusic]);
+
+  // Auto-select Spotify when user connects successfully
+  useEffect(() => {
+    if (isAuthenticated && showSpotifyConnect) {
+      setShowSpotifyConnect(false);
+      dispatch(setMusicOption('spotify'));
+    }
+  }, [isAuthenticated, showSpotifyConnect, dispatch]);
+
+  // Auto-select first playlist when playlists load and none is selected
+  useEffect(() => {
+    if (playlistsData?.items && 
+        playlistsData.items.length > 0 && 
+        selectedMusicOption === 'spotify' && 
+        !selectedPlaylist) {
+      const firstPlaylist = playlistsData.items[0];
+      console.log('🎵 Auto-selecting first playlist:', firstPlaylist.name);
+      dispatch(setSelectedPlaylist({
+        id: firstPlaylist.id,
+        name: firstPlaylist.name,
+        description: firstPlaylist.description,
+        images: firstPlaylist.images,
+        tracks: firstPlaylist.tracks,
+        uri: firstPlaylist.uri
+      } as SelectedPlaylist));
+    }
+  }, [playlistsData, selectedMusicOption, selectedPlaylist, dispatch, spotifyLoading]);
+
+  // Render music cards based on selected option
+  const renderMusicCards = () => {
+    if (selectedMusicOption === 'spotify' && isAuthenticated) {
+      // Show Spotify playlists
+      if (playlistsLoading || spotifyLoading) {
+        return (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="small" color={nucleus.light.global.blue["70"]} />
+            <Text style={styles.loadingText}>Loading your playlists...</Text>
+          </View>
+        );
+      }
+
+      if (playlistsData?.items && playlistsData.items.length > 0) {
+        return playlistsData.items.map((playlist: any, index: number) => (
+          <Pressable 
+            key={playlist.id || index}
+            style={styles.musicCard}
+            onPress={() => dispatch(setSelectedPlaylist({
+              id: playlist.id,
+              name: playlist.name,
+              description: playlist.description,
+              images: playlist.images,
+              tracks: playlist.tracks,
+              uri: playlist.uri
+            } as SelectedPlaylist))}
+          >
+            <Image
+              source={{ uri: playlist.images?.[0]?.url || 'https://via.placeholder.com/300x300/1DB954/FFFFFF?text=♪' }}
+              style={styles.musicCardBackground}
+              contentFit="cover"
+            />
+            <View style={styles.musicCardTopRight}>
+              <View style={[
+                styles.musicBadgeGreen,
+                { opacity: selectedPlaylist?.id === playlist.id ? 1 : 0 }
+              ]}>
+                <Image
+                  source={require('../assets/icons/check.svg')}
+                  style={styles.checkIcon}
+                  contentFit="contain"
+                />
+              </View>
+            </View>
+            <View style={styles.musicCardBottom}>
+              <Text style={styles.musicCardTitle} numberOfLines={1}>
+                {playlist.name}
+              </Text>
+              <Text style={styles.musicCardSubtitle}>
+                {playlist.tracks?.total || 0} tracks
+              </Text>
+            </View>
+          </Pressable>
+        ));
+      }
+
+      return (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>No playlists found</Text>
+        </View>
+      );
+    }
+
+    // Show default app music cards
+    return (
+      <>
+        <Pressable 
+          style={styles.musicCard}
+          onPress={() => dispatch(setSelectedAppMusic('beast-mode'))}
+        >
+          <Image
+            source={require('../assets/images/9_16.png')}
+            style={styles.musicCardBackground}
+            contentFit="cover"
+          />
+          <View style={styles.musicCardTopRight}>
+            <View style={[
+              styles.musicBadgeGreen,
+              { opacity: selectedAppMusic === 'beast-mode' ? 1 : 0 }
+            ]}>
+              <Image
+                source={require('../assets/icons/check.svg')}
+                style={styles.checkIcon}
+                contentFit="contain"
+              />
+            </View>
+          </View>
+          <View style={styles.musicCardBottom}>
+            <Text style={styles.musicCardTitle}>Beast Mode</Text>
+          </View>
+        </Pressable>
+
+        <Pressable 
+          style={styles.musicCard}
+          onPress={() => dispatch(setSelectedAppMusic('sweet-session'))}
+        >
+          <Image
+            source={require('../assets/images/9_16_2.png')}
+            style={styles.musicCardBackground}
+            contentFit="cover"
+          />
+          <View style={styles.musicCardTopRight}>
+            <View style={[
+              styles.musicBadgeGreen,
+              { opacity: selectedAppMusic === 'sweet-session' ? 1 : 0 }
+            ]}>
+              <Image
+                source={require('../assets/icons/check.svg')}
+                style={styles.checkIcon}
+                contentFit="contain"
+              />
+            </View>
+          </View>
+          <View style={styles.musicCardBottom}>
+            <Text style={styles.musicCardTitle}>Sweet Session</Text>
+          </View>
+        </Pressable>
+
+        <Pressable 
+          style={styles.musicCard}
+          onPress={() => dispatch(setSelectedAppMusic('feel'))}
+        >
+          <Image
+            source={require('../assets/images/9_16_3.png')}
+            style={styles.musicCardBackground}
+            contentFit="cover"
+          />
+          <View style={styles.musicCardTopRight}>
+            <View style={[
+              styles.musicBadgeGreen,
+              { opacity: selectedAppMusic === 'feel' ? 1 : 0 }
+            ]}>
+              <Image
+                source={require('../assets/icons/check.svg')}
+                style={styles.checkIcon}
+                contentFit="contain"
+              />
+            </View>
+          </View>
+          <View style={styles.musicCardBottom}>
+            <Text style={styles.musicCardTitle}>Feel</Text>
+          </View>
+        </Pressable>
+      </>
+    );
+  };
+
+  // Handle Spotify selection
+  const handleSpotifySelect = () => {
+    if (isAuthenticated) {
+      // User is already connected, just select Spotify option
+      dispatch(setMusicOption('spotify'));
+    } else {
+      // User needs to connect to Spotify first
+      setShowSpotifyConnect(true);
+    }
+  };
 
   // Music modal animation values
   const SHEET_HEIGHT = SCREEN_HEIGHT;
@@ -87,6 +304,7 @@ export default function MusicModal({ visible, onClose }: MusicModalProps) {
         activeOffsetY={20}
         failOffsetX={[-10, 10]}
       >
+        
         <Animated.View style={[styles.musicSheet, animatedMusicSheetStyle, { height: SHEET_HEIGHT }]}>
           <SafeAreaView style={styles.musicSafeContainer} edges={['bottom']}>
             <View style={styles.musicHeader}>
@@ -115,7 +333,7 @@ export default function MusicModal({ visible, onClose }: MusicModalProps) {
               <View style={styles.radioSection}>
                 <Pressable 
                   style={styles.radioOption}
-                  onPress={() => setSelectedMusicOption('app')}
+                  onPress={() => dispatch(setMusicOption('app'))}
                 >
                   <Text style={styles.radioOptionText}>App music</Text>
                   <View style={[
@@ -131,9 +349,11 @@ export default function MusicModal({ visible, onClose }: MusicModalProps) {
 
                 <Pressable 
                   style={styles.radioOption}
-                  onPress={() => setSelectedMusicOption('spotify')}
+                  onPress={handleSpotifySelect}
                 >
-                  <Text style={styles.radioOptionText}>Spotify</Text>
+                  <Text style={styles.radioOptionText}>
+                    Spotify {!isAuthenticated && '(Tap to connect)'}
+                  </Text>
                   <View style={[
                     styles.radioButton,
                     selectedMusicOption === 'spotify' && styles.radioButtonSelected
@@ -154,83 +374,7 @@ export default function MusicModal({ visible, onClose }: MusicModalProps) {
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.musicCardsContent}
               >
-                <Pressable 
-                  style={styles.musicCard}
-                  onPress={() => setSelectedMusicCard('beast-mode')}
-                >
-                  <Image
-                    source={require('../assets/images/9_16.png')}
-                    style={styles.musicCardBackground}
-                    contentFit="cover"
-                  />
-                  <View style={styles.musicCardTopRight}>
-                    <View style={[
-                      styles.musicBadgeGreen,
-                      { opacity: selectedMusicCard === 'beast-mode' ? 1 : 0 }
-                    ]}>
-                      <Image
-                        source={require('../assets/icons/check.svg')}
-                        style={styles.checkIcon}
-                        contentFit="contain"
-                      />
-                    </View>
-                  </View>
-                  <View style={styles.musicCardBottom}>
-                    <Text style={styles.musicCardTitle}>Beast Mode</Text>
-                  </View>
-                </Pressable>
-
-                <Pressable 
-                  style={styles.musicCard}
-                  onPress={() => setSelectedMusicCard('sweet-session')}
-                >
-                  <Image
-                    source={require('../assets/images/9_16_2.png')}
-                    style={styles.musicCardBackground}
-                    contentFit="cover"
-                  />
-                  <View style={styles.musicCardTopRight}>
-                    <View style={[
-                      styles.musicBadgeGreen,
-                      { opacity: selectedMusicCard === 'sweet-session' ? 1 : 0 }
-                    ]}>
-                      <Image
-                        source={require('../assets/icons/check.svg')}
-                        style={styles.checkIcon}
-                        contentFit="contain"
-                      />
-                    </View>
-                  </View>
-                  <View style={styles.musicCardBottom}>
-                    <Text style={styles.musicCardTitle}>Sweet Session</Text>
-                  </View>
-                </Pressable>
-
-                <Pressable 
-                  style={styles.musicCard}
-                  onPress={() => setSelectedMusicCard('feel')}
-                >
-                  <Image
-                    source={require('../assets/images/9_16_3.png')}
-                    style={styles.musicCardBackground}
-                    contentFit="cover"
-                  />
-                  <View style={styles.musicCardTopRight}>
-                    <View style={[
-                      styles.musicBadgeGreen,
-                      { opacity: selectedMusicCard === 'feel' ? 1 : 0 }
-                    ]}>
-                      <Image
-                        source={require('../assets/icons/check.svg')}
-                        style={styles.checkIcon}
-                        contentFit="contain"
-                      />
-                    </View>
-                  </View>
-                  <View style={styles.musicCardBottom}>
-                    <Text style={styles.musicCardTitle}>Feel</Text>
-                  </View>
-                </Pressable>
+                {renderMusicCards()}
               </ScrollView>
             </View>
 
@@ -254,6 +398,12 @@ export default function MusicModal({ visible, onClose }: MusicModalProps) {
           </SafeAreaView>
         </Animated.View>
       </PanGestureHandler>
+      
+      {/* Spotify Connect Modal */}
+      <SpotifyConnectModal
+        visible={showSpotifyConnect}
+        onDismiss={() => setShowSpotifyConnect(false)}
+      />
     </View>
   );
 }
@@ -464,6 +614,37 @@ const styles = StyleSheet.create({
   musicSafeContainer: {
     flex: 1,
   },
+  // Spotify playlist styles
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+    gap: 8,
+  },
+  loadingText: {
+    color: nucleus.light.global.blue["70"],
+    fontFamily: 'PlusJakartaSans-Regular',
+    fontSize: 14,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  emptyText: {
+    color: nucleus.light.global.blue["60"],
+    fontFamily: 'PlusJakartaSans-Regular',
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  musicCardSubtitle: {
+    color: nucleus.light.semantic.fg.staticLight,
+    fontFamily: 'PlusJakartaSans-Regular',
+    fontSize: 12,
+    lineHeight: 14.4,
+    opacity: 0.8,
+    marginTop: 2,
+  },
 });
-
- 

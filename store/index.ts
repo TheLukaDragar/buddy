@@ -4,24 +4,65 @@ import { setupListeners } from '@reduxjs/toolkit/query'
 import devToolsEnhancer from 'redux-devtools-expo-dev-plugin'
 import { persistReducer, persistStore } from 'redux-persist'
 import { enhancedApi } from './api/enhancedApi'
+import { spotifyApi } from './api/spotifyApi'
 import { workoutListenerMiddleware } from './middleware/workoutListenerMiddleware'
 import chatSlice from './slices/chatSlice'
+import musicSlice from './slices/musicSlice'
+import spotifyAuthSlice from './slices/spotifyAuthSlice'
 import userSlice from './slices/userSlice'
 import workoutSlice from './slices/workoutSlice'
 
-// Configure persistence for user slice
+// Configure persistence for user slice (removed Spotify auth - now in separate slice)
 const userPersistConfig = {
   key: 'user',
   storage: AsyncStorage,
-  whitelist: ['extractedProfile', 'profileGenerated', 'onboardingAnswers'], // Only persist these fields
+  whitelist: [
+    'extractedProfile', 
+    'profileGenerated', 
+    'onboardingAnswers',
+  ], // Persist user profile data only
+};
+
+// Configure persistence for Spotify auth (separate from user)
+const spotifyAuthPersistConfig = {
+  key: 'spotifyAuth',
+  storage: AsyncStorage,
+  whitelist: [
+    'accessToken',
+    'refreshToken',
+    'expiresAt',
+    'user',
+  ], // Persist Spotify auth state
+};
+
+// Configure persistence for music slice
+const musicPersistConfig = {
+  key: 'music',
+  storage: AsyncStorage,
+  whitelist: [
+    'selectedMusicOption',
+    'selectedPlaylist', 
+    'selectedAppMusic',
+    'volume',
+    'shuffle',
+    'repeat',
+    'lastUsedMusicOption',
+    'lastUsedPlaylist',
+    'lastUsedAppMusic'
+  ], // Persist all music preferences
 };
 
 const persistedUserReducer = persistReducer(userPersistConfig, userSlice);
+const persistedMusicReducer = persistReducer(musicPersistConfig, musicSlice);
+const persistedSpotifyAuthReducer = persistReducer(spotifyAuthPersistConfig, spotifyAuthSlice);
 
 export const store = configureStore({
   reducer: {
     [enhancedApi.reducerPath]: enhancedApi.reducer,
+    [spotifyApi.reducerPath]: spotifyApi.reducer,
     user: persistedUserReducer,
+    music: persistedMusicReducer,
+    spotifyAuth: persistedSpotifyAuthReducer,
     chat: chatSlice,
     workout: workoutSlice,
   },
@@ -56,6 +97,7 @@ export const store = configureStore({
       },
     })
     .concat(enhancedApi.middleware)
+    .concat(spotifyApi.middleware)
     .concat(workoutListenerMiddleware.middleware),
   enhancers: (getDefaultEnhancers) =>
     getDefaultEnhancers().concat(

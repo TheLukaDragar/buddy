@@ -26,6 +26,18 @@ import { mihasWorkout } from '../data/sampleWorkouts';
 import { contextBridgeService } from '../services/contextBridgeService';
 import { store } from '../store';
 import {
+  getMusicStatus,
+  getPlaylists,
+  getTracks,
+  pauseMusic,
+  playTrack,
+  resumeMusic,
+  selectPlaylist,
+  setVolume,
+  skipNext,
+  skipPrevious
+} from '../store/actions/musicActions';
+import {
   adjustReps,
   adjustRestTime,
   adjustWeight,
@@ -1828,59 +1840,138 @@ export default function ActiveWorkoutScreen() {
         }
       },
       
-      // Music Tools (10) - Placeholder implementations
-      start_music: async (params: unknown) => {
-        const typedParams = params as { intensity: string };
-        console.log('🎵 [Client Tool] start_music called with intensity:', typedParams?.intensity);
-        return JSON.stringify({ success: true, message: `Music started with ${typedParams?.intensity || 'medium'} intensity` });
+      // Music Tools (10) - Real implementations using musicActions
+      get_playlists: async (params: unknown) => {
+        try {
+          const result = await dispatch(getPlaylists());
+          const data = unwrapResult(result);
+          console.log('🎵 [Client Tool] get_playlists result:', data);
+          return JSON.stringify(data);
+        } catch (error) {
+          console.error('❌ [Client Tool] get_playlists failed:', error);
+          return JSON.stringify({ success: false, message: `Failed to get playlists: ${error}` });
+        }
       },
       
-      pause_music: async (params: unknown) => {
-        console.log('🎵 [Client Tool] pause_music called');
-        return JSON.stringify({ success: true, message: 'Music paused' });
+      select_playlist: async (params: unknown) => {
+        try {
+          const typedParams = params as { playlistId: string };
+          if (!typedParams.playlistId) {
+            throw new Error('Missing playlistId parameter');
+          }
+          const result = await dispatch(selectPlaylist({ playlistId: typedParams.playlistId }));
+          const data = unwrapResult(result);
+          console.log('🎵 [Client Tool] select_playlist result:', data);
+          return JSON.stringify(data);
+        } catch (error) {
+          console.error('❌ [Client Tool] select_playlist failed:', error);
+          return JSON.stringify({ success: false, message: `Failed to select playlist: ${error}` });
+        }
       },
       
-      resume_music: async (params: unknown) => {
-        console.log('🎵 [Client Tool] resume_music called');
-        return JSON.stringify({ success: true, message: 'Music resumed' });
+      get_tracks: async (params: unknown) => {
+        try {
+          const result = await dispatch(getTracks());
+          const data = unwrapResult(result);
+          console.log('🎵 [Client Tool] get_tracks result:', data);
+          return JSON.stringify(data);
+        } catch (error) {
+          console.error('❌ [Client Tool] get_tracks failed:', error);
+          return JSON.stringify({ success: false, message: `Failed to get tracks: ${error}` });
+        }
       },
       
-      stop_music: async (params: unknown) => {
-        console.log('🎵 [Client Tool] stop_music called');
-        return JSON.stringify({ success: true, message: 'Music stopped' });
-      },
-      
-      set_volume: async (params: unknown) => {
-        const typedParams = params as { level: number };
-        console.log('🎵 [Client Tool] set_volume called with level:', typedParams?.level);
-        return JSON.stringify({ success: true, message: `Volume set to ${typedParams?.level || 50}%` });
+      play_track: async (params: unknown) => {
+        try {
+          const typedParams = params as { trackUri?: string; trackIndex?: number; trackName?: string };
+          const result = await dispatch(playTrack({ 
+            trackUri: typedParams?.trackUri, 
+            trackIndex: typedParams?.trackIndex,
+            trackName: typedParams?.trackName
+          }));
+          const data = unwrapResult(result);
+          console.log('🎵 [Client Tool] play_track result:', data);
+          return JSON.stringify(data);
+        } catch (error) {
+          console.error('❌ [Client Tool] play_track failed:', error);
+          return JSON.stringify({ success: false, message: `Failed to play track: ${error}` });
+        }
       },
       
       skip_next: async (params: unknown) => {
-        console.log('🎵 [Client Tool] skip_next called');
-        return JSON.stringify({ success: true, message: 'Skipped to next song' });
+        try {
+          const result = await dispatch(skipNext());
+          const data = unwrapResult(result);
+          console.log('🎵 [Client Tool] skip_next result:', data);
+          return JSON.stringify(data);
+        } catch (error) {
+          console.error('❌ [Client Tool] skip_next failed:', error);
+          return JSON.stringify({ success: false, message: `Failed to skip to next track: ${error}` });
+        }
       },
       
       skip_previous: async (params: unknown) => {
-        console.log('🎵 [Client Tool] skip_previous called');
-        return JSON.stringify({ success: true, message: 'Skipped to previous song' });
+        try {
+          const result = await dispatch(skipPrevious());
+          const data = unwrapResult(result);
+          console.log('🎵 [Client Tool] skip_previous result:', data);
+          return JSON.stringify(data);
+        } catch (error) {
+          console.error('❌ [Client Tool] skip_previous failed:', error);
+          return JSON.stringify({ success: false, message: `Failed to skip to previous track: ${error}` });
+        }
+      },
+      
+      pause_music: async (params: unknown) => {
+        try {
+          const result = await dispatch(pauseMusic());
+          const data = unwrapResult(result);
+          console.log('🎵 [Client Tool] pause_music result:', data);
+          return JSON.stringify(data);
+        } catch (error) {
+          console.error('❌ [Client Tool] pause_music failed:', error);
+          return JSON.stringify({ success: false, message: `Failed to pause music: ${error}` });
+        }
+      },
+      
+      resume_music: async (params: unknown) => {
+        try {
+          const result = await dispatch(resumeMusic());
+          const data = unwrapResult(result);
+          console.log('🎵 [Client Tool] resume_music result:', data);
+          return JSON.stringify(data);
+        } catch (error) {
+          console.error('❌ [Client Tool] resume_music failed:', error);
+          return JSON.stringify({ success: false, message: `Failed to resume music: ${error}` });
+        }
+      },
+      
+      set_volume: async (params: unknown) => {
+        try {
+          const typedParams = params as { volume: number };
+          if (typedParams.volume === undefined || typedParams.volume === null) {
+            throw new Error('Missing volume parameter');
+          }
+          const result = await dispatch(setVolume({ volume: typedParams.volume }));
+          const data = unwrapResult(result);
+          console.log('🎵 [Client Tool] set_volume result:', data);
+          return JSON.stringify(data);
+        } catch (error) {
+          console.error('❌ [Client Tool] set_volume failed:', error);
+          return JSON.stringify({ success: false, message: `Failed to set volume: ${error}` });
+        }
       },
       
       get_music_status: async (params: unknown) => {
-        console.log('🎵 [Client Tool] get_music_status called');
-        return JSON.stringify({ success: true, message: 'Music is playing', data: { isPlaying: true, volume: 75, currentSong: 'Workout Mix' } });
-      },
-      
-      play_playlist: async (params: unknown) => {
-        const typedParams = params as { playlistName: string };
-        console.log('🎵 [Client Tool] play_playlist called with:', typedParams?.playlistName);
-        return JSON.stringify({ success: true, message: `Playing playlist: ${typedParams?.playlistName || 'Default'}` });
-      },
-      
-      play_song: async (params: unknown) => {
-        const typedParams = params as { songName: string };
-        console.log('🎵 [Client Tool] play_song called with:', typedParams?.songName);
-        return JSON.stringify({ success: true, message: `Playing song: ${typedParams?.songName || 'Unknown'}` });
+        try {
+          const result = await dispatch(getMusicStatus());
+          const data = unwrapResult(result);
+          console.log('🎵 [Client Tool] get_music_status result:', data);
+          return JSON.stringify(data);
+        } catch (error) {
+          console.error('❌ [Client Tool] get_music_status failed:', error);
+          return JSON.stringify({ success: false, message: `Failed to get music status: ${error}` });
+        }
       }
     },
     

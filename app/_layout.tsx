@@ -14,13 +14,13 @@ import SwipeableIntro from '../components/SwipeableIntro';
 import { BuddyLightTheme } from '../constants/BuddyTheme';
 import '../polyfills';
 
+import { ElevenLabsProvider } from '@elevenlabs/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { nucleus } from '../Buddy_variables.js';
 import { SplashScreenController } from '../components/SplashScreenController';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
 import { useColorScheme } from '../hooks/useColorScheme';
 import { persistor, store } from '../store';
-import { ElevenLabsProvider } from '@elevenlabs/react-native';
 
 
 // Create context for intro state
@@ -104,25 +104,25 @@ export default function RootLayout() {
       <PersistGate loading={null} persistor={persistor}>
        
         <AuthProvider>
-          <SplashScreenController />
-          <SafeAreaProvider> 
-            <GestureHandlerRootView style={{ flex: 1 }}>
-              <PaperProvider theme={paperTheme}>
-                <ThemeProvider value={BuddyNavigationTheme}>
-                  <IntroContext.Provider value={{ showIntro, setShowIntro }}>
-                    <RootNavigator />
-                    <SystemBars style="dark" />
-                    
-                    {/* Global SwipeableIntro - renders above everything */}
-                    <SwipeableIntro 
-                      visible={showIntro}
-                      onDismiss={handleDismissIntro}
-                    />
-                  </IntroContext.Provider>
-                </ThemeProvider>
-              </PaperProvider>
-            </GestureHandlerRootView>
-            </SafeAreaProvider>
+            <SplashScreenController />
+            <SafeAreaProvider> 
+              <GestureHandlerRootView style={{ flex: 1 }}>
+                <PaperProvider theme={paperTheme}>
+                  <ThemeProvider value={BuddyNavigationTheme}>
+                    <IntroContext.Provider value={{ showIntro, setShowIntro }}>
+                      <RootNavigator />
+                      <SystemBars style="dark" />
+                      
+                      {/* Global SwipeableIntro - renders above everything */}
+                      <SwipeableIntro 
+                        visible={showIntro}
+                        onDismiss={handleDismissIntro}
+                      />
+                    </IntroContext.Provider>
+                  </ThemeProvider>
+                </PaperProvider>
+              </GestureHandlerRootView>
+              </SafeAreaProvider>
           </AuthProvider>
         </PersistGate>
       </Provider>
@@ -194,6 +194,14 @@ function RootNavigator() {
             headerShown: false,
             presentation: 'card',
             animation: 'slide_from_right',
+          }}
+        />
+        <Stack.Screen
+          name="spotify-auth-callback"
+          options={{
+            headerShown: false,
+            presentation: 'modal',
+            animation: 'slide_from_bottom',
           }}
         />
       </Stack.Protected>

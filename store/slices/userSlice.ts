@@ -42,6 +42,11 @@ export interface UserState {
   isLoading: boolean;
   isLoadingProfile: boolean;
   error: string | null;
+  // Spotify authentication
+  spotifyAccessToken: string | null;
+  spotifyRefreshToken: string | null;
+  spotifyTokenExpiry: number | null;
+  spotifyConnected: boolean;
 }
 
 const initialState: UserState = {
@@ -52,6 +57,11 @@ const initialState: UserState = {
   isLoading: false,
   isLoadingProfile: false,
   error: null,
+  // Spotify authentication
+  spotifyAccessToken: null,
+  spotifyRefreshToken: null,
+  spotifyTokenExpiry: null,
+  spotifyConnected: false,
 };
 
 const userSlice = createSlice({
@@ -85,9 +95,36 @@ const userSlice = createSlice({
       state.error = null;
     },
     // Clear only profile data but keep onboarding completion status
+    // Clear only profile data but keep onboarding completion status
     clearProfileData: (state) => {
       state.extractedProfile = null;
       state.profileGenerated = false;
+    },
+    // Spotify authentication actions
+    setSpotifyTokens: (state, action: PayloadAction<{
+      accessToken: string;
+      refreshToken?: string;
+      expiresIn: number;
+    }>) => {
+      state.spotifyAccessToken = action.payload.accessToken;
+      if (action.payload.refreshToken) {
+        state.spotifyRefreshToken = action.payload.refreshToken;
+      }
+      state.spotifyTokenExpiry = Date.now() + (action.payload.expiresIn * 1000);
+      state.spotifyConnected = true;
+    },
+    refreshSpotifyToken: (state, action: PayloadAction<{
+      accessToken: string;
+      expiresIn: number;
+    }>) => {
+      state.spotifyAccessToken = action.payload.accessToken;
+      state.spotifyTokenExpiry = Date.now() + (action.payload.expiresIn * 1000);
+    },
+    clearSpotifyTokens: (state) => {
+      state.spotifyAccessToken = null;
+      state.spotifyRefreshToken = null;
+      state.spotifyTokenExpiry = null;
+      state.spotifyConnected = false;
     },
   },
   extraReducers: (builder) => {
@@ -121,6 +158,9 @@ export const {
   setError,
   clearUserData,
   clearProfileData,
+  setSpotifyTokens,
+  refreshSpotifyToken,
+  clearSpotifyTokens,
 } = userSlice.actions;
 
 export default userSlice.reducer; 
