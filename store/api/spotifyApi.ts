@@ -362,7 +362,35 @@ export const spotifyApi = createApi({
         method: 'PUT',
         body: { device_ids: [deviceId], play },
       }),
-      invalidatesTags: ['PlaybackState', 'Devices'],
+      invalidatesTags: ['PlaybackState'], // Removed 'Devices' - handled optimistically
+      async onQueryStarted({ deviceId }, { dispatch, queryFulfilled, getState }) {
+        // Optimistic update: immediately mark new device as active
+        const patchResult = dispatch(
+          spotifyApi.util.updateQueryData('getAvailableDevices', undefined, (draft) => {
+            if (draft?.devices) {
+              // Mark all devices as inactive
+              draft.devices.forEach(device => {
+                device.is_active = false;
+              });
+              // Mark the target device as active
+              const targetDevice = draft.devices.find(device => device.id === deviceId);
+              if (targetDevice) {
+                targetDevice.is_active = true;
+              }
+              // Update hasActiveDevice flag
+              draft.hasActiveDevice = true;
+            }
+          })
+        );
+
+        try {
+          await queryFulfilled;
+          console.log('🎵 [RTK] Device transfer successful, keeping optimistic update');
+        } catch (error) {
+          console.log('🎵 [RTK] Device transfer failed, reverting optimistic update');
+          patchResult.undo();
+        }
+      },
     }),
 
     // Search & Discovery

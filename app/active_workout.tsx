@@ -2,7 +2,7 @@ import { unwrapResult } from '@reduxjs/toolkit';
 import { Image } from 'expo-image';
 import { router, useFocusEffect } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { BackHandler, Dimensions, Modal, StyleSheet, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { SystemBars } from 'react-native-edge-to-edge';
 import { PanGestureHandler } from 'react-native-gesture-handler';
@@ -21,6 +21,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useSelector } from 'react-redux';
 import { nucleus } from '../Buddy_variables.js';
 import ChatComponent from '../components/ChatComponent';
+import MusicModal from '../components/MusicModal';
 import { useBuddyTheme } from '../constants/BuddyTheme';
 import { mihasWorkout } from '../data/sampleWorkouts';
 import { contextBridgeService } from '../services/contextBridgeService';
@@ -334,8 +335,11 @@ const WorkoutProgress: React.FC<WorkoutProgressProps> = ({
   const isRunning = status === 'exercising' && !activeWorkout?.isPaused;
   const theme = useBuddyTheme();
 
-  // Calculate total duration for proportional widths
-  const totalDuration = segments.reduce((sum, segment) => sum + segment.duration, 0);
+  // Memoize total duration calculation to prevent recalculation on every render
+  const totalDuration = useMemo(() => 
+    segments.reduce((sum, segment) => sum + segment.duration, 0), 
+    [segments]
+  );
 
   // Format time as MM:SS
   const formatTime = (seconds: number) => {
@@ -345,8 +349,8 @@ const WorkoutProgress: React.FC<WorkoutProgressProps> = ({
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Find which segment is currently active based on workout state
-  const getCurrentSegmentInfo = () => {
+  // Memoize expensive getCurrentSegmentInfo calculation
+  const getCurrentSegmentInfo = useMemo(() => {
     if (!activeWorkout || !currentSet) {
       return {
         activeIndex: 0,
@@ -433,11 +437,11 @@ const WorkoutProgress: React.FC<WorkoutProgressProps> = ({
       remainingTime: Math.max(0, remainingTime), // Ensure non-negative
       segmentType: segments[segmentIndex]?.type || 'set'
     };
-  };
+  }, [activeWorkout, currentSet, segments, status, timers, elapsedTime]);
 
-  const currentInfo = getCurrentSegmentInfo();
+  const currentInfo = getCurrentSegmentInfo;
 
-  const getSegmentColor = (segment: ProgressSegment, index: number) => {
+  const getSegmentColor = useCallback((segment: ProgressSegment, index: number) => {
     // Completed segments
     if (index < currentInfo.activeIndex) {
       return segment.type === 'set' 
@@ -453,17 +457,17 @@ const WorkoutProgress: React.FC<WorkoutProgressProps> = ({
     }
 
     return nucleus.light.global.white; // #FFF for future segments
-  };
+  }, [currentInfo]);
 
-  const getSegmentWidth = (segment: ProgressSegment) => {
+  const getSegmentWidth = useCallback((segment: ProgressSegment) => {
     return (segment.duration / totalDuration) * 100;
-  };
+  }, [totalDuration]);
 
-  const getSegmentProgress = (index: number) => {
+  const getSegmentProgress = useCallback((index: number) => {
     if (index < currentInfo.activeIndex) return 100; // Completed
     if (index === currentInfo.activeIndex) return currentInfo.progress; // Active
     return 0; // Future
-  };
+  }, [currentInfo]);
 
   return (
     <View style={styles.progressContainer}>
@@ -1123,6 +1127,7 @@ const workoutControlsStyles = StyleSheet.create({
   },
 });
 
+// Move dimensions outside component to prevent recalculation on every render
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface BottomModalProps {
@@ -1151,13 +1156,24 @@ const BottomModal: React.FC<BottomModalProps> = ({
   onAddConversationEvent
 }) => {
   const insets = useSafeAreaInsets();
-  // Use a fixed middle height reference for consistent behavior across devices
-  const COLLAPSED_HEIGHT = SCREEN_HEIGHT * 0.45; // 40% of screen height
-  const EXPANDED_HEIGHT = SCREEN_HEIGHT * 1 ; // Height of modal when expanded
+  // Memoize height calculations to prevent recalculation on every render
+  const modalDimensions = useMemo(() => {
+    const COLLAPSED_HEIGHT = SCREEN_HEIGHT * 0.45; // 40% of screen height
+    const EXPANDED_HEIGHT = SCREEN_HEIGHT * 1 ; // Height of modal when expanded
+    
+    // Calculate positions from bottom of screen
+    const COLLAPSED_POSITION = SCREEN_HEIGHT - COLLAPSED_HEIGHT; // Near bottom
+    const EXPANDED_POSITION = SCREEN_HEIGHT - EXPANDED_HEIGHT;   // Much higher up
+    
+    return {
+      COLLAPSED_HEIGHT,
+      EXPANDED_HEIGHT,
+      COLLAPSED_POSITION,
+      EXPANDED_POSITION
+    };
+  }, []);
   
-  // Calculate positions from bottom of screen
-  const COLLAPSED_POSITION = SCREEN_HEIGHT - COLLAPSED_HEIGHT; // Near bottom
-  const EXPANDED_POSITION = SCREEN_HEIGHT - EXPANDED_HEIGHT;   // Much higher up
+  const { COLLAPSED_HEIGHT, EXPANDED_HEIGHT, COLLAPSED_POSITION, EXPANDED_POSITION } = modalDimensions;
   
   const modalTranslateY = useSharedValue(COLLAPSED_POSITION);
   
@@ -1180,8 +1196,11 @@ const BottomModal: React.FC<BottomModalProps> = ({
   // Scroll trigger for ChatComponent
   const [scrollTrigger, setScrollTrigger] = useState(0);
   
-  // Modal header height (handle + title + padding + border)
-  const MODAL_HEADER_HEIGHT = 8 + 5 + 8 + 16 + 21.6 + 16 + 1; // handle margin + handle height + gap + padding + title + padding + border
+  // Memoize modal header height calculation
+  const MODAL_HEADER_HEIGHT = useMemo(() => 
+    8 + 5 + 8 + 16 + 21.6 + 16 + 1, // handle margin + handle height + gap + padding + title + padding + border
+    []
+  );
 
   // Throttled height update function
   const updateVisibleHeight = (newHeight: number) => {
@@ -1284,8 +1303,8 @@ const BottomModal: React.FC<BottomModalProps> = ({
       // Calculate visible height based on current position
       const currentVisibleHeight = SCREEN_HEIGHT - modalTranslateY.value;
       
-      // During active dragging, update less frequently (every 25px) to reduce jumpiness
-      if (Math.abs(currentVisibleHeight - lastUpdatedHeight.value) > 25) {
+      // During active dragging, update less frequently (every 50px) to reduce lag
+      if (Math.abs(currentVisibleHeight - lastUpdatedHeight.value) > 50) {
         lastUpdatedHeight.value = currentVisibleHeight;
         runOnJS(updateVisibleHeight)(currentVisibleHeight);
       }
@@ -1347,14 +1366,16 @@ const BottomModal: React.FC<BottomModalProps> = ({
     return { opacity: 0 };
   });
   
-  // Calculate available height for chat content (visible height minus header)
-  const baseContentHeight = Math.max(50, Math.min(visibleModalHeight - MODAL_HEADER_HEIGHT, SCREEN_HEIGHT - 100));
-  
-  // Adjust content height when keyboard is visible to move input above keyboard
-  // Reduce padding to 8px to bring input closer to keyboard
-  const chatContentHeight = isKeyboardVisible 
-    ? Math.max(100, baseContentHeight - keyboardHeight - 8) 
-    : baseContentHeight;
+  // Memoize content height calculations to prevent excessive recalculation
+  const chatContentHeight = useMemo(() => {
+    const baseContentHeight = Math.max(50, Math.min(visibleModalHeight - MODAL_HEADER_HEIGHT, SCREEN_HEIGHT - 100));
+    
+    // Adjust content height when keyboard is visible to move input above keyboard
+    // Reduce padding to 8px to bring input closer to keyboard
+    return isKeyboardVisible 
+      ? Math.max(100, baseContentHeight - keyboardHeight - 8) 
+      : baseContentHeight;
+  }, [visibleModalHeight, MODAL_HEADER_HEIGHT, isKeyboardVisible, keyboardHeight]);
     
   // Debug logging for height calculations
   if (isKeyboardVisible) {
@@ -1626,6 +1647,7 @@ export default function ActiveWorkoutScreen() {
   const theme = useBuddyTheme();
   const insets = useSafeAreaInsets();
   const [showFinishAlert, setShowFinishAlert] = useState(false);
+  const [showMusicModal, setShowMusicModal] = useState(false);
   
   // Auth context
   const { user } = useAuth();
@@ -2174,7 +2196,7 @@ export default function ActiveWorkoutScreen() {
         agentId: agentId,
         conversationToken: token,
         dynamicVariables: {
-          user_name: user?.user_metadata?.full_name || user?.email?.split('@')[0] || "User",
+          user_name: user?.user_metadata?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || "User",
           user_activity: "starting_workout_session",
           app_context: "fitness_workout_assistant",
           selected_playlist: musicState.selectedPlaylist?.name || "No playlist selected",
@@ -2382,7 +2404,14 @@ export default function ActiveWorkoutScreen() {
 
       {/* Spotify Player Mini - Global Overlay */}
       <SpotifyPlayerMini 
-        onPress={() => console.log('Player pressed - navigate to full player')}
+        onPress={() => setShowMusicModal(true)}
+      />
+
+      {/* Music Modal */}
+    
+      <MusicModal 
+        visible={showMusicModal}
+        onClose={() => setShowMusicModal(false)}
       />
     </ReanimatedAnimated.View>
   );
@@ -2609,7 +2638,7 @@ const styles = StyleSheet.create({
   // Bottom Modal Styles
   modalOverlay: {
     ...StyleSheet.absoluteFillObject,
-    zIndex: 1000,
+    zIndex: 2000, // Higher than SpotifyPlayerMini (1000)
     pointerEvents: 'box-none', // Allow touches to pass through to backdrop
   },
   modalBackdrop: {
@@ -2684,9 +2713,10 @@ const styles = StyleSheet.create({
   },
   buddyAiButton: {
     position: 'absolute',
-    zIndex: 1000,
+    zIndex: 3000, // Higher than modal (2000) to appear above it
     right: 11,
     bottom: 21,
+    pointerEvents: 'auto', // Ensure it only captures its own touches
     height: 64,
     width: 64,
     justifyContent: 'center',
@@ -2696,4 +2726,5 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
   },
+
 }); 

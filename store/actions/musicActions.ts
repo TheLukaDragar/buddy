@@ -972,14 +972,14 @@ export const syncPlaylistToSpotify = createAsyncThunk(
       );
       await contextResult.unwrap();
       
-      // Immediately pause to prevent auto-play
-      const pauseResult = store.dispatch(
-        spotifyApi.endpoints.pauseMusic.initiate({})
-      );
-      await pauseResult.unwrap();
+    //   // Immediately pause to prevent auto-play
+    //   const pauseResult = store.dispatch(
+    //     spotifyApi.endpoints.pauseMusic.initiate({})
+    //   );
+    //   await pauseResult.unwrap();
       
-      // Small delay to let sync complete
-      await new Promise(resolve => setTimeout(resolve, 300));
+    //   // Small delay to let sync complete
+    //   await new Promise(resolve => setTimeout(resolve, 300));
       
       return {
         success: true,

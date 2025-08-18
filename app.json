@@ -11,9 +11,7 @@
     "ios": {
       "bundleIdentifier": "com.theluka.buddy",
       "supportsTablet": false,
-      "runtimeVersion": {
-        "policy": "appVersion"
-      },
+      "runtimeVersion": "1.0.0",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSMicrophoneUsageDescription": "This app needs microphone access to enable voice conversations with AI agents."

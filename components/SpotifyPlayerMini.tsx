@@ -4,6 +4,7 @@ import { Image } from 'expo-image';
 import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from 'react-native-paper';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
 import { nucleus } from '../Buddy_variables.js';
 import {
@@ -15,6 +16,7 @@ import {
 } from '../store/api/spotifyApi';
 import { selectMiniPlayerVisible } from '../store/slices/musicSlice';
 import { selectIsAuthenticated, selectSpotifyAuth } from '../store/slices/spotifyAuthSlice';
+
 
 interface SpotifyPlayerMiniProps {
   onPress?: () => void; // Only keep onPress for navigating to full player
@@ -59,6 +61,8 @@ export default function SpotifyPlayerMini({
   const trackName = currentTrack?.name || "No track playing";
   const artistName = currentTrack?.artists?.[0]?.name || "Connect Spotify";
   const albumArt = currentTrack?.album?.images?.[0]?.url;
+  const insets = useSafeAreaInsets();
+
   
   // Main visibility animation - fly down from top when visible
   useEffect(() => {
@@ -66,7 +70,7 @@ export default function SpotifyPlayerMini({
       // Show: slide down from top with subtle Apple-like bounce and fade in
       Animated.parallel([
         Animated.spring(slideDownAnim, {
-          toValue: 25, // Add some padding from the top (16px)
+          toValue: insets.top+ 8, // Add some padding from the top (16px)
           tension: 180,
           friction: 12,
           useNativeDriver: true,
@@ -340,6 +344,7 @@ const styles = StyleSheet.create({
   },
   albumArtContainer: {
     // No additional styles needed
+    paddingLeft: 6,
   },
   // size-8 = 32px, rounded-lg = 8px
   albumArt: {
@@ -367,7 +372,7 @@ const styles = StyleSheet.create({
   trackName: {
     fontFamily: 'PlusJakartaSans-Bold', // font-['Plus_Jakarta_Sans:Bold'] font-bold
     fontSize: 12, // text-[12px]
-    lineHeight: 12, // leading-none
+    lineHeight: 16, // Increased for descenders
     color: '#2f3133', // text-[#2f3133] - global/grey/80
     includeFontPadding: false,
   },
@@ -375,7 +380,7 @@ const styles = StyleSheet.create({
   artistName: {
     fontFamily: 'PlusJakartaSans-Regular', // font-['Plus_Jakarta_Sans:Regular'] font-normal
     fontSize: 12, // text-[12px]
-    lineHeight: 12, // leading-none
+    lineHeight: 16, // Increased for descenders
     color: '#2f3133', // text-[#2f3133] - global/grey/80
     includeFontPadding: false,
   },

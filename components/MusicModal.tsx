@@ -16,8 +16,9 @@ import Animated, {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { nucleus } from '../Buddy_variables';
 import { useSpotifyAuth } from '../hooks/useSpotifyAuth';
-import { useGetUserPlaylistsQuery } from '../store/api/spotifyApi';
+import { useGetUserPlaylistsQuery, useGetAvailableDevicesQuery, useTransferPlaybackMutation } from '../store/api/spotifyApi';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
+import { syncPlaylistToSpotify } from '../store/actions/musicActions';
 import { SelectedPlaylist, setMusicOption, setSelectedAppMusic, setSelectedPlaylist } from '../store/slices/musicSlice';
 import SpotifyConnectModal from './SpotifyConnectModal';
 
@@ -32,6 +33,7 @@ export default function MusicModal({ visible, onClose }: MusicModalProps) {
   const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
   const [showSpotifyConnect, setShowSpotifyConnect] = useState(false);
+  const [previousPlaylistId, setPreviousPlaylistId] = useState<string | null>(null);
   
   // Redux state
   const { selectedMusicOption, selectedPlaylist, selectedAppMusic } = useAppSelector(state => state.music);
@@ -43,6 +45,26 @@ export default function MusicModal({ visible, onClose }: MusicModalProps) {
   const { data: playlistsData, isLoading: playlistsLoading } = useGetUserPlaylistsQuery({ limit: 20 }, {
     skip: !isAuthenticated || selectedMusicOption !== 'spotify' || spotifyLoading,
   });
+
+  // Fetch available Spotify devices - only poll when modal is visible
+  const { data: devicesData } = useGetAvailableDevicesQuery(undefined, {
+    skip: !isAuthenticated || selectedMusicOption !== 'spotify',
+    pollingInterval: visible ? 8000 : 0, // Only poll when modal is visible
+  });
+
+  // Transfer playback mutation
+  const [transferPlayback, { isLoading: isTransferring }] = useTransferPlaybackMutation();
+
+  // Debug device data changes
+  useEffect(() => {
+    if (devicesData?.devices) {
+      console.log('🎵 [DEBUG] Devices updated:', devicesData.devices.map(d => ({
+        name: d.name,
+        id: d.id,
+        is_active: d.is_active
+      })));
+    }
+  }, [devicesData]);
 
   // Log playlist data when it loads
   useEffect(() => {
@@ -86,6 +108,30 @@ export default function MusicModal({ visible, onClose }: MusicModalProps) {
       } as SelectedPlaylist));
     }
   }, [playlistsData, selectedMusicOption, selectedPlaylist, dispatch, spotifyLoading]);
+
+  // Sync NEWLY selected Spotify playlist (only when it actually changes)
+  useEffect(() => {
+    if (isAuthenticated && 
+        selectedPlaylist && 
+        selectedMusicOption === 'spotify' && 
+        selectedPlaylist.id !== previousPlaylistId &&
+        previousPlaylistId !== null) { // Only sync if there was a previous playlist (indicating a switch)
+      
+      console.log('🎵 [MusicModal] Syncing NEWLY selected playlist to Spotify:', selectedPlaylist.name);
+      dispatch(syncPlaylistToSpotify()).then((result: any) => {
+        if (result.payload?.synced) {
+          console.log(`🎵 [MusicModal] Playlist "${result.payload.playlist}" synced to Spotify`);
+        }
+      }).catch((error: any) => {
+        console.log('🎵 [MusicModal] Failed to sync playlist:', error);
+      });
+    }
+    
+    // Update the previous playlist ID for next comparison
+    if (selectedPlaylist) {
+      setPreviousPlaylistId(selectedPlaylist.id);
+    }
+  }, [selectedPlaylist, isAuthenticated, selectedMusicOption, dispatch, previousPlaylistId]);
 
   // Render music cards based on selected option
   const renderMusicCards = () => {
@@ -369,6 +415,50 @@ export default function MusicModal({ visible, onClose }: MusicModalProps) {
 
             {/* Music Cards - Outside padded container to take full width */}
             <View style={styles.musicCardsContainer}>
+              {/* Subtle Device Selector - Same container as playlist cards */}
+              {selectedMusicOption === 'spotify' && isAuthenticated && devicesData?.devices && devicesData.devices.length > 0 && (
+                <View style={styles.deviceSectionFullWidth}>
+                  <Text style={styles.deviceSectionTitle}>Playing on</Text>
+                  <ScrollView 
+                    horizontal 
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.devicesContainer}
+                  >
+                    {devicesData.devices.map((device: any) => (
+                      <TouchableOpacity
+                        key={device.id}
+                        style={[
+                          styles.deviceCard,
+                          { 
+                            backgroundColor: device.is_active ? nucleus.light.global.brand["20"] : nucleus.light.global.grey["10"],
+                            opacity: isTransferring ? 0.6 : 1
+                          }
+                        ]}
+                        disabled={isTransferring}
+                        onPress={async () => {
+                          console.log('🎵 [DEBUG] Starting transfer to device:', device.name, device.id);
+                          try {
+                            const result = await transferPlayback({ deviceId: device.id, play: true });
+                            console.log('🎵 [DEBUG] Transfer result:', result);
+                          } catch (error) {
+                            console.error('🎵 [DEBUG] Transfer failed:', error);
+                          }
+                        }}
+                      >
+                        <Text style={[
+                          styles.deviceName,
+                          { color: device.is_active ? nucleus.light.global.brand["80"] : nucleus.light.global.grey["70"] }
+                        ]} numberOfLines={1}>
+                          {device.name}
+                        </Text>
+                        {device.is_active && (
+                          <View style={styles.activeIndicator} />
+                        )}
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
               <ScrollView 
                 horizontal 
                 showsHorizontalScrollIndicator={false}
@@ -412,7 +502,7 @@ const styles = StyleSheet.create({
   // Music Modal Styles
   musicOverlay: {
     ...StyleSheet.absoluteFillObject,
-    zIndex: 1000,
+    zIndex: 3000,
   },
   musicBackdrop: {
     flex: 1,
@@ -514,6 +604,48 @@ const styles = StyleSheet.create({
     height: 12,
     borderRadius: 6,
     backgroundColor: nucleus.light.semantic.fg.staticLight,
+  },
+  // Device selector styles
+  deviceSection: {
+    marginTop: 16,
+    gap: 8,
+  },
+  deviceSectionFullWidth: {
+    marginBottom: 16,
+    gap: 8,
+  },
+  deviceSectionTitle: {
+    color: nucleus.light.global.grey["60"],
+    fontFamily: 'PlusJakartaSans-Medium',
+    fontSize: 12,
+    fontWeight: '500',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    paddingHorizontal: 16, // Only title has padding
+  },
+  devicesContainer: {
+    gap: 8,
+    paddingHorizontal: 16, // ScrollView content has padding
+  },
+  deviceCard: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    minWidth: 60,
+  },
+  deviceName: {
+    fontFamily: 'PlusJakartaSans-Medium',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  activeIndicator: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: nucleus.light.global.brand["60"],
   },
   musicCardsContainer: {
     width: '100%', // Ensure full width of parent

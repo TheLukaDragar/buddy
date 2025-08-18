@@ -353,7 +353,7 @@ const styles = {
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 12,
     fontWeight: '700' as const,
-    lineHeight: 12,
+    lineHeight: 14,
   },
   workoutDetails: {
     gap: 16,
@@ -365,13 +365,14 @@ const styles = {
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 12,
     fontWeight: '700' as const,
-    lineHeight: 12,
+    lineHeight: 14,
   },
   workoutNumberText: {
     color: nucleus.light.semantic.fg.subtle,
   },
   workoutDateText: {
     color: nucleus.light.semantic.fg.base,
+
   },
   workoutTitle: {
     fontFamily: 'PlusJakartaSans-Bold',
