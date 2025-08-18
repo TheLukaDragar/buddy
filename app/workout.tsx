@@ -5,7 +5,7 @@ import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SystemBars } from 'react-native-edge-to-edge';
 import Animated, { Extrapolation, interpolate, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { nucleus } from '../Buddy_variables';
 import MusicModal from '../components/MusicModal';
 
@@ -17,6 +17,7 @@ export default function WorkoutScreen() {
   const [selectedMood, setSelectedMood] = useState<string | null>(null);
   const [showMusicModal, setShowMusicModal] = useState(false);
   const scrollY = useSharedValue(0);
+  const insets = useSafeAreaInsets();
 
   const weekNumber = 1;
 
@@ -386,7 +387,7 @@ export default function WorkoutScreen() {
         
 
         {/* Floating Button Container */}
-        <View style={styles.floatingButtonWrapper}>
+        <View style={[styles.floatingButtonWrapper, { bottom:8+  insets.bottom }]}>
           <BlurView intensity={100} tint="light" style={styles.floatingButtonContainer}>
             <View style={styles.buttonRow}>
               <Pressable
@@ -869,7 +870,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 24,
     right: 24,
-    bottom: 34,
     height: 72,
     shadowColor: 'rgba(185, 230, 255, 0.40)',
     shadowOffset: {
