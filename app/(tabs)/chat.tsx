@@ -471,7 +471,7 @@ export default function ChatScreen() {
         renderedItems.push(
           <View key={message.id} style={{ width: '100%' }}>
             <View style={styles.buddyMessage}>
-              <Avatar.Image size={40} source={require('../../assets/avatar.png')} style={styles.avatar} />
+              {/* <Avatar.Image size={40} source={require('../../assets/avatar.png')} style={styles.avatar} /> */}
               <Text style={styles.buddyName}>Buddy</Text>
             </View>
             
@@ -764,7 +764,7 @@ export default function ChatScreen() {
               {status === 'submitted' && (
                 <View style={{ width: '100%' }}>
                   <View style={styles.buddyMessage}>
-                    <Avatar.Image size={40} source={require('../../assets/avatar.png')} style={styles.avatar} />
+                    {/* <Avatar.Image size={40} source={require('../../assets/avatar.png')} style={styles.avatar} /> */}
                     <Text style={styles.buddyName}>Buddy</Text>
                   </View>
                   
@@ -847,6 +847,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   topNav: {
+    
     height: 64,
     paddingVertical: 16,
     paddingHorizontal: 8,
@@ -960,7 +961,8 @@ const styles = StyleSheet.create({
   },
   buddyName: {
     fontFamily: 'PlusJakartaSans-Bold',
-    fontSize: 14,
+    fontSize: 17,
+    paddingBottom: 8,
     fontStyle: 'normal',
     fontWeight: '700',
     lineHeight: 16.8, // 120% of 14px

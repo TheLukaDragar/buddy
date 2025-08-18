@@ -204,7 +204,13 @@ export default function TabLayout() {
               <View style={styles.tab2}>
                 <Pressable 
                   style={styles.tab2Button}
-                  onPress={() => router.push('/chat')}
+                  onPress={() => {
+                    if (pathname === '/chat') {
+                      router.push('/');
+                    } else {
+                      router.push('/chat');
+                    }
+                  }}
                 >
                   <Animated.View style={animatedCenterIconStyle}>
                     <Image

@@ -221,14 +221,9 @@ export default function ExploreScreen() {
   // Generate 8-week workout plan
   const generateWorkoutPlan = () => {
     const workoutTypes = [
-      { name: 'Abs & Core', duration: 45, exercises: 8, reps: 12 },
-      { name: 'Legs & Glutes', duration: 50, exercises: 10, reps: 15 },
-      { name: 'Upper Body', duration: 40, exercises: 8, reps: 12 },
-      { name: 'Full Body', duration: 55, exercises: 12, reps: 10 },
-      { name: 'Cardio HIIT', duration: 30, exercises: 6, reps: 20 },
-      { name: 'Strength Training', duration: 60, exercises: 8, reps: 8 },
-      { name: 'Yoga Flow', duration: 45, exercises: 15, reps: 5 },
-      { name: 'Pilates', duration: 40, exercises: 10, reps: 10 }
+      { name: 'Abs', duration: 45, exercises: 8, reps: 8, image: 'abs.png' },
+      { name: 'Legs', duration: 45, exercises: 8, reps: 8, image: 'legs.png' },
+      { name: 'Full Body', duration: 45, exercises: 8, reps: 8, image: 'fullbody.png' }
     ];
 
     const allWorkouts: WorkoutItemData[] = [];
@@ -281,7 +276,8 @@ export default function ExploreScreen() {
           isCompleted: isCompleted,
           progress: progress,
           weekNumber: week + 1,
-          dayOfWeek: dayOffset
+          dayOfWeek: dayOffset,
+          image: workoutType.image
         });
         
         workoutId++;

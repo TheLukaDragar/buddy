@@ -18,6 +18,7 @@ export interface WorkoutItemData {
   workoutNumber?: string; // Optional: will be auto-generated if not provided
   weekNumber?: number; // Week number (1-8)
   dayOfWeek?: number; // Day of week (0=Monday, 1=Tuesday, etc.)
+  image?: string; // Optional: image filename for the workout
 }
 
 interface WorkoutItemProps {
@@ -205,7 +206,23 @@ export default function WorkoutItem({ workout, index, onPress }: WorkoutItemProp
             </View>
           </View>
         </View>
-                <View style={[
+        
+        {/* Workout Image - positioned absolutely in bottom right */}
+        <View style={styles.workoutImageContainer}>
+          <Image
+            source={
+              workout.image === 'abs.png' ? require('../assets/images/abs.png') :
+              workout.image === 'legs.png' ? require('../assets/images/legs.png') :
+              workout.image === 'fullbody.png' ? require('../assets/images/fullbody.png') :
+              require('../assets/exercises/squats.png') // fallback
+            }
+            style={[styles.workoutImage, styles.monochromeFilter]}
+            contentFit="cover"
+          />
+        </View>
+        
+        {/* Progress Circle back to original position */}
+        <View style={[
           styles.progressCircle, 
           { backgroundColor: workout.isCompleted ? nucleus.light.semantic.accent.moderate : "#F1F3E8" }
         ]}>
@@ -315,6 +332,7 @@ const styles = {
     elevation: 12,
   },
   workoutContent: {
+    position: 'relative' as const,
     flexDirection: 'row' as const,
     padding: 16,
     paddingBottom: 56, // Changed from 64 to 56 to match new design
@@ -416,5 +434,23 @@ const styles = {
   },
   progressSvg: {
     position: 'absolute' as const,
+  },
+  workoutImageContainer: {
+    position: 'absolute' as const,
+    bottom: 0,
+    right: 0,
+    width: 200,
+    height: 120,
+    overflow: 'hidden' as const,
+  },
+  workoutImage: {
+    width: 200,
+    height: 120,
+  },
+  monochromeFilter: {
+    // Option 1: Grayscale filter (works on both iOS and Android)
+    //opacity: 0.4,
+    //tintColor: nucleus.light.global.blue["60"],
+    //tintColor: nucleus.light.semantic.accent.dim, // Green tint
   },
 }; 
