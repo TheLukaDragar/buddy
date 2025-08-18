@@ -17,6 +17,7 @@ import ReanimatedAnimated, {
 } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { nucleus } from '../../Buddy_variables';
+import CategoryPills from '../../components/CategoryPills';
 import { RootState } from '../../store';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { addMessage, clearMessages, setError, setInputCollapsed, setLoading, type ChatMessage } from '../../store/slices/chatSlice';
@@ -138,6 +139,88 @@ export default function ChatScreen() {
   
   // Input state
   const [inputText, setInputText] = useState('');
+  
+  // Category pills state
+  const [selectedCategory, setSelectedCategory] = useState('general');
+  
+  // Text animation state
+  const textOpacity = useSharedValue(1);
+  const textTranslateY = useSharedValue(0);
+  
+  // Category pills animation state
+  const pillsHeight = useSharedValue(56); // Initial height for pills container
+  const pillsOpacity = useSharedValue(1);
+  
+  // Mode-specific welcome texts
+  const getModeText = (mode: string) => {
+    const modeTexts = {
+      general: {
+        title: 'Welcome to your personal chat with Buddy!',
+        subtitle: "I'm here to help you with workouts, answer questions, and keep you motivated. Let's chat! 💬"
+      },
+      streak: {
+        title: 'Keep your streak alive! 🏠',
+        subtitle: "Let's talk about maintaining consistency and building lasting workout habits. I'm here to help you stay on track! 🔥"
+      },
+      illness: {
+        title: 'Feeling under the weather? 🤒',
+        subtitle: "I'll help you adjust your routine safely while you recover. Your health comes first, and I'm here to guide you! 💙"
+      },
+      injury: {
+        title: 'Injury recovery support 🤕',
+        subtitle: "Let's work together on safe modifications and recovery strategies. I'll help you stay active while healing properly! 🩹"
+      },
+      nutrition: {
+        title: 'Fuel your fitness journey! 🥗',
+        subtitle: "Ready to optimize your nutrition? I'll help you with meal planning, macros, and healthy eating habits! 🍎"
+      },
+      motivation: {
+        title: 'Let me pump you up! 💪',
+        subtitle: "Need some extra motivation? I'm here to boost your confidence and remind you how amazing you are! ⚡"
+      },
+      form: {
+        title: 'Perfect your technique! ✅',
+        subtitle: "Let's nail that form! I'll help you with exercise technique, proper alignment, and movement quality! 🎯"
+      },
+      recovery: {
+        title: 'Recovery and rest mode 😴',
+        subtitle: "Rest is just as important as training! Let's talk about sleep, recovery, and taking care of your body! 🛌"
+      },
+      goals: {
+        title: 'Crush your fitness goals! 🎯',
+        subtitle: "Time to set and smash those goals! I'll help you create a roadmap to success and celebrate your wins! 🏆"
+      },
+      equipment: {
+        title: 'Gear up for success! 🏋️',
+        subtitle: "Need equipment advice? I'll help you choose the right gear for your home gym or workout needs! 🔧"
+      },
+      cardio: {
+        title: 'Get your heart pumping! 🏃',
+        subtitle: "Ready for some cardio? Let's talk about running, cycling, HIIT, and getting that heart rate up! ❤️"
+      },
+      strength: {
+        title: 'Build serious strength! 💎',
+        subtitle: "Time to get strong! I'll help you with strength training, progressive overload, and building muscle! 🏗️"
+      }
+    };
+    return modeTexts[mode as keyof typeof modeTexts] || modeTexts.general;
+  };
+  
+  // Category pills data - fitness chat modes
+  const categories = [
+    { id: 'general', label: 'General' },
+    { id: 'streak', label: 'Streak', emoji: '🏠' },
+    { id: 'illness', label: 'Illness', emoji: '🤒' },
+    { id: 'injury', label: 'Injury', emoji: '🤕' },
+    { id: 'nutrition', label: 'Nutrition', emoji: '🥗' },
+    { id: 'motivation', label: 'Motivation', emoji: '💪' },
+    { id: 'form', label: 'Form Check', emoji: '✅' },
+    { id: 'recovery', label: 'Recovery', emoji: '😴' },
+    { id: 'goals', label: 'Goals', emoji: '🎯' },
+    { id: 'equipment', label: 'Equipment', emoji: '🏋️' },
+    { id: 'cardio', label: 'Cardio', emoji: '🏃' },
+    { id: 'strength', label: 'Strength', emoji: '💎' },
+  ];
 
   // AI SDK Chat Hook - now with proper streaming like onboarding
   const { messages: aiMessages, append, status, setMessages: setAiMessages } = useChat({
@@ -181,6 +264,45 @@ export default function ChatScreen() {
       setTimeout(() => {
         scrollViewRef.current?.scrollToEnd({ animated: true });
       }, 100);
+    }
+  }, [aiMessages]);
+
+  // Hide category pills when there are messages
+  useEffect(() => {
+    // Filter out control messages to get actual chat messages
+    const visibleMessages = aiMessages.filter((message, index) => {
+      if (index === 0 && message.role === 'user') {
+        const textContent = message.parts
+          ?.filter(part => part.type === 'text')
+          .map(part => (part as any).text)
+          .join('');
+        return !textContent?.includes('User is ready to start');
+      }
+      return true;
+    });
+
+    const hasMessages = visibleMessages.length > 0;
+    
+    if (hasMessages) {
+      // Collapse pills smoothly
+      pillsHeight.value = withTiming(0, {
+        duration: 400,
+        easing: Easing.out(Easing.cubic),
+      });
+      pillsOpacity.value = withTiming(0, {
+        duration: 300,
+        easing: Easing.out(Easing.cubic),
+      });
+    } else {
+      // Show pills
+      pillsHeight.value = withTiming(56, {
+        duration: 400,
+        easing: Easing.out(Easing.cubic),
+      });
+      pillsOpacity.value = withTiming(1, {
+        duration: 300,
+        easing: Easing.out(Easing.cubic),
+      });
     }
   }, [aiMessages]);
 
@@ -268,6 +390,17 @@ export default function ChatScreen() {
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
     opacity: opacity.value,
+  }));
+
+  const animatedTextStyle = useAnimatedStyle(() => ({
+    opacity: textOpacity.value,
+    transform: [{ translateY: textTranslateY.value }],
+  }));
+
+  const animatedPillsStyle = useAnimatedStyle(() => ({
+    height: pillsHeight.value,
+    opacity: pillsOpacity.value,
+    overflow: 'hidden',
   }));
 
   const renderMessageText = (text: string) => {
@@ -396,6 +529,46 @@ export default function ChatScreen() {
     // Clear any loading states
     dispatch(setLoading(false));
     dispatch(setError(null));
+    
+    // Show pills again when chat is cleared
+    pillsHeight.value = withTiming(56, {
+      duration: 400,
+      easing: Easing.out(Easing.cubic),
+    });
+    pillsOpacity.value = withTiming(1, {
+      duration: 300,
+      easing: Easing.out(Easing.cubic),
+    });
+  };
+
+  const handleCategorySelect = (categoryId: string) => {
+    // Animate text out first
+    textOpacity.value = withTiming(0, {
+      duration: 200,
+      easing: Easing.out(Easing.cubic),
+    });
+    textTranslateY.value = withTiming(-10, {
+      duration: 200,
+      easing: Easing.out(Easing.cubic),
+    });
+    
+    // Change category and animate text back in
+    setTimeout(() => {
+      setSelectedCategory(categoryId);
+      
+      // Reset position and animate back in
+      textTranslateY.value = 10;
+      textOpacity.value = withTiming(1, {
+        duration: 300,
+        easing: Easing.out(Easing.cubic),
+      });
+      textTranslateY.value = withTiming(0, {
+        duration: 300,
+        easing: Easing.out(Easing.cubic),
+      });
+    }, 200);
+    
+    console.log('Selected category:', categoryId);
   };
 
   const handleCollapseInput = () => {
@@ -543,6 +716,15 @@ export default function ChatScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Category Pills - positioned below the top nav */}
+        <ReanimatedAnimated.View style={[styles.categoryPillsContainer, animatedPillsStyle]}>
+          <CategoryPills
+            categories={categories}
+            selectedCategory={selectedCategory}
+            onCategorySelect={handleCategorySelect}
+          />
+        </ReanimatedAnimated.View>
+
         <KeyboardAvoidingView 
           style={styles.mainContent}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -566,12 +748,14 @@ export default function ChatScreen() {
               ]}
             >
               {/* Header inside scroll view */}
-              <View style={styles.headerInScroll}>
-                <Text style={styles.title}>Welcome to your personal chat with Buddy!</Text>
+              <ReanimatedAnimated.View 
+                style={[styles.headerInScroll, animatedTextStyle]}
+              >
+                <Text style={styles.title}>{getModeText(selectedCategory).title}</Text>
                 <Text style={styles.subtitle}>
-                  I'm here to help you with workouts, answer questions, and keep you motivated. Let's chat! 💬
+                  {getModeText(selectedCategory).subtitle}
                 </Text>
-              </View>
+              </ReanimatedAnimated.View>
 
               {/* Render messages with delimiters */}
               {renderMessages()}
@@ -670,13 +854,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     flexShrink: 0,
-    borderBottomWidth: 1,
-    borderBottomColor: nucleus.light.global.grey["30"],
     shadowColor: 'rgba(20, 20, 20, 0.12)',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.12,
     shadowRadius: 1,
-
+  },
+  categoryPillsContainer: {
+    paddingTop: 0,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: nucleus.light.global.grey["30"],
   },
   backButton: {
     position: 'absolute',

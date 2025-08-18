@@ -167,12 +167,6 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
-          name="spotify-demo"
-          options={{
-            title: 'Spotify Demo',
-          }}
-        />
-        <Tabs.Screen
           name="music-test"
           options={{
             title: 'Music Test',
@@ -229,7 +223,7 @@ export default function TabLayout() {
               <Animated.View style={[styles.tab3, animatedSideTabsStyle]}>
                 <Pressable 
                   style={styles.tab3Button}
-                  onPress={() => router.push('/music-test')}
+                  onPress={() => router.push('/profile')}
                 >
                   <Image
                     source={require("../../assets/icons/user.svg")}

@@ -1,7 +1,8 @@
 import { useBuddyTheme } from '@/constants/BuddyTheme';
 import { Image } from "expo-image";
 import React from 'react';
-import { StatusBar, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { SystemBars } from 'react-native-edge-to-edge';
 import { Button, Modal, Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { nucleus } from '../Buddy_variables.js';
@@ -44,7 +45,7 @@ export default function SpotifyConnectModal({
       ]}
     >
       <SafeAreaView style={styles.safeArea}>
-        <StatusBar barStyle="dark-content" backgroundColor={nucleus.light.semantic.bg.canvas} />
+        <SystemBars style="dark" />
         
         {/* Content Container */}
         <View style={styles.contentContainer}>

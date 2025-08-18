@@ -1,18 +1,19 @@
-import { Alert, ScrollView, StyleSheet } from 'react-native';
-import { ActivityIndicator, Avatar, Button, Card, Text } from 'react-native-paper';
+import { Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Avatar, Button, Card, Text, Chip, Icon } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { nucleus } from '../../Buddy_variables.js';
-import { useBuddyTheme } from '../../constants/BuddyTheme';
 import { useAuth } from '../../contexts/AuthContext';
 import type { RootState } from '../../store';
 import { useAppSelector } from '../../store/hooks';
+import { useSpotifyAuth } from '../../hooks/useSpotifyAuth';
 
 export default function ProfileScreen() {
-  const theme = useBuddyTheme();
   const { user, signOut, loading } = useAuth();
   const userProfile = useAppSelector((state: RootState) => (state as any).user?.extractedProfile);
   const onboardingCompleted = useAppSelector((state: RootState) => (state as any).user?.onboardingCompleted);
   const isLoading = useAppSelector((state: RootState) => (state as any).user?.isLoadingProfile);
+  
+  const { isAuthenticated: spotifyAuthenticated, user: spotifyUser, logout: disconnectSpotify } = useSpotifyAuth();
 
   const handleSignOut = async () => {
     Alert.alert(
@@ -34,6 +35,10 @@ export default function ProfileScreen() {
         },
       ]
     );
+  };
+
+  const handleSpotifyDisconnect = () => {
+    disconnectSpotify();
   };
 
   return (
@@ -111,6 +116,28 @@ export default function ProfileScreen() {
             </Card.Content>
           </Card>
         )}
+
+        {/* Spotify Status */}
+        <Card style={styles.card}>
+          <Card.Content style={styles.spotifyCardContent}>
+            <View style={styles.spotifyRow}>
+              <Icon source="spotify" size={20} color={spotifyAuthenticated ? "#1DB954" : nucleus.light.global.blue["60"]} />
+              <Text style={[styles.spotifyText, { color: nucleus.light.global.blue["80"] }]}>
+                Spotify {spotifyAuthenticated ? `- ${spotifyUser?.display_name} (${spotifyUser?.product})` : '- Not connected'}
+              </Text>
+            </View>
+            {spotifyAuthenticated && (
+              <Button
+                mode="text"
+                compact
+                labelStyle={[styles.spotifyDisconnectLabel, { color: nucleus.light.global.blue["60"] }]}
+                onPress={handleSpotifyDisconnect}
+              >
+                Disconnect
+              </Button>
+            )}
+          </Card.Content>
+        </Card>
 
         {/* Sign Out Button */}
         <Button
@@ -207,5 +234,25 @@ const styles = StyleSheet.create({
     minHeight: 48,
     paddingHorizontal: 24,
     paddingVertical: 0,
+  },
+  spotifyCardContent: {
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  spotifyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  spotifyText: {
+    fontFamily: 'PlusJakartaSans-Medium',
+    fontSize: 16,
+    marginLeft: 8,
+  },
+  spotifyDisconnectLabel: {
+    fontFamily: 'PlusJakartaSans-Regular',
+    fontSize: 14,
   },
 }); 

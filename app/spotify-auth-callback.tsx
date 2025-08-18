@@ -1,10 +1,12 @@
 import { useBuddyTheme } from '@/constants/BuddyTheme';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { SystemBars } from 'react-native-edge-to-edge';
 import { ActivityIndicator, Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { nucleus } from '../Buddy_variables.js';
+import { useSpotifyAuth } from '../hooks/useSpotifyAuth';
 
 export default function SpotifyAuthCallback() {
   const theme = useBuddyTheme();
@@ -29,6 +31,7 @@ export default function SpotifyAuthCallback() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: nucleus.light.global.blue["20"] }]}>
+      <SystemBars style="dark" />
       <View style={styles.content}>
         <ActivityIndicator size="large" color={nucleus.light.global.blue["70"]} />
         <Text 

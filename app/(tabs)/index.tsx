@@ -233,6 +233,9 @@ export default function ExploreScreen() {
 
     const allWorkouts: WorkoutItemData[] = [];
     let workoutId = 1;
+    
+    // Pick one random workout from first week to be completed (deterministic)
+    const completedFirstWeekWorkout = 2; // Always mark the 3rd workout (Friday) as completed
 
     // Generate workouts for 8 weeks
     for (let week = 0; week < 8; week++) {
@@ -250,11 +253,22 @@ export default function ExploreScreen() {
 
         const workoutType = workoutTypes[(week * 4 + dayIndex) % workoutTypes.length];
         const today = new Date();
-        const isCompleted = workoutDate < today;
-        
-        // Generate random progress for today's workouts (0-100%)
         const isToday = workoutDate.toDateString() === today.toDateString();
-        const progress = isToday ? Math.floor(Math.random() * 101) : 0; // Random progress for today's workouts
+        const isPastWorkout = workoutDate < today && !isToday;
+        
+        // Only show progress for past workouts (not today or future)
+        let progress = 0;
+        let isCompleted = false;
+        
+        if (isPastWorkout) {
+          // Past workouts are completed with 100% progress
+          isCompleted = true;
+          progress = 100;
+        } else if (week === 0 && dayIndex === completedFirstWeekWorkout && !isToday) {
+          // Mark one specific workout from first week as completed (Friday workout)
+          isCompleted = true;
+          progress = 100;
+        }
         
         allWorkouts.push({
           id: workoutId.toString(),

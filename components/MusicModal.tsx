@@ -460,8 +460,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   closeIconImage: {
-    width: 16,
-    height: 16,
+    width: 24,
+    height: 24,
   },
   musicContentContainer: {
     paddingHorizontal: 16,

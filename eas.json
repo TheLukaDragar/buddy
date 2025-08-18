@@ -39,7 +39,10 @@
       "channel": "production",
       "environment": "production",
       "distribution": "store",
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EAS_NO_EAGER_BUNDLE": "1"
+      }
     }
   },
   "submit": {
