@@ -3,7 +3,7 @@ import { defaultChatStore } from 'ai';
 import { Image } from "expo-image";
 import { fetch as expoFetch } from 'expo/fetch';
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Animated, Keyboard, KeyboardAvoidingView, Linking, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Avatar } from 'react-native-paper';
 import ReanimatedAnimated, {
   Easing,
@@ -235,6 +235,9 @@ const getToolCallMessage = (toolName: string, parameters?: any) => {
         return `Pausing workout (${parameters.reason})`;
       }
       return 'Pausing for issue';
+      
+    case 'show_ad':
+      return 'Showing product recommendation';
     
     default:
       return `Performing ${toolName}`;
@@ -669,7 +672,32 @@ export default function ChatComponent({
   // Combine and sort all messages (Redux messages + conversation events)
   const getAllMessages = (): (ChatMessage | ExtendedChatMessage)[] => {
     const allMessages = [...messages, ...processedEvents];
-    return allMessages.sort((a, b) => a.timestamp - b.timestamp);
+    
+    // Separate ads from other messages
+    const adMessages: (ChatMessage | ExtendedChatMessage)[] = [];
+    const otherMessages: (ChatMessage | ExtendedChatMessage)[] = [];
+    
+    allMessages.forEach(message => {
+      const isExtendedMessage = 'eventType' in message;
+      if (isExtendedMessage) {
+        const extendedMessage = message as ExtendedChatMessage;
+        if (extendedMessage.eventType === 'tool_call' && 
+            extendedMessage.conversationEvent && 
+            (extendedMessage.conversationEvent as ClientToolCallEvent).client_tool_call?.tool_name === 'show_ad') {
+          adMessages.push(message);
+        } else {
+          otherMessages.push(message);
+        }
+      } else {
+        otherMessages.push(message);
+      }
+    });
+    
+    // Sort other messages by timestamp, then append all ads at the end
+    otherMessages.sort((a, b) => a.timestamp - b.timestamp);
+    adMessages.sort((a, b) => a.timestamp - b.timestamp); // Sort ads by timestamp too
+    
+    return [...otherMessages, ...adMessages];
   };
 
   // Render event indicator for conversation events
@@ -741,14 +769,51 @@ export default function ChatComponent({
           </View>
         );
       } else if (isExtendedMessage && extendedMessage.eventType === 'tool_call') {
-        // Tool call - render as subtle text, not a bubble
-        renderedItems.push(
-          <View key={message.id} style={styles.toolCallContainer}>
-            <Text style={styles.toolCallText}>
-              {message.content}
-            </Text>
-          </View>
-        );
+        // Check if this is a show_ad tool call
+        const toolEvent = extendedMessage.conversationEvent as ClientToolCallEvent;
+        if (toolEvent.client_tool_call.tool_name === 'show_ad') {
+          // Extract ad data from parameters
+          const adData = toolEvent.client_tool_call.parameters;
+          const productName = adData?.productName || 'Battery Complete Whey 1800g';
+          const description = adData?.description || 'Perfect for post-workout recovery';
+          const productUrl = adData?.productUrl || 'https://www.proteini.si/sl/beljakovine/sirotka/battery-complete-whey-1800g';
+          
+          // Special ad message with image and link
+          renderedItems.push(
+            <View key={message.id} style={styles.adContainer}>
+              <View style={styles.adBubble}>
+                <View style={styles.adContent}>
+                  <Image
+                    source={require('../assets/ad.webp')}
+                    style={styles.adImage}
+                    contentFit="cover"
+                  />
+                  <View style={styles.adTextContent}>
+                    <Text style={styles.adProductName}>{productName}</Text>
+                    <Text style={styles.adDescription}>{description}</Text>
+                    <TouchableOpacity 
+                      style={styles.adLinkButton}
+                      onPress={() => {
+                        Linking.openURL(productUrl).catch(err => console.error('Failed to open URL:', err));
+                      }}
+                    >
+                      <Text style={styles.adLinkText}>Order here</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            </View>
+          );
+        } else {
+          // Regular tool call - render as subtle text
+          renderedItems.push(
+            <View key={message.id} style={styles.toolCallContainer}>
+              <Text style={styles.toolCallText}>
+                {message.content}
+              </Text>
+            </View>
+          );
+        }
       } else {
         // Buddy message
         const isFirstBuddyMessage = index === 0 || allMessages[index - 1]?.role === 'user';
@@ -1584,5 +1649,80 @@ const styles = StyleSheet.create({
     color: nucleus.light.global.grey['70'],
     textAlign: 'center',
     opacity: 0.8,
+  },
+  
+  // Ad message styles
+  adContainer: {
+    alignSelf: 'center',
+    marginVertical: 8,
+    paddingHorizontal: 16,
+    width: '100%',
+  },
+  adBubble: {
+    backgroundColor: nucleus.light.global.orange['10'],
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: nucleus.light.global.orange['30'],
+    padding: 8,
+    shadowColor: 'rgba(255, 150, 50, 0.2)',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  adTitle: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 16,
+    fontWeight: '700',
+    lineHeight: 20,
+    color: nucleus.light.global.orange['90'],
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  adContent: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: 12,
+    minHeight: 60,
+  },
+  adImage: {
+    width: 60,
+    flex: 1,
+    borderRadius: 6,
+    backgroundColor: nucleus.light.global.grey['20'],
+  },
+  adTextContent: {
+    flex: 2,
+    gap: 2,
+    justifyContent: 'center',
+  },
+  adProductName: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 18,
+    color: nucleus.light.semantic.fg.base,
+  },
+  adDescription: {
+    fontFamily: 'PlusJakartaSans-Regular',
+    fontSize: 12,
+    fontWeight: '400',
+    lineHeight: 16,
+    color: nucleus.light.global.grey['70'],
+    marginBottom: 4,
+  },
+  adLinkButton: {
+    backgroundColor: nucleus.light.global.orange['60'],
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+    alignSelf: 'stretch',
+  },
+  adLinkText: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 12,
+    fontWeight: '700',
+    color: nucleus.light.global.orange['10'],
+    textAlign: 'center',
   },
 }); 

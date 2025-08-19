@@ -498,3 +498,22 @@ export const adjust_rest_time = adjustRestTime
 export const get_workout_status = getWorkoutStatus
 export const get_exercise_instructions = getExerciseInstructions
 export const pause_for_issue = pauseSet // same as pause but with issue context
+
+// =============================================================================
+// AD DISPLAY ACTION
+// =============================================================================
+
+export const showAd = createAsyncThunk(
+  'workout/showAd',
+  async () => {
+    return { 
+      success: true,
+      message: 'Showing product recommendation',
+      productName: 'Battery Complete Whey 1800g',
+      productLink: 'https://www.proteini.si/sl/beljakovine/sirotka/battery-complete-whey-1800g',
+      imageName: 'ad.webp'
+    }
+  }
+)
+
+export const show_ad = showAd

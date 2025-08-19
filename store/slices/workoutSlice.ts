@@ -5,7 +5,7 @@ import { ActiveWorkoutState, WorkoutSession } from '../../types/workout';
 // Enhanced workout state with Redux pattern
 export interface WorkoutState {
   // Core state
-  status: 'inactive' | 'selected' | 'preparing' | 'exercising' | 'set-complete' | 'resting' | 'rest-ending' | 'exercise-transition';
+  status: 'inactive' | 'selected' | 'preparing' | 'exercising' | 'set-complete' | 'resting' | 'rest-ending' | 'exercise-transition' | 'workout-completed';
   session: WorkoutSession | null;
   
   // Active workout tracking
@@ -295,6 +295,10 @@ const workoutSlice = createSlice({
 
       // Check if workout is complete
       if (state.activeWorkout!.currentExerciseIndex >= state.session!.exercises.length - 1) {
+        // Workout is complete - transition to workout-completed state (final state)
+        state.status = 'workout-completed';
+        state.activeWorkout!.completedExercises++;
+        
         // Middleware will handle context message generation
         return;
       }
@@ -761,6 +765,7 @@ export const {
 // Selectors
 export const selectWorkoutStatus = (state: { workout: WorkoutState }) => state.workout.status;
 export const selectActiveWorkout = (state: { workout: WorkoutState }) => state.workout.activeWorkout;
+export const selectWorkoutSession = (state: { workout: WorkoutState }) => state.workout.session;
 export const selectCurrentExercise = (state: { workout: WorkoutState }) => state.workout.activeWorkout?.currentExercise;
 export const selectCurrentSet = (state: { workout: WorkoutState }) => state.workout.activeWorkout?.currentSet;
 export const selectTimers = (state: { workout: WorkoutState }) => state.workout.timers;

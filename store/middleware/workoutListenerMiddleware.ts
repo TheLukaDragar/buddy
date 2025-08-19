@@ -585,28 +585,80 @@ startAppListening({
     const state = getState() as RootState;
     const workoutState = state.workout;
     
-    // Generate context message for exercise change
-    if (workoutState.activeWorkout?.currentExercise) {
-      const newExercise = workoutState.activeWorkout.currentExercise.name;
-      const systemMessage = `SYSTEM: exercise-changed - Moving to ${newExercise}. User needs exercise explanation.`;
+    // Check if workout is completed
+    if (workoutState.status === 'workout-completed') {
+      // Clear all active timers when workout completes
+      if (activeTimers.restTimer) {
+        clearTimeout(activeTimers.restTimer);
+        activeTimers.restTimer = undefined;
+      }
+      if (activeTimers.setTimer) {
+        clearTimeout(activeTimers.setTimer);
+        activeTimers.setTimer = undefined;
+      }
+      if (activeTimers.userActivityPing) {
+        clearTimeout(activeTimers.userActivityPing);
+        activeTimers.userActivityPing = undefined;
+      }
+      // Clear timer update intervals
+      if (activeTimers.restUpdateInterval) {
+        clearInterval(activeTimers.restUpdateInterval);
+        activeTimers.restUpdateInterval = undefined;
+      }
+      if (activeTimers.setUpdateInterval) {
+        clearInterval(activeTimers.setUpdateInterval);
+        activeTimers.setUpdateInterval = undefined;
+      }
+      
+      // Generate context message for workout completion
+      const systemMessage = `SYSTEM: workout-completed - User finished entire workout. Call the show_ad tool immediately, then introduce the product naturally.`;
+      
+      // Get workout summary data
+      const workoutSummary = {
+        sessionName: workoutState.session?.name || 'Unknown',
+        totalTime: workoutState.activeWorkout ? Date.now() - workoutState.activeWorkout.startTime.getTime() : 0,
+        completedExercises: workoutState.activeWorkout?.completedExercises || 0,
+        totalExercises: workoutState.activeWorkout?.totalExercises || 0,
+        completedSets: workoutState.activeWorkout?.completedSets || 0,
+        totalSets: workoutState.activeWorkout?.totalSets || 0,
+        setsCompleted: workoutState.activeWorkout?.setsCompleted || [],
+        adjustmentsMade: workoutState.activeWorkout?.adjustmentsMade || [],
+        isFullyCompleted: true,
+      };
       
       dispatch(addContextMessage({
-        event: 'exercise-changed',
+        event: 'workout-completed',
         message: systemMessage,
-        data: {
-          newExercise,
-          exerciseIndex: workoutState.activeWorkout.currentExerciseIndex + 1,
-          totalExercises: workoutState.session?.exercises.length || 0,
-          description: workoutState.activeWorkout.currentExercise.description,
-          sets: workoutState.activeWorkout.currentExercise.sets.length,
-          targetReps: workoutState.activeWorkout.currentSet?.targetReps,
-          targetWeight: workoutState.activeWorkout.currentSet?.targetWeight,
-        },
+        data: workoutSummary,
       }));
       
       contextBridgeService.sendMessage(systemMessage).catch(err => 
-        console.log('🎙️ Could not send exercise change message:', err)
+        console.log('🎙️ Could not send workout completion message:', err)
       );
+    } else {
+      // Generate context message for exercise change
+      if (workoutState.activeWorkout?.currentExercise) {
+        const newExercise = workoutState.activeWorkout.currentExercise.name;
+        const systemMessage = `SYSTEM: exercise-changed - Moving to ${newExercise}. User needs exercise explanation.`;
+        
+        dispatch(addContextMessage({
+          event: 'exercise-changed',
+          message: systemMessage,
+          data: {
+            newExercise,
+            exerciseIndex: workoutState.activeWorkout.currentExerciseIndex + 1,
+            totalExercises: workoutState.session?.exercises.length || 0,
+            description: workoutState.activeWorkout.currentExercise.description,
+            sets: workoutState.activeWorkout.currentExercise.sets.length,
+            targetReps: workoutState.activeWorkout.currentSet?.targetReps,
+            targetWeight: workoutState.activeWorkout.currentSet?.targetWeight,
+          },
+        }));
+        
+        contextBridgeService.sendMessage(systemMessage).catch(err => 
+          console.log('🎙️ Could not send exercise change message:', err)
+        );
+      }
     }
   },
 });
@@ -618,7 +670,7 @@ startAppListening({
     const { dispatch, getState } = listenerApi;
     // Generate context message for workout completion
     const state = getState() as RootState;
-    const systemMessage = `SYSTEM: workout-completed - User finished entire workout. Celebration and summary needed.`;
+    const systemMessage = `SYSTEM: workout-completed - User finished entire workout. Call the show_ad tool immediately, then introduce the product naturally.`;
     
     // Get workout summary data
     const workoutSummary = {

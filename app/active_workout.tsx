@@ -2,8 +2,8 @@ import { unwrapResult } from '@reduxjs/toolkit';
 import { Image } from 'expo-image';
 import { router, useFocusEffect } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { BackHandler, Dimensions, Modal, StyleSheet, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, BackHandler, Dimensions, Modal, StyleSheet, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { SystemBars } from 'react-native-edge-to-edge';
 import { PanGestureHandler } from 'react-native-gesture-handler';
 import { Button, Text } from 'react-native-paper';
@@ -45,6 +45,7 @@ import {
   adjustWeight,
   completeExercise,
   completeSet,
+  completeWorkout,
   confirmReadyAndStartSet,
   finishWorkoutEarly,
   getExerciseInstructions,
@@ -53,6 +54,7 @@ import {
   pauseSet,
   resumeSet,
   selectWorkout,
+  showAd,
   startExercisePreparation,
   startRest
 } from '../store/actions/workoutActions';
@@ -64,6 +66,8 @@ import {
   selectCurrentExercise,
   selectCurrentSet,
   selectTimers,
+  selectVoiceAgentStatus,
+  selectWorkoutSession,
   selectWorkoutStatus,
   setVoiceAgentStatus
 } from '../store/slices/workoutSlice';
@@ -95,7 +99,118 @@ interface ExerciseVideoProps {
   isPaused?: boolean;
 }
 
+// Workout Summary Component with animated exercise list
+interface WorkoutSummaryProps {
+  activeWorkout: any;
+  session: any;
+}
+
+const WorkoutSummary: React.FC<WorkoutSummaryProps> = ({ activeWorkout, session }) => {
+  const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
+  const subtitleOpacity = useRef(new Animated.Value(0)).current;
+  const subtitleTranslateY = useRef(new Animated.Value(-20)).current;
+  
+  // Get completed exercises summary
+  const exercisesSummary = useMemo(() => {
+    if (!session?.exercises || !activeWorkout?.setsCompleted) return [];
+    
+    // Count sets per exercise
+    const exerciseSetCounts: { [key: string]: { name: string; count: number } } = {};
+    
+    activeWorkout.setsCompleted.forEach((set: any) => {
+      const exercise = session.exercises.find((ex: any) => ex.id === set.exerciseId);
+      if (exercise) {
+        if (!exerciseSetCounts[set.exerciseId]) {
+          exerciseSetCounts[set.exerciseId] = { name: exercise.name, count: 0 };
+        }
+        exerciseSetCounts[set.exerciseId].count++;
+      }
+    });
+    
+    return Object.values(exerciseSetCounts);
+  }, [session, activeWorkout]);
+  
+  // Start initial animation and cycling
+  useEffect(() => {
+    if (exercisesSummary.length === 0) return;
+    
+    // Initial animation (same as chat.tsx pattern)
+    setTimeout(() => {
+      Animated.parallel([
+        Animated.timing(subtitleOpacity, {
+          toValue: 1,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(subtitleTranslateY, {
+          toValue: 0,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }, 400); // Start after 400ms like chat animation
+    
+    // Cycle through exercises if more than one
+    if (exercisesSummary.length > 1) {
+      const cycleInterval = setInterval(() => {
+        // Fade out and move up
+        Animated.parallel([
+          Animated.timing(subtitleOpacity, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.timing(subtitleTranslateY, {
+            toValue: -20,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+        ]).start(() => {
+          // Change text
+          setCurrentExerciseIndex((prev) => (prev + 1) % exercisesSummary.length);
+          
+          // Fade in and slide down from top
+          Animated.parallel([
+            Animated.timing(subtitleOpacity, {
+              toValue: 1,
+              duration: 300,
+              useNativeDriver: true,
+            }),
+            Animated.timing(subtitleTranslateY, {
+              toValue: 0,
+              duration: 300,
+              useNativeDriver: true,
+            }),
+          ]).start();
+        });
+      }, 2000); // Change every 2 seconds
+      
+      return () => clearInterval(cycleInterval);
+    }
+  }, [exercisesSummary.length, subtitleOpacity, subtitleTranslateY]);
+  
+  if (exercisesSummary.length === 0) return null;
+  
+  const currentExercise = exercisesSummary[currentExerciseIndex];
+  
+  return (
+    <Animated.Text 
+      style={[
+        styles.workoutCompletedSubtitle,
+        {
+          opacity: subtitleOpacity,
+          transform: [{ translateY: subtitleTranslateY }],
+        }
+      ]}
+    >
+      {currentExercise.name} {currentExercise.count} sets
+    </Animated.Text>
+  );
+};
+
 const ExerciseVideo: React.FC<ExerciseVideoProps> = ({ videoUrl, exerciseName, isPaused = false }) => {
+  // Get session data from Redux for WorkoutSummary component
+  const session = useSelector(selectWorkoutSession);
   // Map video URLs to required assets
   const getVideoAsset = (url?: string) => {
     if (!url) return null;
@@ -222,9 +337,10 @@ const VideoContainer: React.FC<VideoContainerProps> = ({
   onHideControls,
   dispatch
 }) => {
+  // Get session data from Redux for WorkoutSummary component
+  const session = useSelector(selectWorkoutSession);
   const [controlsVisible, setControlsVisible] = useState(true);
   const controlsOpacity = useSharedValue(1);
-
   // Auto-show controls when paused/preparing, hide when exercising
   useEffect(() => {
     if (status === 'paused' || activeWorkout?.isPaused || status === 'preparing') {
@@ -269,40 +385,88 @@ const VideoContainer: React.FC<VideoContainerProps> = ({
 
   return (
     <View style={styles.videoContainer}>
-      <ExerciseVideo 
-        videoUrl={currentExercise?.videoUrl} 
-        exerciseName={currentExercise?.name || 'Exercise'} 
-        isPaused={activeWorkout?.isPaused}
-      />
+      {status === 'workout-completed' ? (
+        /* Workout Completed View */
+        <View style={styles.workoutCompletedContainer}>
+          {/* Upper spacer to center the grouped content */}
+          <View style={styles.workoutCompletedUpperSpacer} />
+          
+          {/* Grouped title and subtitle at centerline */}
+          <View style={styles.workoutCompletedContent}>
+            <ReanimatedAnimated.Text 
+              entering={FadeIn.duration(800).delay(200)}
+              style={styles.workoutCompletedTitle}
+            >
+              Workout Complete!
+            </ReanimatedAnimated.Text>
+            
+            {/* Animated Workout Summary */}
+            <WorkoutSummary 
+              activeWorkout={activeWorkout} 
+              session={session} 
+            />
+          </View>
+          
+          {/* Lower spacer */}
+          <View style={styles.workoutCompletedLowerSpacer} />
+          
+          {/* Finish Button */}
+          <ReanimatedAnimated.View
+            entering={FadeIn.duration(600).delay(600)}
+            style={styles.finishButtonContainer}
+          >
+            <TouchableOpacity 
+              style={styles.finishButtonInner}
+              onPress={() => {
+                dispatch(completeWorkout());
+                router.push('/');
+              }}
+            >
+              <Text style={styles.finishButtonText}>DONE</Text>
+            </TouchableOpacity>
+          </ReanimatedAnimated.View>
+        </View>
+      ) : (
+        <>
+          <ExerciseVideo 
+            videoUrl={currentExercise?.videoUrl} 
+            exerciseName={currentExercise?.name || 'Exercise'} 
+            isPaused={activeWorkout?.isPaused}
+          />
+          
+          {/* Tap area to show controls */}
+          <TouchableWithoutFeedback onPress={showControls}>
+            <View style={styles.videoTouchArea} />
+          </TouchableWithoutFeedback>
+        </>
+      )}
       
-      {/* Tap area to show controls */}
-      <TouchableWithoutFeedback onPress={showControls}>
-        <View style={styles.videoTouchArea} />
-      </TouchableWithoutFeedback>
-      
-      {/* Always visible exercise info */}
-      <View style={styles.bottomLayout}>
-        {currentExercise && (
-          <View style={styles.exerciseNameContainer}>
-            <Text style={styles.exerciseName}>
-              {currentExercise.name}
+      {/* Always visible exercise info - hide when workout completed */}
+      {status !== 'workout-completed' && (
+        <View style={styles.bottomLayout}>
+          {currentExercise && (
+            <View style={styles.exerciseNameContainer}>
+              <Text style={styles.exerciseName}>
+                {currentExercise.name}
+              </Text>
+            </View>
+          )}
+          
+          <View style={styles.statusContainer}>
+            <Text style={styles.statusInfo}>
+              {status.toUpperCase().replace('-', ' ')}
+              {activeWorkout?.isPaused && ' (PAUSED)'}
             </Text>
           </View>
-        )}
-        
-        <View style={styles.statusContainer}>
-          <Text style={styles.statusInfo}>
-            {status.toUpperCase().replace('-', ' ')}
-            {activeWorkout?.isPaused && ' (PAUSED)'}
-          </Text>
         </View>
-      </View>
+      )}
       
-      {/* Simple controls overlay */}
-      <ReanimatedAnimated.View 
-        style={[styles.controlsOverlay, animatedOverlayStyle]} 
-        pointerEvents={controlsVisible ? 'auto' : 'none'}
-      >
+      {/* Simple controls overlay - hide when workout completed */}
+      {status !== 'workout-completed' && (
+        <ReanimatedAnimated.View 
+          style={[styles.controlsOverlay, animatedOverlayStyle]} 
+          pointerEvents={controlsVisible ? 'auto' : 'none'}
+        >
 
 
         <TouchableWithoutFeedback onPress={hideControls}>
@@ -315,6 +479,7 @@ const VideoContainer: React.FC<VideoContainerProps> = ({
           <WorkoutControls onShowFinishAlert={onShowFinishAlert} />
         </View>
       </ReanimatedAnimated.View>
+      )}
     </View>
   );
 };
@@ -429,6 +594,11 @@ const WorkoutProgress: React.FC<WorkoutProgressProps> = ({
       // Preparing for set, show 0 progress
       progress = 0;
       remainingTime = segments[segmentIndex]?.duration || 45;
+    } else if (status === 'workout-completed') {
+      // Workout is complete - show all segments as finished
+      segmentIndex = segments.length - 1; // Last segment
+      progress = 100;
+      remainingTime = 0;
     }
     
     return {
@@ -583,6 +753,8 @@ const WorkoutControls: React.FC<WorkoutControlsProps> = ({ onShowFinishAlert }) 
         return 'REST';
       case 'selected':
         return 'BEGIN';
+      case 'workout-completed':
+        return 'FINISH';
       case 'inactive':
       default:
         return 'START';
@@ -707,6 +879,14 @@ const WorkoutControls: React.FC<WorkoutControlsProps> = ({ onShowFinishAlert }) 
           const restResult = await dispatch(startRest());
           const restData = unwrapResult(restResult);
           console.log('Start rest result:', restData);
+          break;
+        case 'workout-completed':
+          // FINISH - Complete workout properly and navigate home
+          console.log('Workout completed! Finalizing workout and navigating home.');
+          const finishResult = await dispatch(completeWorkout());
+          const finishData = unwrapResult(finishResult);
+          console.log('Complete workout result:', finishData);
+          router.back();
           break;
       }
     } catch (error) {
@@ -1659,8 +1839,13 @@ export default function ActiveWorkoutScreen() {
   const activeWorkout = useSelector(selectActiveWorkout);
   const currentExercise = useSelector(selectCurrentExercise);
   const status = useSelector(selectWorkoutStatus);
+  const session = useSelector(selectWorkoutSession);
   const timers = useSelector(selectTimers);
+  const voiceAgent = useSelector(selectVoiceAgentStatus);
   const dispatch = useAppDispatch();
+
+  // Track if ad has been shown to prevent multiple triggers
+  const adShownRef = useRef(false);
 
   // Auto-select workout when status is inactive
   useEffect(() => {
@@ -1669,6 +1854,63 @@ export default function ActiveWorkoutScreen() {
       dispatch(selectWorkout(mihasWorkout));
     }
   }, [status, dispatch]);
+
+  // Trigger ad when workout is completed and agent is not connected
+  useEffect(() => {
+    if (status === 'workout-completed' && !voiceAgent.connected && !adShownRef.current) {
+      console.log('🎯 Workout completed and agent disconnected - triggering ad');
+      adShownRef.current = true;
+      
+      // Trigger show_ad tool
+      dispatch(showAd())
+        .then((result) => {
+          const data = unwrapResult(result);
+          console.log('🎯 Ad shown successfully:', data);
+          
+          // Add conversation event after successful ad display
+          const adEvent: ConversationEvent = {
+            type: 'client_tool_call',
+            client_tool_call: {
+              tool_name: 'show_ad',
+              tool_call_id: `ad_${Date.now()}`,
+              parameters: data,
+              expects_response: false
+            }
+          };
+          setConversationEvents(prev => [...prev, adEvent]);
+        })
+        .catch((error) => {
+          console.error('❌ Failed to show ad:', error);
+          adShownRef.current = false; // Reset flag on error so it can retry
+        });
+    }
+    
+    // Reset flag when workout starts again
+    if (status === 'selected' || status === 'preparing') {
+      adShownRef.current = false;
+    }
+  }, [status, voiceAgent.connected, dispatch]);
+
+  // Handle back press
+  useFocusEffect(
+    useCallback(() => {
+      const handleBackPress = () => {
+        if (status === 'workout-completed') {
+          // Auto complete workout and go home, no alert
+          dispatch(completeWorkout());
+          router.push('/');
+          return true;
+        } else {
+          // Show finish early alert for other states
+          setShowFinishAlert(true);
+          return true;
+        }
+      };
+
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
+      return () => backHandler.remove();
+    }, [status, dispatch])
+  );
 
   // // Sync selected playlist to Spotify when screen is first shown
   // useFocusEffect(
@@ -1697,7 +1939,7 @@ export default function ActiveWorkoutScreen() {
   const [conversationMode, setConversationMode] = useState<Mode | undefined>();
   const [conversationStatus, setConversationStatus] = useState<ConversationStatus>('disconnected');
   const [canSendFeedback, setCanSendFeedback] = useState<boolean>(false);
-  const agentId = 'agent_7501k2pbpjmqe2et3qh3634a66rv';
+  const agentId = process.env.EXPO_PUBLIC_ELEVENLABS_AGENT_ID || 'agent_7501k2pbpjmqe2et3qh3634a66rv';
   
   // Initialize conversation with handlers and client tools
   const conversation = useConversation({
@@ -1909,6 +2151,19 @@ export default function ActiveWorkoutScreen() {
         } catch (error) {
           console.error('❌ [Client Tool] pause_for_issue failed:', error);
           return JSON.stringify({ success: false, message: `Failed to pause for issue: ${error}` });
+        }
+      },
+      
+      // Ad Tool (1)
+      show_ad: async (params: unknown) => {
+        try {
+          const result = await dispatch(showAd());
+          const data = unwrapResult(result);
+          console.log('🎯 [Client Tool] show_ad result:', data);
+          return JSON.stringify(data);
+        } catch (error) {
+          console.error('❌ [Client Tool] show_ad failed:', error);
+          return JSON.stringify({ success: false, message: `Failed to show ad: ${error}` });
         }
       },
       
@@ -2403,9 +2658,11 @@ export default function ActiveWorkoutScreen() {
       />
 
       {/* Spotify Player Mini - Global Overlay */}
-      <SpotifyPlayerMini 
-        onPress={() => setShowMusicModal(true)}
-      />
+      {status !== 'workout-completed' && (
+        <SpotifyPlayerMini 
+          onPress={() => setShowMusicModal(true)}
+        />
+      )}
 
       {/* Music Modal */}
     
@@ -2440,6 +2697,108 @@ const styles = StyleSheet.create({
     flex: 1,
     width: '100%',
     position: 'relative',
+  },
+  workoutCompletedContainer: {
+    flex: 1,
+    flexDirection: 'column',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+    paddingTop: 60,
+    paddingBottom: 40,
+    backgroundColor: nucleus.light.semantic.bg.canvas,
+  },
+  workoutCompletedContent: {
+    alignItems: 'center',
+    flexShrink: 0,
+    gap: 16,
+  },
+  workoutCompletedUpperSpacer: {
+    flex: 1,
+    minHeight: 20,
+  },
+  workoutCompletedLowerSpacer: {
+    flex: 1,
+    minHeight: 20,
+  },
+  workoutCompletedTitle: {
+    color: nucleus.light.global.grey["90"],
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 32,
+    lineHeight: 38,
+    textAlign: 'center',
+    marginBottom: 8,
+    includeFontPadding: false,
+  },
+  workoutCompletedSubtitle: {
+    color: nucleus.light.global.grey["70"],
+    fontFamily: 'PlusJakartaSans-Regular',
+    fontSize: 18,
+    lineHeight: 24,
+    textAlign: 'center',
+    includeFontPadding: false,
+  },
+  finishButtonContainer: {
+    alignSelf: 'center',
+    flexShrink: 0,
+  },
+  finishButtonInner: {
+    backgroundColor: 'transparent',
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: nucleus.light.global.blue["60"],
+    minWidth: 120,
+  },
+  finishButtonText: {
+    color: nucleus.light.global.blue["60"],
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 18,
+    lineHeight: 22,
+    textAlign: 'center',
+    includeFontPadding: false,
+  },
+  workoutSummaryContainer: {
+    marginTop: 32,
+    paddingHorizontal: 16,
+    width: '100%',
+  },
+  summaryTitle: {
+    color: nucleus.light.global.grey["90"],
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 20,
+    lineHeight: 24,
+    textAlign: 'center',
+    marginBottom: 24,
+    includeFontPadding: false,
+  },
+  summaryExerciseRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: nucleus.light.global.grey["20"],
+  },
+  summaryExerciseName: {
+    color: nucleus.light.global.grey["90"],
+    fontFamily: 'PlusJakartaSans-Medium',
+    fontSize: 16,
+    lineHeight: 20,
+    includeFontPadding: false,
+    flex: 1,
+  },
+  summarySetsCount: {
+    color: nucleus.light.global.blue["70"],
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 14,
+    lineHeight: 18,
+    includeFontPadding: false,
   },
   videoTouchArea: {
     position: 'absolute',
