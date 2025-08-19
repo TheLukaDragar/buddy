@@ -16,9 +16,9 @@ import Animated, {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { nucleus } from '../Buddy_variables';
 import { useSpotifyAuth } from '../hooks/useSpotifyAuth';
-import { useGetUserPlaylistsQuery, useGetAvailableDevicesQuery, useTransferPlaybackMutation } from '../store/api/spotifyApi';
-import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { syncPlaylistToSpotify } from '../store/actions/musicActions';
+import { useGetAvailableDevicesQuery, useGetUserPlaylistsQuery, useTransferPlaybackMutation } from '../store/api/spotifyApi';
+import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { SelectedPlaylist, setMusicOption, setSelectedAppMusic, setSelectedPlaylist } from '../store/slices/musicSlice';
 import SpotifyConnectModal from './SpotifyConnectModal';
 

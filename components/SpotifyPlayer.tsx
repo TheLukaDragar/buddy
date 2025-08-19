@@ -1,9 +1,9 @@
 import { useBuddyTheme } from '@/constants/BuddyTheme';
 import { Image } from 'expo-image';
 import React, { useState } from 'react';
-import { useSelector } from 'react-redux';
 import { Alert, StyleSheet, View } from 'react-native';
 import { ActivityIndicator, Button, Card, IconButton, Text } from 'react-native-paper';
+import { useSelector } from 'react-redux';
 import { nucleus } from '../Buddy_variables.js';
 import { useSpotifyAuth } from '../hooks/useSpotifyAuth';
 import {

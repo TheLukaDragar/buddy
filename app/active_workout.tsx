@@ -224,6 +224,8 @@ const ExerciseVideo: React.FC<ExerciseVideoProps> = ({ videoUrl, exerciseName, i
         return require('../assets/videos/literal_shoulder.mp4');
       } else if (url.includes('seatued_pulling.mp4')) {
         return require('../assets/videos/seatued_pulling.mp4');
+              }else if (url.includes('wefwefwef_compatible.mp4')) {
+          return require('../assets/videos/wefwefwef_compatible.mp4');
       }
     } catch (error) {
       console.warn('Video asset not found:', url);
@@ -1849,13 +1851,8 @@ export default function ActiveWorkoutScreen() {
   // Track if ad has been shown to prevent multiple triggers
   const adShownRef = useRef(false);
 
-  // Auto-select workout when status is inactive
-  useEffect(() => {
-    if (status === 'inactive') {
-      console.log('🏋️ Auto-selecting Miha\'s workout...');
-      dispatch(selectWorkout(mihasWorkout));
-    }
-  }, [status, dispatch]);
+  // Note: Auto-selection removed to prevent loops when finishing workout early
+  // Users should start workouts from the workout selection screen instead
 
   // Trigger ad when workout is completed and agent is not connected
   useEffect(() => {

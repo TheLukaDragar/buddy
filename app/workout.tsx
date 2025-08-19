@@ -8,6 +8,9 @@ import Animated, { Extrapolation, interpolate, useAnimatedScrollHandler, useAnim
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { nucleus } from '../Buddy_variables';
 import MusicModal from '../components/MusicModal';
+import { mihasWorkout } from '../data/sampleWorkouts';
+import { selectWorkout } from '../store/actions/workoutActions';
+import { useAppDispatch } from '../store/hooks';
 
 
 const HEADER_HEIGHT = 250;
@@ -18,6 +21,7 @@ export default function WorkoutScreen() {
   const [showMusicModal, setShowMusicModal] = useState(false);
   const scrollY = useSharedValue(0);
   const insets = useSafeAreaInsets();
+  const dispatch = useAppDispatch();
 
   const weekNumber = 1;
 
@@ -209,7 +213,7 @@ export default function WorkoutScreen() {
          <View style={styles.contentContainer}>
          <View style={styles.summaryContainer}>
           <Text style={styles.weekNumber}>Week {weekNumber}</Text>
-          <Text style={styles.workoutTitle}>Tuesday's Workout</Text>
+          <Text style={styles.workoutTitle}>Tuesday's Leg Workout</Text>
           <Text style={styles.workoutDescription}>
           Based on your last workout Buddy recommends this over that so it will go easy on your knees and  right ankle. 
           </Text>
@@ -421,9 +425,17 @@ export default function WorkoutScreen() {
                     transform: pressed ? [{ scale: 0.98 }] : [{ scale: 1 }],
                   }
                 ]}
-                onPress={() => {
+                onPress={async () => {
                   console.log('Start workout pressed');
-                  router.replace('/active_workout');
+                  try {
+                    // Select the workout first
+                    await dispatch(selectWorkout(mihasWorkout));
+                    console.log('🏋️ Workout selected from workout screen - navigating to active workout');
+                    // Then navigate to active workout
+                    router.replace('/active_workout');
+                  } catch (error) {
+                    console.error('Failed to select workout:', error);
+                  }
                 }}
               >
                 <View style={styles.startButtonContent}>
@@ -547,6 +559,7 @@ const styles = StyleSheet.create({
   weekNumber: {
     color: nucleus.light.semantic.fg.muted,
     fontFamily: nucleus.light.typography.fontFamily.primary,
+    
     fontSize: nucleus.light.typography.fontSize.sm,
     fontWeight: '700',
     lineHeight: 16.8,
