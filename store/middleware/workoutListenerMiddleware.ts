@@ -11,6 +11,7 @@ import {
   completeSet,
   completeWorkout,
   confirmReadyAndStartSet,
+  extendRest,
   finishWorkoutEarly,
   jumpToSet,
   nextSet,
@@ -26,7 +27,6 @@ import {
   triggerRestEnding,
   updateRestTimer,
   updateSetTimer,
-  extendRest,
 } from '../slices/workoutSlice';
 
 // Create the listener middleware with proper typing

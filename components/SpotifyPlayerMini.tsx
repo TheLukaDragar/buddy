@@ -8,11 +8,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
 import { nucleus } from '../Buddy_variables.js';
 import {
-    useGetCurrentPlaybackStateQuery,
-    useNextTrackMutation,
-    usePauseMusicMutation,
-    usePlayMusicMutation,
-    usePreviousTrackMutation
+  useGetCurrentPlaybackStateQuery,
+  useNextTrackMutation,
+  usePauseMusicMutation,
+  usePlayMusicMutation,
+  usePreviousTrackMutation
 } from '../store/api/spotifyApi';
 import { selectMiniPlayerVisible } from '../store/slices/musicSlice';
 import { selectIsAuthenticated, selectSpotifyAuth } from '../store/slices/spotifyAuthSlice';
@@ -40,8 +40,8 @@ export default function SpotifyPlayerMini({
   
   // RTK Query hooks
   const { data: playbackState, isLoading: isLoadingPlayback, refetch: refetchPlayback } = useGetCurrentPlaybackStateQuery(undefined, {
-    pollingInterval: 1000, // Poll every 1 second for faster updates after controls
-    skip: !isAuthenticated, // Skip if not authenticated
+    pollingInterval: miniPlayerVisible ? 1000 : 0, // Only poll when mini player is visible
+    skip: !isAuthenticated || !miniPlayerVisible, // Skip if not authenticated or not visible
   });
   
   // Mutation hooks for playback control
@@ -67,6 +67,9 @@ export default function SpotifyPlayerMini({
   // Main visibility animation - fly down from top when visible
   useEffect(() => {
     if (isAuthenticated && miniPlayerVisible) {
+      // Fetch data immediately when mini player becomes visible
+      refetchPlayback();
+      
       // Show: slide down from top with subtle Apple-like bounce and fade in
       Animated.parallel([
         Animated.spring(slideDownAnim, {
@@ -96,7 +99,7 @@ export default function SpotifyPlayerMini({
         }),
       ]).start();
     }
-  }, [isAuthenticated, miniPlayerVisible]);
+  }, [isAuthenticated, miniPlayerVisible, refetchPlayback]);
 
   // Album art fade in when track changes
   useEffect(() => {

@@ -350,6 +350,7 @@ const VideoContainer: React.FC<VideoContainerProps> = ({
       // Hide controls immediately when exercising starts
       setControlsVisible(false);
       controlsOpacity.value = withTiming(0, { duration: 300 });
+      dispatch(hideMiniPlayer());
     }
   }, [status, activeWorkout?.isPaused]);
 
@@ -359,6 +360,7 @@ const VideoContainer: React.FC<VideoContainerProps> = ({
       const timeout = setTimeout(() => {
         setControlsVisible(false);
         controlsOpacity.value = withTiming(0, { duration: 300 });
+        dispatch(hideMiniPlayer());
       }, 5000);
 
       return () => clearTimeout(timeout);

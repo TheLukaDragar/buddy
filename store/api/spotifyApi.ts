@@ -260,6 +260,20 @@ export const spotifyApi = createApi({
     getCurrentPlaybackState: builder.query<SpotifyPlaybackState | null, void>({
       query: () => '/me/player',
       providesTags: ['PlaybackState'],
+      transformResponse: (response: any) => {
+        if (!response || !response.item) return response;
+        
+        // Remove available_markets from both track and album data to reduce payload size
+        if (response.item?.available_markets) {
+          delete response.item.available_markets;
+        }
+        if (response.item?.album?.available_markets) {
+          delete response.item.album.available_markets;
+        }
+        
+        //console.log('🎵 [RTK] Cleaned playback state (no available_markets):', JSON.stringify(response.item, null, 2));
+        return response;
+      },
       transformErrorResponse: (response) => {
         // Return null for no active session instead of error
         if (response.status === 204) {
