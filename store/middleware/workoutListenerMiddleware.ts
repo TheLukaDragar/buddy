@@ -1,6 +1,8 @@
 import { createListenerMiddleware, isAnyOf, type TypedStartListening } from '@reduxjs/toolkit';
 import { contextBridgeService } from '../../services/contextBridgeService';
 import type { AppDispatch, RootState } from '../index';
+import { getWorkoutStatus } from '../actions/workoutActions';
+import { getMusicStatus } from '../actions/musicActions';
 import {
   addContextMessage,
   adjustReps,
@@ -810,8 +812,8 @@ startAppListening({
         console.log('🎙️ [Workout Middleware] Voice agent connected, will sync context in 2s');
         
         // Add delay to allow agent to fully connect
-        setTimeout(() => {
-          console.log('🎙️ [Workout Middleware] Sending delayed context sync');
+        setTimeout(async () => {
+          console.log('🎙️ [Workout Middleware] Sending delayed context sync with status data');
           
           // Get fresh state after delay
           const freshState = getState() as RootState;
@@ -819,64 +821,67 @@ startAppListening({
           
           if (!freshWorkoutState.activeWorkout) return;
           
-          // Build context sync message
-          const context = freshWorkoutState.activeWorkout;
-          const currentExercise = context.currentExercise;
-          const currentSet = context.currentSet;
-          
-          if (currentExercise && currentSet) {
-            const setProgress = `${context.currentSetIndex + 1}/${currentExercise.sets.length}`;
-            const exerciseProgress = `${context.currentExerciseIndex + 1}/${context.totalExercises}`;
+          try {
+            // Call existing thunks to get status data
+            const workoutStatusResult = await dispatch(getWorkoutStatus());
+            const musicStatusResult = await dispatch(getMusicStatus());
             
-            let contextMessage = `CONTEXT SYNC: Currently in "${freshWorkoutState.session?.name}" workout. `;
-            contextMessage += `Exercise ${exerciseProgress}: "${currentExercise.name}". `;
-            contextMessage += `Set ${setProgress} (${currentSet.targetReps} reps`;
+            // Build context sync message with thunk results
+            let contextMessage = `CONTEXT SYNC: All status data included - no need to call get_workout_status or get_music_status tools. if user is just about to start a new exercize call get_exercise_instructions. and follow up `;
             
-            if (currentSet.targetWeight) {
-              contextMessage += ` at ${currentSet.targetWeight}kg`;
-            }
-            
-            contextMessage += `). State: ${freshWorkoutState.status}`;
-            
-            // Add time information if relevant
-            if (freshWorkoutState.status === 'exercising') {
-              contextMessage += `. Set timer: ${Math.floor((context.elapsedTime || 0) / 1000)}s elapsed`;
-              if (context.isPaused) {
-                contextMessage += ' (PAUSED)';
-              }
-            } else if (freshWorkoutState.status === 'resting' && freshWorkoutState.timers.restTimer) {
-              const remaining = Math.floor(freshWorkoutState.timers.restTimer.remaining / 1000);
-              contextMessage += `. Rest timer: ${remaining}s remaining`;
-              if (context.isPaused) {
-                contextMessage += ' (PAUSED)';
-              }
-            }
-            
-            // Add Spotify music status if available
-            const musicState = freshState.music;
-            const spotifyAuth = freshState.spotifyAuth;
-            
-            if (spotifyAuth.accessToken && spotifyAuth.user) {
-              if (musicState.selectedPlaylist) {
-                contextMessage += `. MUSIC: Currently have "${musicState.selectedPlaylist.name}" playlist selected on Spotify`;
-                if (musicState.selectedPlaylist.tracks?.total) {
-                  contextMessage += ` (${musicState.selectedPlaylist.tracks.total} tracks)`;
+            if (getWorkoutStatus.fulfilled.match(workoutStatusResult)) {
+              const statusData = workoutStatusResult.payload;
+              contextMessage += `WORKOUT STATUS: ${statusData.message}`;
+              
+              if (statusData.data) {
+                const data = statusData.data;
+                contextMessage += ` | Details: ${data.exerciseName}, Set ${data.setProgress}, State: ${data.status}`;
+                if (data.isPaused) {
+                  contextMessage += ' (PAUSED)';
                 }
-              } else {
-                contextMessage += `. MUSIC: Spotify connected but no playlist selected`;
               }
             }
             
-            contextMessage += '. User just connected to voice assistant.';
+            // Add music status from thunk result
+            if (getMusicStatus.fulfilled.match(musicStatusResult)) {
+              const musicData = musicStatusResult.payload;
+              contextMessage += `. MUSIC STATUS: Platform ${musicData.platform}`;
+              
+              if (musicData.platform === 'spotify') {
+                if (musicData.isPlaying !== undefined) {
+                  contextMessage += `, playback ${musicData.isPlaying ? 'active' : 'paused'}`;
+                }
+                if (musicData.currentTrack && musicData.artist) {
+                  contextMessage += `, currently "${musicData.currentTrack}" by ${musicData.artist}`;
+                }
+                if (musicData.playlist) {
+                  contextMessage += `, playlist "${musicData.playlist}"`;
+                }
+                if (musicData.volume) {
+                  contextMessage += `, volume ${musicData.volume}%`;
+                }
+              } else if (musicData.platform === 'app') {
+                contextMessage += `, playing ${musicData.currentTrack}`;
+              }
+            } else {
+              contextMessage += `. MUSIC STATUS: Unable to get music status`;
+            }
+            
+            contextMessage += '. User just connected to voice assistant. All status data provided above - proceed without calling status tools. respond and sum up what you see';
             
             // Send context sync via voice message service
             contextBridgeService.sendContextualUpdate(contextMessage).then((success) => {
               if (success) {
-                console.log('🎙️ [Workout Middleware] Context sync sent successfully');
+                console.log('🎙️ [Workout Middleware] Context sync with status data sent successfully');
               } else {
                 console.log('🎙️ [Workout Middleware] Context sync failed - voice agent not available');
               }
             });
+          } catch (error) {
+            console.error('🎙️ [Workout Middleware] Error getting status data for context sync:', error);
+            // Fallback to basic context sync without status data
+            const basicContextMessage = `CONTEXT SYNC: User connected to voice assistant. Please call get_workout_status and get_music_status tools.`;
+            contextBridgeService.sendContextualUpdate(basicContextMessage);
           }
         }, 2000);
       }

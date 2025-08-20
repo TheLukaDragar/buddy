@@ -91,6 +91,10 @@ export interface PlaybackControlRequest {
   state?: boolean | 'track' | 'context' | 'off';
 }
 
+// Prevent concurrent refresh attempts
+let isRefreshing = false;
+let refreshPromise: Promise<string | null> | null = null;
+
 // Clean base query with automatic token management
 const spotifyBaseQuery: BaseQueryFn<
   string | FetchArgs,
@@ -104,47 +108,60 @@ const spotifyBaseQuery: BaseQueryFn<
   if (!token && selectTokenNeedsRefresh(state)) {
     const refreshToken = state.spotifyAuth?.refreshToken;
     if (refreshToken) {
-      try {
-        console.log('[Spotify API] Auto-refreshing expired token...');
-        const response = await fetch('https://accounts.spotify.com/api/token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({
-            grant_type: 'refresh_token',
-            refresh_token: refreshToken,
-            client_id: process.env.EXPO_PUBLIC_SPOTIFY_CLIENT_ID || '9cfd1c91afc240f1a5c93dab32f23b0c',
-          }).toString(),
-        });
+      // If already refreshing, wait for that promise
+      if (isRefreshing && refreshPromise) {
+        console.log('[Spotify API] Refresh already in progress, waiting...');
+        token = await refreshPromise;
+      } else {
+        // Start new refresh
+        isRefreshing = true;
+        refreshPromise = (async (): Promise<string | null> => {
+          try {
+            console.log('[Spotify API] Auto-refreshing expired token...');
+            const response = await fetch('https://accounts.spotify.com/api/token', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: new URLSearchParams({
+                grant_type: 'refresh_token',
+                refresh_token: refreshToken,
+                client_id: process.env.EXPO_PUBLIC_SPOTIFY_CLIENT_ID || '9cfd1c91afc240f1a5c93dab32f23b0c',
+              }).toString(),
+            });
 
-        const data = await response.json();
-        if (data.access_token) {
-          // Check if Spotify provided a new refresh token
-          if (data.refresh_token) {
-            console.log('[Spotify API] New refresh token provided, updating both tokens');
-            api.dispatch(setTokens({
-              accessToken: data.access_token,
-              refreshToken: data.refresh_token,
-              expiresIn: data.expires_in || 3600,
-            }));
-          } else {
-            console.log('[Spotify API] No new refresh token, keeping existing one');
-            api.dispatch(updateAccessToken({
-              accessToken: data.access_token,
-              expiresIn: data.expires_in || 3600,
-            }));
+            const data = await response.json();
+            if (data.access_token) {
+              // Check if Spotify provided a new refresh token
+              if (data.refresh_token) {
+                console.log('[Spotify API] New refresh token provided, updating both tokens');
+                api.dispatch(setTokens({
+                  accessToken: data.access_token,
+                  refreshToken: data.refresh_token,
+                  expiresIn: data.expires_in || 3600,
+                }));
+              } else {
+                console.log('[Spotify API] No new refresh token, keeping existing one');
+                api.dispatch(updateAccessToken({
+                  accessToken: data.access_token,
+                  expiresIn: data.expires_in || 3600,
+                }));
+              }
+              console.log('[Spotify API] Token auto-refresh successful');
+              return data.access_token;
+            } else {
+              console.error('[Spotify API] Auto-refresh failed - no access token returned:', data);
+              return null;
+            }
+          } catch (error) {
+            console.error('[Spotify API] Auto-refresh failed:', error);
+            return null;
+          } finally {
+            // Reset refresh state
+            isRefreshing = false;
+            refreshPromise = null;
           }
-          token = data.access_token;
-          console.log('[Spotify API] Token auto-refresh successful');
-        } else {
-          console.error('[Spotify API] Auto-refresh failed - no access token returned:', data);
-          // If refresh token is invalid/revoked, clear all auth data
-        //   if (data.error === 'invalid_grant') {
-        //     console.log('[Spotify API] Refresh token revoked, clearing auth data');
-        //     api.dispatch(clearAuth());
-        //   }
-        }
-      } catch (error) {
-        console.error('[Spotify API] Auto-refresh failed:', error);
+        })();
+        
+        token = await refreshPromise;
       }
     }
   }

@@ -1,7 +1,6 @@
 import { createAsyncThunk } from '@reduxjs/toolkit';
 import { spotifyApi } from '../api/spotifyApi';
 import type { RootState } from '../index';
-import { store } from '../index';
 import { setSelectedAppMusic, setSelectedPlaylist } from '../slices/musicSlice';
 
 // =============================================================================
@@ -14,7 +13,7 @@ import { setSelectedAppMusic, setSelectedPlaylist } from '../slices/musicSlice';
  */
 export const getPlaylists = createAsyncThunk(
   'music/getPlaylists',
-  async (_, { getState, rejectWithValue }) => {
+  async (_, { getState, dispatch, rejectWithValue }) => {
     const state = getState() as RootState;
     const isSpotifyAuth = state.spotifyAuth.accessToken && state.spotifyAuth.user;
     
@@ -33,7 +32,7 @@ export const getPlaylists = createAsyncThunk(
     
     try {
       // Get user's playlists
-      const userPlaylists = store.dispatch(
+      const userPlaylists = dispatch(
         spotifyApi.endpoints.getUserPlaylists.initiate({ limit: 50 })
       );
       
@@ -177,7 +176,7 @@ export const selectPlaylist = createAsyncThunk(
       // If playlistId is not a valid Spotify ID, try fuzzy matching
       if (!playlistId.match(/^[0-9A-Za-z]{22}$/)) {
         // Get user playlists for fuzzy matching
-        const playlistsResult = store.dispatch(spotifyApi.endpoints.getUserPlaylists.initiate({ limit: 50 }));
+        const playlistsResult = dispatch(spotifyApi.endpoints.getUserPlaylists.initiate({ limit: 50 }));
         const playlists = await playlistsResult.unwrap();
         
         const allPlaylists = [
@@ -229,7 +228,7 @@ export const selectPlaylist = createAsyncThunk(
       }
       
       // Get specific playlist details
-      const playlistResult = store.dispatch(
+      const playlistResult = dispatch(
         spotifyApi.endpoints.getPlaylist.initiate(targetPlaylistId)
       );
       
@@ -269,7 +268,7 @@ export const selectPlaylist = createAsyncThunk(
  */
 export const getTracks = createAsyncThunk(
   'music/getTracks',
-  async (_, { getState, rejectWithValue }) => {
+  async (_, { getState, dispatch, rejectWithValue }) => {
     const state = getState() as RootState;
     const isSpotifyAuth = state.spotifyAuth.accessToken && state.spotifyAuth.user;
     const selectedPlaylist = state.music.selectedPlaylist;
@@ -300,7 +299,7 @@ export const getTracks = createAsyncThunk(
     try {
       if (selectedPlaylist?.id === 'liked') {
         // Get ALL liked songs (cached for 1 hour)
-        const likedSongs = store.dispatch(
+        const likedSongs = dispatch(
           spotifyApi.endpoints.getLikedSongs.initiate()
         );
         
@@ -324,7 +323,7 @@ export const getTracks = createAsyncThunk(
         };
       } else if (selectedPlaylist) {
         // Get playlist tracks
-        const playlistTracks = store.dispatch(
+        const playlistTracks = dispatch(
           spotifyApi.endpoints.getPlaylist.initiate(selectedPlaylist.id)
         );
         
@@ -362,10 +361,10 @@ export const getTracks = createAsyncThunk(
 /**
  * Helper function to ensure we have an active device
  */
-const ensureActiveDevice = async () => {
+const ensureActiveDevice = async (dispatch: any) => {
   try {
-    // Get available devices
-    const devicesResult = store.dispatch(
+    // Get available devices using passed dispatch
+    const devicesResult = dispatch(
       spotifyApi.endpoints.getAvailableDevices.initiate()
     );
     const devices = await devicesResult.unwrap();
@@ -391,7 +390,7 @@ const ensureActiveDevice = async () => {
     if (availableDevice) {
       console.log(`[Music] No active device, transferring to: ${availableDevice.name}`);
       
-      const transferResult = store.dispatch(
+      const transferResult = dispatch(
         spotifyApi.endpoints.transferPlayback.initiate({
           deviceId: availableDevice.id,
           play: false // Don't start playing yet
@@ -425,7 +424,7 @@ const ensureActiveDevice = async () => {
  */
 export const playTrack = createAsyncThunk(
   'music/playTrack',
-  async ({ trackUri, trackIndex, trackName }: { trackUri?: string; trackIndex?: number; trackName?: string }, { getState, rejectWithValue }) => {
+  async ({ trackUri, trackIndex, trackName }: { trackUri?: string; trackIndex?: number; trackName?: string }, { getState, dispatch, rejectWithValue }) => {
     const state = getState() as RootState;
     const isSpotifyAuth = state.spotifyAuth.accessToken && state.spotifyAuth.user;
     const selectedPlaylist = state.music.selectedPlaylist;
@@ -440,7 +439,7 @@ export const playTrack = createAsyncThunk(
     }
     
     // Ensure we have an active device before trying to play
-    const deviceCheck = await ensureActiveDevice();
+    const deviceCheck = await ensureActiveDevice(dispatch);
     if (!deviceCheck.success) {
       return rejectWithValue({
         message: deviceCheck.error || "No active Spotify device"
@@ -461,7 +460,7 @@ export const playTrack = createAsyncThunk(
         
         if (selectedPlaylist.id === 'liked') {
           // Get ALL liked songs (cached for 1 hour)
-          const likedSongs = store.dispatch(
+          const likedSongs = dispatch(
             spotifyApi.endpoints.getLikedSongs.initiate()
           );
           const result = await likedSongs.unwrap();
@@ -475,7 +474,7 @@ export const playTrack = createAsyncThunk(
           }));
         } else {
           // Get playlist tracks
-          const playlistTracks = store.dispatch(
+          const playlistTracks = dispatch(
             spotifyApi.endpoints.getPlaylist.initiate(selectedPlaylist.id)
           );
           const result = await playlistTracks.unwrap();
@@ -514,7 +513,7 @@ export const playTrack = createAsyncThunk(
           playbackParams.deviceId = deviceCheck.deviceId;
         }
         
-        const playResult = store.dispatch(
+        const playResult = dispatch(
           spotifyApi.endpoints.startPlayback.initiate(playbackParams)
         );
         await playResult.unwrap();
@@ -537,7 +536,7 @@ export const playTrack = createAsyncThunk(
           playbackParams.deviceId = deviceCheck.deviceId;
         }
         
-        const playResult = store.dispatch(
+        const playResult = dispatch(
           spotifyApi.endpoints.startPlayback.initiate(playbackParams)
         );
         await playResult.unwrap();
@@ -561,7 +560,7 @@ export const playTrack = createAsyncThunk(
           playbackParams.deviceId = deviceCheck.deviceId;
         }
         
-        const playResult = store.dispatch(
+        const playResult = dispatch(
           spotifyApi.endpoints.startPlayback.initiate(playbackParams)
         );
         await playResult.unwrap();
@@ -590,7 +589,7 @@ export const playTrack = createAsyncThunk(
  */
 export const skipNext = createAsyncThunk(
   'music/skipNext',
-  async (_, { getState, rejectWithValue }) => {
+  async (_, { getState, dispatch, rejectWithValue }) => {
     const state = getState() as RootState;
     const isSpotifyAuth = state.spotifyAuth.accessToken && state.spotifyAuth.user;
     const selectedMusicOption = state.music.selectedMusicOption;
@@ -604,7 +603,7 @@ export const skipNext = createAsyncThunk(
     }
     
     // Ensure we have an active device
-    const deviceCheck = await ensureActiveDevice();
+    const deviceCheck = await ensureActiveDevice(dispatch);
     if (!deviceCheck.success) {
       return rejectWithValue({
         message: deviceCheck.error || "No active Spotify device"
@@ -613,7 +612,7 @@ export const skipNext = createAsyncThunk(
     
     try {
       console.log('[Music] Calling nextTrack API...');
-      const nextTrack = store.dispatch(
+      const nextTrack = dispatch(
         spotifyApi.endpoints.nextTrack.initiate({})
       );
       
@@ -640,7 +639,7 @@ export const skipNext = createAsyncThunk(
  */
 export const skipPrevious = createAsyncThunk(
   'music/skipPrevious',
-  async (_, { getState, rejectWithValue }) => {
+  async (_, { getState, dispatch, rejectWithValue }) => {
     const state = getState() as RootState;
     const isSpotifyAuth = state.spotifyAuth.accessToken && state.spotifyAuth.user;
     const selectedMusicOption = state.music.selectedMusicOption;
@@ -654,7 +653,7 @@ export const skipPrevious = createAsyncThunk(
     }
     
     try {
-      const previousTrack = store.dispatch(
+      const previousTrack = dispatch(
         spotifyApi.endpoints.previousTrack.initiate({})
       );
       
@@ -680,7 +679,7 @@ export const skipPrevious = createAsyncThunk(
  */
 export const pauseMusic = createAsyncThunk(
   'music/pauseMusic',
-  async (_, { getState, rejectWithValue }) => {
+  async (_, { getState, dispatch, rejectWithValue }) => {
     const state = getState() as RootState;
     const isSpotifyAuth = state.spotifyAuth.accessToken && state.spotifyAuth.user;
     const selectedMusicOption = state.music.selectedMusicOption;
@@ -695,7 +694,7 @@ export const pauseMusic = createAsyncThunk(
     
     // For pause, we don't need to ensure device - just try to pause
     try {
-      const pauseMusic = store.dispatch(
+      const pauseMusic = dispatch(
         spotifyApi.endpoints.pauseMusic.initiate({})
       );
       
@@ -736,7 +735,7 @@ export const pauseMusic = createAsyncThunk(
  */
 export const resumeMusic = createAsyncThunk(
   'music/resumeMusic',
-  async (_, { getState, rejectWithValue }) => {
+  async (_, { getState, dispatch, rejectWithValue }) => {
     const state = getState() as RootState;
     const isSpotifyAuth = state.spotifyAuth.accessToken && state.spotifyAuth.user;
     const selectedMusicOption = state.music.selectedMusicOption;
@@ -750,7 +749,7 @@ export const resumeMusic = createAsyncThunk(
     }
     
     // Ensure we have an active device
-    const deviceCheck = await ensureActiveDevice();
+    const deviceCheck = await ensureActiveDevice(dispatch);
     if (!deviceCheck.success) {
       return rejectWithValue({
         message: deviceCheck.error || "No active Spotify device"
@@ -779,7 +778,7 @@ export const resumeMusic = createAsyncThunk(
         playParams.deviceId = deviceCheck.deviceId;
       }
       
-      const playMusic = store.dispatch(
+      const playMusic = dispatch(
         spotifyApi.endpoints.playMusic.initiate(playParams)
       );
       
@@ -818,7 +817,7 @@ export const resumeMusic = createAsyncThunk(
  */
 export const setVolume = createAsyncThunk(
   'music/setVolume',
-  async ({ volume }: { volume: number }, { getState, rejectWithValue }) => {
+  async ({ volume }: { volume: number }, { getState, dispatch, rejectWithValue }) => {
     const state = getState() as RootState;
     const isSpotifyAuth = state.spotifyAuth.accessToken && state.spotifyAuth.user;
     const selectedMusicOption = state.music.selectedMusicOption;
@@ -835,7 +834,7 @@ export const setVolume = createAsyncThunk(
     }
     
     try {
-      const setVolume = store.dispatch(
+      const setVolume = dispatch(
         spotifyApi.endpoints.setVolume.initiate({
           volumePercent: clampedVolume
         })
@@ -864,7 +863,7 @@ export const setVolume = createAsyncThunk(
  */
 export const getMusicStatus = createAsyncThunk(
   'music/getMusicStatus',
-  async (_, { getState, rejectWithValue }) => {
+  async (_, { getState, dispatch, rejectWithValue }) => {
     const state = getState() as RootState;
     const isSpotifyAuth = state.spotifyAuth.accessToken && state.spotifyAuth.user;
     const selectedMusicOption = state.music.selectedMusicOption;
@@ -883,7 +882,7 @@ export const getMusicStatus = createAsyncThunk(
     }
     
     try {
-      const playbackState = store.dispatch(
+      const playbackState = dispatch(
         spotifyApi.endpoints.getCurrentPlaybackState.initiate()
       );
       
@@ -926,7 +925,7 @@ export const getMusicStatus = createAsyncThunk(
  */
 export const syncPlaylistToSpotify = createAsyncThunk(
   'music/syncPlaylistToSpotify',
-  async (_, { getState, rejectWithValue }) => {
+  async (_, { getState, dispatch, rejectWithValue }) => {
     const state = getState() as RootState;
     const isSpotifyAuth = state.spotifyAuth.accessToken && state.spotifyAuth.user;
     const selectedPlaylist = state.music.selectedPlaylist;
@@ -941,7 +940,7 @@ export const syncPlaylistToSpotify = createAsyncThunk(
     }
     
     // Ensure we have an active device first
-    const deviceCheck = await ensureActiveDevice();
+    const deviceCheck = await ensureActiveDevice(dispatch);
     if (!deviceCheck.success) {
       return rejectWithValue({
         message: deviceCheck.error || "No active Spotify device for playlist sync"
@@ -967,7 +966,7 @@ export const syncPlaylistToSpotify = createAsyncThunk(
       
       // Use playMusic endpoint with the playlist context but don't auto-play
       // This sets up the context so when play/resume is called, it plays from this playlist
-      const contextResult = store.dispatch(
+      const contextResult = dispatch(
         spotifyApi.endpoints.playMusic.initiate(syncParams)
       );
       await contextResult.unwrap();

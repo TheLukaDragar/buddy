@@ -189,7 +189,7 @@ export const sampleWorkoutSession: WorkoutSession = {
 
 // Miha's Workout - Progressive strength training
 export const mihasWorkout: WorkoutSession = createWorkoutSession(
-  "Miha's Workout",
+  "Leg Workout",
   "Complete strength workout with progressive loading",
   [
     createExercise(
@@ -227,8 +227,7 @@ export const mihasWorkout: WorkoutSession = createWorkoutSession(
       [
         createWorkoutSet(1, 10, 10, 90, 45), // First set with light weight (bar equivalent)
         createWorkoutSet(2, 10, 15, 90, 45), // Progressive loading
-        createWorkoutSet(3, 8, 20, 90, 45),
-        createWorkoutSet(4, 8, 22.5, 120, 45)
+       
       ],
       "./assets/videos/bench_dumbles.mp4",
       ["dumbbells", "bench"],
@@ -245,59 +244,59 @@ export const mihasWorkout: WorkoutSession = createWorkoutSession(
         "Full range of motion for best results"
       ]
     ),
-    createExercise(
-      "Lateral Shoulder Raise",
-      "Isolation exercise for shoulder deltoids",
-      "strength",
-      ["shoulders"],
-      [
-        createWorkoutSet(1, 12, 0, 60, 30), // First set without weights
-        createWorkoutSet(2, 12, 5, 60, 30), // Progressive loading
-        createWorkoutSet(3, 10, 7.5, 60, 30),
-        createWorkoutSet(4, 10, 10, 90, 30)
-      ],
-      "./assets/videos/literal_shoulder.mp4",
-      ["dumbbells"],
-      [
-        "Stand with feet hip-width apart",
-        "Hold dumbbells at sides with slight bend in elbows",
-        "Raise arms out to sides until parallel with floor",
-        "Lower with control back to starting position"
-      ],
-      [
-        "First set without weights - arms only",
-        "Don't swing or use momentum",
-        "Slight forward lean of torso is okay",
-        "Focus on feeling the shoulder muscles working"
-      ]
-    ),
-    createExercise(
-      "Seated Cable Row",
-      "Seated rowing for back strength and posture",
-      "strength",
-      ["lats", "rhomboids", "rear-delts", "biceps"],
-      [
-        createWorkoutSet(1, 12, 0, 60, 40), // First set without weight (just form)
-        createWorkoutSet(2, 12, 30, 60, 40), // Progressive loading
-        createWorkoutSet(3, 10, 40, 60, 40),
-        createWorkoutSet(4, 10, 45, 90, 40)
-      ],
-      "./assets/videos/seatued_pulling.mp4",
-      ["cable-machine", "seated-row-attachment"],
-      [
-        "Sit on bench with feet on footplates",
-        "Grab handle with both hands, arms extended",
-        "Pull handle to lower chest/upper abdomen",
-        "Squeeze shoulder blades together at end of movement",
-        "Slowly return to starting position"
-      ],
-      [
-        "First set without weights - technique only",
-        "Keep chest up and shoulders back",
-        "Don't use back momentum to pull",
-        "Focus on squeezing shoulder blades together"
-      ]
-    )
+    // createExercise(
+    //   "Lateral Shoulder Raise",
+    //   "Isolation exercise for shoulder deltoids",
+    //   "strength",
+    //   ["shoulders"],
+    //   [
+    //     createWorkoutSet(1, 12, 0, 60, 30), // First set without weights
+    //     createWorkoutSet(2, 12, 5, 60, 30), // Progressive loading
+    //     createWorkoutSet(3, 10, 7.5, 60, 30),
+    //     createWorkoutSet(4, 10, 10, 90, 30)
+    //   ],
+    //   "./assets/videos/literal_shoulder.mp4",
+    //   ["dumbbells"],
+    //   [
+    //     "Stand with feet hip-width apart",
+    //     "Hold dumbbells at sides with slight bend in elbows",
+    //     "Raise arms out to sides until parallel with floor",
+    //     "Lower with control back to starting position"
+    //   ],
+    //   [
+    //     "First set without weights - arms only",
+    //     "Don't swing or use momentum",
+    //     "Slight forward lean of torso is okay",
+    //     "Focus on feeling the shoulder muscles working"
+    //   ]
+    // ),
+    // createExercise(
+    //   "Seated Cable Row",
+    //   "Seated rowing for back strength and posture",
+    //   "strength",
+    //   ["lats", "rhomboids", "rear-delts", "biceps"],
+    //   [
+    //     createWorkoutSet(1, 12, 0, 60, 40), // First set without weight (just form)
+    //     createWorkoutSet(2, 12, 30, 60, 40), // Progressive loading
+    //     createWorkoutSet(3, 10, 40, 60, 40),
+    //     createWorkoutSet(4, 10, 45, 90, 40)
+    //   ],
+    //   "./assets/videos/seatued_pulling.mp4",
+    //   ["cable-machine", "seated-row-attachment"],
+    //   [
+    //     "Sit on bench with feet on footplates",
+    //     "Grab handle with both hands, arms extended",
+    //     "Pull handle to lower chest/upper abdomen",
+    //     "Squeeze shoulder blades together at end of movement",
+    //     "Slowly return to starting position"
+    //   ],
+    //   [
+    //     "First set without weights - technique only",
+    //     "Keep chest up and shoulders back",
+    //     "Don't use back momentum to pull",
+    //     "Focus on squeezing shoulder blades together"
+    //   ]
+    // )
   ],
   "intermediate",
   ["strength", "progressive-loading", "full-body", "miha"]
