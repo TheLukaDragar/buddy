@@ -203,7 +203,7 @@ export const mihasWorkout: WorkoutSession = createWorkoutSession(
         createWorkoutSet(3, 6, 50, 90, 60),
         createWorkoutSet(4, 6, 55, 120, 60)
       ],
-      "./assets/videos/squats.mp4",
+      "https://kmtddcpdqkeqipyetwjs.supabase.co/storage/v1/object/public/workouts/processed/barbell-squat/barbell-squat_cropped_video.mp4",
       ["barbell", "squat-rack"],
       [
         "Position barbell on upper back/traps",
@@ -220,8 +220,8 @@ export const mihasWorkout: WorkoutSession = createWorkoutSession(
       ]
     ),
     createExercise(
-      "Dumbbell Bench Press",
-      "Dumbbell bench press for chest, shoulders and triceps",
+      "Barbell Bench Press",
+      "Barbell bench press for chest, shoulders and triceps",
       "strength",
       ["chest", "shoulders", "triceps"],
       [
@@ -229,17 +229,17 @@ export const mihasWorkout: WorkoutSession = createWorkoutSession(
         createWorkoutSet(2, 10, 15, 90, 45), // Progressive loading
        
       ],
-      "./assets/videos/bench_dumbles.mp4",
-      ["dumbbells", "bench"],
+      "https://kmtddcpdqkeqipyetwjs.supabase.co/storage/v1/object/public/workouts/processed/barbell-bench-press/barbell-bench-press_cropped_video.mp4",
+      ["barbell", "bench"],
       [
-        "Lie on bench with dumbbells at chest level",
-        "Press weights up until arms are extended",
+        "Lie on bench with barbell at chest level",
+        "Press bar up until arms are extended",
         "Lower with control back to starting position",
         "Keep feet flat on floor and back against bench"
       ],
       [
-        "First set starts with light weights",
-        "Control the descent - don't drop weights",
+        "First set starts with light weight",
+        "Control the descent - don't bounce off chest",
         "Keep elbows at 45-degree angle to body",
         "Full range of motion for best results"
       ]

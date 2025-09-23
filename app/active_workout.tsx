@@ -211,11 +211,17 @@ const WorkoutSummary: React.FC<WorkoutSummaryProps> = ({ activeWorkout, session 
 const ExerciseVideo: React.FC<ExerciseVideoProps> = ({ videoUrl, exerciseName, isPaused = false }) => {
   // Get session data from Redux for WorkoutSummary component
   const session = useSelector(selectWorkoutSession);
-  // Map video URLs to required assets
+  // Map video URLs to required assets or return remote URLs
   const getVideoAsset = (url?: string) => {
     if (!url) return null;
     
+    // Handle remote Supabase URLs
+    if (url.startsWith('https://') || url.startsWith('http://')) {
+      return { uri: url };
+    }
+    
     try {
+      // Handle local asset paths
       if (url.includes('squats.mp4')) {
         return require('../assets/videos/squats.mp4');
       } else if (url.includes('bench_dumbles.mp4')) {
@@ -224,8 +230,11 @@ const ExerciseVideo: React.FC<ExerciseVideoProps> = ({ videoUrl, exerciseName, i
         return require('../assets/videos/literal_shoulder.mp4');
       } else if (url.includes('seatued_pulling.mp4')) {
         return require('../assets/videos/seatued_pulling.mp4');
-              }else if (url.includes('wefwefwef_compatible.mp4')) {
-          return require('../assets/videos/wefwefwef_compatible.mp4');
+      } else if (url.includes('wefwefwef_compatible.mp4')) {
+        return require('../assets/videos/wefwefwef_compatible.mp4');
+      } else if (url.includes('alternating-dumbbell-shoulder-flexion')) {
+        // Test video from Supabase
+        return { uri: 'https://kmtddcpdqkeqipyetwjs.supabase.co/storage/v1/object/public/workouts/processed/alternating-dumbbell-shoulder-flexion/alternating-dumbbell-shoulder-flexion_cropped_video.mp4' };
       }
     } catch (error) {
       console.warn('Video asset not found:', url);
@@ -1938,7 +1947,7 @@ export default function ActiveWorkoutScreen() {
   const [conversationMode, setConversationMode] = useState<Mode | undefined>();
   const [conversationStatus, setConversationStatus] = useState<ConversationStatus>('disconnected');
   const [canSendFeedback, setCanSendFeedback] = useState<boolean>(false);
-  const agentId = process.env.EXPO_PUBLIC_ELEVENLABS_AGENT_ID || 'agent_7501k2pbpjmqe2et3qh3634a66rv';
+  const agentId = process.env.EXPO_PUBLIC_ELEVENLABS_AGENT_ID || 'none';
   
   // Initialize conversation with handlers and client tools
   const conversation = useConversation({

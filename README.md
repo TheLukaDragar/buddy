@@ -106,7 +106,7 @@ Publishes over-the-air updates when:
 eas build --platform all --profile development
 
 # Preview build for internal testing
-eas build --platform all --profile preview
+eas build --platform android --profile preview --local
 
 # Production build for app stores
 eas build --platform all --profile production

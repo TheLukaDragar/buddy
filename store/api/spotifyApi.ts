@@ -128,6 +128,17 @@ const spotifyBaseQuery: BaseQueryFn<
               }).toString(),
             });
 
+            // Log response details before parsing
+            console.log('[Spotify API] Auto-refresh response status:', response.status);
+            const contentType = response.headers.get('content-type');
+            
+            if (!contentType?.includes('application/json')) {
+              const textResponse = await response.text();
+              console.error('[Spotify API] Auto-refresh: Expected JSON but got:', contentType);
+              console.error('[Spotify API] Auto-refresh response body:', textResponse.substring(0, 500));
+              return null;
+            }
+
             const data = await response.json();
             if (data.access_token) {
               // Check if Spotify provided a new refresh token

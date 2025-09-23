@@ -128,6 +128,8 @@ export const useSpotifyAuth = () => {
   const exchangeCodeForToken = async (code: string, codeVerifier: string) => {
     dispatch(setLoading(true));
     console.log('[Spotify Auth] Exchanging code for token...');
+    console.log('[Spotify Auth] Using redirect URI:', redirectUri);
+    console.log('[Spotify Auth] Client ID:', CLIENT_ID);
 
     try {
       const response = await fetch('https://accounts.spotify.com/api/token', {
@@ -141,6 +143,19 @@ export const useSpotifyAuth = () => {
           code_verifier: codeVerifier,
         }).toString(),
       });
+
+      // Log response details before parsing
+      console.log('[Spotify Auth] Response status:', response.status);
+      console.log('[Spotify Auth] Response headers:', Object.fromEntries(response.headers.entries()));
+      
+      // Check if response is actually JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType?.includes('application/json')) {
+        const textResponse = await response.text();
+        console.error('[Spotify Auth] Expected JSON but got:', contentType);
+        console.error('[Spotify Auth] Response body:', textResponse.substring(0, 500));
+        throw new Error(`Server returned ${contentType} instead of JSON. This usually means there's a redirect URI mismatch in your Spotify app settings.`);
+      }
 
       const data = await response.json();
 
@@ -169,9 +184,23 @@ export const useSpotifyAuth = () => {
   const fetchUserProfile = async (token: string) => {
     try {
       console.log('[Spotify Auth] Fetching user profile...');
+      console.log('[Spotify Auth] Using access token:', token.substring(0, 20) + '...');
+      
       const response = await fetch('https://api.spotify.com/v1/me', {
         headers: { Authorization: `Bearer ${token}` },
       });
+
+      // Log response details before parsing
+      console.log('[Spotify Auth] Profile response status:', response.status);
+      console.log('[Spotify Auth] Profile response headers:', Object.fromEntries(response.headers.entries()));
+      
+      const contentType = response.headers.get('content-type');
+      if (!contentType?.includes('application/json')) {
+        const textResponse = await response.text();
+        console.error('[Spotify Auth] Profile: Expected JSON but got:', contentType);
+        console.error('[Spotify Auth] Profile response body:', textResponse.substring(0, 500));
+        throw new Error(`Profile endpoint returned ${contentType} instead of JSON. Status: ${response.status}`);
+      }
 
       if (response.ok) {
         const userData = await response.json();
@@ -179,6 +208,7 @@ export const useSpotifyAuth = () => {
         dispatch(setUser(userData));
       } else {
         const errorData = await response.json();
+        console.error('[Spotify Auth] Profile API error:', errorData);
         throw new Error(errorData.error?.message || 'Failed to fetch user profile');
       }
     } catch (error) {
@@ -205,6 +235,17 @@ export const useSpotifyAuth = () => {
           client_id: CLIENT_ID,
         }).toString(),
       });
+
+      // Log response details before parsing
+      console.log('[Spotify Auth] Refresh response status:', response.status);
+      const contentType = response.headers.get('content-type');
+      
+      if (!contentType?.includes('application/json')) {
+        const textResponse = await response.text();
+        console.error('[Spotify Auth] Refresh: Expected JSON but got:', contentType);
+        console.error('[Spotify Auth] Refresh response body:', textResponse.substring(0, 500));
+        throw new Error(`Refresh token endpoint returned ${contentType} instead of JSON`);
+      }
 
       const data = await response.json();
 

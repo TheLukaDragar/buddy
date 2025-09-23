@@ -378,10 +378,34 @@ export default function OnboardingScreen() {
       const isLastMessage = index === visibleMessages.length - 1;
       
       // Extract text content from message parts
-      const textContent = message.parts
+      let textContent = message.parts
         .filter(part => part.type === 'text')
         .map(part => (part as any).text)
         .join('');
+      
+      // Check for completion tool call
+      const hasCompletionTool = message.parts.some(part => 
+        part.type === 'tool-invocation' && 
+        (part as any).toolInvocation?.toolName === 'user_answers_complete'
+      );
+      
+      // If no text content, check for completion tool call with text
+      if (!textContent.trim()) {
+        const completionTool = message.parts.find(part => 
+          part.type === 'tool-invocation' && 
+          (part as any).toolInvocation?.toolName === 'user_answers_complete' &&
+          (part as any).toolInvocation?.args?.text
+        );
+        
+        if (completionTool) {
+          textContent = (completionTool as any).toolInvocation.args.text;
+        }
+      }
+      
+      // Skip messages with no content to display
+      if (!textContent.trim()) {
+        return null;
+      }
       
       // Debug: Log each message being rendered
       console.log(`Rendering message ${index}: role="${message.role}", isUser=${isUser}, text="${textContent}"`);
@@ -404,7 +428,9 @@ export default function OnboardingScreen() {
               {
                 opacity: fadeOpacity,
                 transform: [{ translateY: slideY }],
-              }
+              },
+              // Add padding below completion message only
+              hasCompletionTool ? { marginBottom: 24 } : {}
             ]}
           >
             <Text style={isUser ? styles.userMessageText : styles.messageText}>
