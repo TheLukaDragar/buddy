@@ -93,7 +93,6 @@ function ProgressStep({
 export default function WorkoutPlanProgress() {
   const theme = useBuddyTheme();
   const { user } = useAuth();
-  const [planStartTime, setPlanStartTime] = React.useState<number | null>(null);
   const [isCancelling, setIsCancelling] = React.useState(false);
   const dispatch = useAppDispatch();
 
@@ -108,13 +107,6 @@ export default function WorkoutPlanProgress() {
 
   const requests = requestsData?.workout_plan_requestsCollection?.edges?.map(edge => edge.node) || [];
   const latestRequest = requests[0]; // Most recent request
-
-  // Track when plan generation starts
-  React.useEffect(() => {
-    if (latestRequest && latestRequest.current_step === 1 && !planStartTime) {
-      setPlanStartTime(Date.now());
-    }
-  }, [latestRequest, planStartTime]);
 
 
   const steps = [
@@ -178,12 +170,12 @@ export default function WorkoutPlanProgress() {
 
     // Step 3: Exercise Profiles - track exercises_completed/exercises_total
     const currentStep = latestRequest.current_step || 1;
+    const exercisesTotal = latestRequest.exercises_total || 0;
+    const exercisesCompleted = latestRequest.exercises_completed || 0;
 
-    if (currentStep >= 2) {
-      // Plan generation done, working on exercises
-      const exercisesTotal = latestRequest.exercises_total || 0;
-      const exercisesCompleted = latestRequest.exercises_completed || 0;
-      const exerciseProgress = exercisesTotal > 0 ? exercisesCompleted / exercisesTotal : 0.5;
+    if (currentStep >= 3 && exercisesTotal > 0) {
+      // Step 3: Generating exercise profiles - show actual progress
+      const exerciseProgress = exercisesCompleted / exercisesTotal;
 
       return {
         currentStep: 2, // Working on exercises (step 3), profile + plan complete
@@ -194,21 +186,43 @@ export default function WorkoutPlanProgress() {
           ? 'Your personalized workout plan is ready!'
           : `Creating exercise profiles: ${exercisesCompleted}/${exercisesTotal}`
       };
+    } else if (currentStep >= 2) {
+      // Step 2: Creating workout structure - use created_at for progress
+      let structureProgress = 0.2; // Start at 20%
+
+      if (latestRequest.created_at) {
+        const startTime = new Date(latestRequest.created_at).getTime();
+        const elapsedSeconds = (Date.now() - startTime) / 1000;
+        const maxSeconds = 10; // Expect ~10 seconds for structure creation
+        const progressRange = 0.7; // 20% to 90% = 70% range
+        const timeBasedProgress = Math.min(elapsedSeconds / maxSeconds, 1) * progressRange;
+        structureProgress = 0.2 + timeBasedProgress; // 20% to 90%
+      }
+
+      return {
+        currentStep: 1, // Step 2 active, step 1 complete
+        stepProgress: structureProgress,
+        isComplete: false,
+        showButton: false,
+        stepDescription: latestRequest.step_description || 'Creating your workout structure...'
+      };
     } else {
       // Still working on plan generation (current_step: 1)
-      // Calculate time-based progress: 0% -> 90% over 5 minutes
-      let timeProgress = 0; // Start at 0%
-      if (planStartTime) {
-        const elapsedMinutes = (Date.now() - planStartTime) / (1000 * 60);
-        const progressRange = 0.9; // 0% to 90% = 90% range
-        const maxMinutes = 5; // 5 minutes max
+      // Use created_at timestamp for consistent progress calculation
+      let timeProgress = 0.1; // Start at 10%
+
+      if (latestRequest.created_at) {
+        const startTime = new Date(latestRequest.created_at).getTime();
+        const elapsedMinutes = (Date.now() - startTime) / (1000 * 60);
+        const maxMinutes = 5; // Expect ~5 minutes for plan generation
+        const progressRange = 0.8; // 10% to 90% = 80% range
         const timeBasedProgress = Math.min(elapsedMinutes / maxMinutes, 1) * progressRange;
-        timeProgress = timeBasedProgress; // 0% + (0% to 90%)
+        timeProgress = 0.1 + timeBasedProgress; // 10% to 90%
       }
 
       return {
         currentStep: 1, // Working on plan (step 2), profile complete
-        stepProgress: timeProgress, // 0% -> 90% over 5 minutes
+        stepProgress: timeProgress, // 10% -> 90% over 5 minutes
         isComplete: false,
         showButton: false,
         stepDescription: latestRequest.step_description || 'Generating workout plan...'

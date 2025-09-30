@@ -123,11 +123,12 @@ query GetUserProfile($userId: UUID!) {
 }
 
 # Mutation to insert user profile
-mutation InsertUserProfile($userId: UUID!, $profileText: String!, $onboardingCompleted: Boolean!) {
+mutation InsertUserProfile($userId: UUID!, $profileText: String!, $onboardingAnswers: JSON!, $onboardingCompleted: Boolean!) {
   insertIntouser_profilesCollection(
     objects: [{
       user_id: $userId
       profile_text: $profileText
+      onboarding_answers: $onboardingAnswers
       onboarding_completed: $onboardingCompleted
     }]
   ) {
@@ -135,6 +136,7 @@ mutation InsertUserProfile($userId: UUID!, $profileText: String!, $onboardingCom
       id
       user_id
       profile_text
+      onboarding_answers
       onboarding_completed
       created_at
       updated_at
@@ -143,11 +145,12 @@ mutation InsertUserProfile($userId: UUID!, $profileText: String!, $onboardingCom
 }
 
 # Mutation to update user profile
-mutation UpdateUserProfile($userId: UUID!, $profileText: String!, $onboardingCompleted: Boolean!) {
+mutation UpdateUserProfile($userId: UUID!, $profileText: String!, $onboardingAnswers: JSON!, $onboardingCompleted: Boolean!) {
   updateuser_profilesCollection(
     filter: { user_id: { eq: $userId } }
-    set: { 
+    set: {
       profile_text: $profileText
+      onboarding_answers: $onboardingAnswers
       onboarding_completed: $onboardingCompleted
     }
   ) {
@@ -155,6 +158,7 @@ mutation UpdateUserProfile($userId: UUID!, $profileText: String!, $onboardingCom
       id
       user_id
       profile_text
+      onboarding_answers
       onboarding_completed
       created_at
       updated_at

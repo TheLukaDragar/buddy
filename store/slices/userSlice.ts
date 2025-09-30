@@ -24,8 +24,36 @@ export const generateProfileFromAnswers = createAsyncThunk(
 
       // Get the text response directly - this is now a simple text profile
       const profileText = await response.text();
-      
+
       console.log('Generated user profile text:', profileText);
+
+      // Save profile to database directly with upsert
+      console.log('💾 Saving profile to database...');
+      try {
+        const { supabase } = await import('../../lib/supabase');
+        const { data: { user } } = await supabase.auth.getUser();
+
+        if (user?.id) {
+          const { error } = await supabase
+            .from('user_profiles')
+            .upsert({
+              user_id: user.id,
+              profile_text: profileText,
+              onboarding_answers: userAnswers, // Include the user answers
+              onboarding_completed: true,
+            }, {
+              onConflict: 'user_id'
+            });
+
+          if (error) {
+            console.error('❌ Database error:', error);
+          } else {
+            console.log('✅ Profile saved to database');
+          }
+        }
+      } catch (dbError) {
+        console.error('❌ Exception saving profile:', dbError);
+      }
 
       // After profile is generated, trigger workout plan generation
       try {

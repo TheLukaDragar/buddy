@@ -521,10 +521,20 @@ export const generateExerciseProfileTask = task({
         .single();
 
       if (insertError) {
-        // If it's a duplicate name error, the exercise already exists - just return the slug as ID
+        // If it's a duplicate name error, the exercise already exists - fetch the UUID
         if (insertError.code === '23505' && insertError.message.includes('exercises_name_key')) {
-          console.log(`Exercise with similar name already exists, using slug: ${exerciseId}`);
-          return { exercise_id: exerciseId, created: false };
+          console.log(`Exercise with similar name already exists, fetching UUID for slug: ${exerciseId}`);
+          const { data: existingExercise, error: fetchError } = await supabase
+            .from('exercises')
+            .select('id')
+            .eq('slug', exerciseId)
+            .single();
+
+          if (fetchError || !existingExercise) {
+            throw new Error(`Failed to fetch existing exercise with slug ${exerciseId}: ${fetchError?.message}`);
+          }
+
+          return { exercise_id: existingExercise.id, created: false };
         }
 
         console.error('Database insertion error:', insertError);

@@ -1713,6 +1713,7 @@ export type GetUserProfileQuery = {
 export type InsertUserProfileMutationVariables = Exact<{
   userId: Scalars["UUID"]["input"];
   profileText: Scalars["String"]["input"];
+  onboardingAnswers: Scalars["JSON"]["input"];
   onboardingCompleted: Scalars["Boolean"]["input"];
 }>;
 
@@ -1725,6 +1726,7 @@ export type InsertUserProfileMutation = {
       id: any;
       user_id: any;
       profile_text: string;
+      onboarding_answers: any;
       onboarding_completed: boolean;
       created_at?: any | null;
       updated_at?: any | null;
@@ -1735,6 +1737,7 @@ export type InsertUserProfileMutation = {
 export type UpdateUserProfileMutationVariables = Exact<{
   userId: Scalars["UUID"]["input"];
   profileText: Scalars["String"]["input"];
+  onboardingAnswers: Scalars["JSON"]["input"];
   onboardingCompleted: Scalars["Boolean"]["input"];
 }>;
 
@@ -1747,6 +1750,7 @@ export type UpdateUserProfileMutation = {
       id: any;
       user_id: any;
       profile_text: string;
+      onboarding_answers: any;
       onboarding_completed: boolean;
       created_at?: any | null;
       updated_at?: any | null;
@@ -2080,14 +2084,15 @@ export const GetUserProfileDocument = `
 }
     `;
 export const InsertUserProfileDocument = `
-    mutation InsertUserProfile($userId: UUID!, $profileText: String!, $onboardingCompleted: Boolean!) {
+    mutation InsertUserProfile($userId: UUID!, $profileText: String!, $onboardingAnswers: JSON!, $onboardingCompleted: Boolean!) {
   insertIntouser_profilesCollection(
-    objects: [{user_id: $userId, profile_text: $profileText, onboarding_completed: $onboardingCompleted}]
+    objects: [{user_id: $userId, profile_text: $profileText, onboarding_answers: $onboardingAnswers, onboarding_completed: $onboardingCompleted}]
   ) {
     records {
       id
       user_id
       profile_text
+      onboarding_answers
       onboarding_completed
       created_at
       updated_at
@@ -2096,15 +2101,16 @@ export const InsertUserProfileDocument = `
 }
     `;
 export const UpdateUserProfileDocument = `
-    mutation UpdateUserProfile($userId: UUID!, $profileText: String!, $onboardingCompleted: Boolean!) {
+    mutation UpdateUserProfile($userId: UUID!, $profileText: String!, $onboardingAnswers: JSON!, $onboardingCompleted: Boolean!) {
   updateuser_profilesCollection(
     filter: {user_id: {eq: $userId}}
-    set: {profile_text: $profileText, onboarding_completed: $onboardingCompleted}
+    set: {profile_text: $profileText, onboarding_answers: $onboardingAnswers, onboarding_completed: $onboardingCompleted}
   ) {
     records {
       id
       user_id
       profile_text
+      onboarding_answers
       onboarding_completed
       created_at
       updated_at

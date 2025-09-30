@@ -72,17 +72,22 @@ export async function deactivateCurrentWorkoutPlans(dispatch: any): Promise<void
   }
 
   try {
-    // Import enhancedApi dynamically to avoid circular dependency
+    // Use Supabase client directly instead of GraphQL to avoid record limit
+    const { data, error } = await supabase
+      .from('workout_plans')
+      .update({ status: 'paused' })
+      .eq('user_id', session.user.id)
+      .eq('status', 'active')
+      .select()
+
+    if (error) {
+      throw error
+    }
+
+    console.log(`✅ Deactivated ${data?.length || 0} workout plan(s)`)
+
+    // Import enhancedApi dynamically to invalidate cache
     const { enhancedApi } = await import('../store/api/enhancedApi')
-
-    // Use the GraphQL mutation to deactivate plans
-    const result = await dispatch(
-      enhancedApi.endpoints.DeactivateUserWorkoutPlans.initiate({
-        userId: session.user.id
-      })
-    ).unwrap()
-
-    console.log(`✅ Deactivated workout plans:`, result)
 
     // Invalidate cached workout plan queries to refresh UI
     dispatch(enhancedApi.util.invalidateTags(['WorkoutPlan']))

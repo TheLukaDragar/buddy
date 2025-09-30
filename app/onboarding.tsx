@@ -315,19 +315,9 @@ export default function OnboardingScreen() {
     try {
       dispatch(setOnboardingCompleted(true));
 
-      // Update onboarding status in database directly
-      try {
-        if (user?.id) {
-          await dispatch(enhancedApi.endpoints.UpdateOnboardingStatus.initiate({
-            userId: user.id,
-            onboardingCompleted: true
-          })).unwrap();
-          console.log('✅ Updated onboarding status in database');
-        }
-      } catch (dbError) {
-        console.error('❌ Database update failed, but continuing with flow:', dbError);
-        // Don't fail the entire flow if database update fails - user experience is more important
-      }
+      // Note: We don't update database here because the profile doesn't exist yet.
+      // The profile generation (generateProfileFromAnswers) will create the profile
+      // with onboarding_completed: true in the database.
 
       // Generate user profile from chat conversation - always regenerate
       const userAnswers = messages

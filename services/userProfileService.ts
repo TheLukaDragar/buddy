@@ -4,6 +4,7 @@ import type { AppDispatch } from '../store';
 
 export interface UserProfileData {
   profileText: string;
+  onboardingAnswers: string[];
   onboardingCompleted: boolean;
 }
 
@@ -57,22 +58,33 @@ export async function loadUserProfileFromDatabase(dispatch?: any): Promise<UserP
  * Saves user profile to database
  */
 export async function saveUserProfileToDatabase(profileData: UserProfileData, dispatch: AppDispatch): Promise<boolean> {
+  console.log('📝 saveUserProfileToDatabase called with:', {
+    profileTextLength: profileData.profileText?.length,
+    onboardingCompleted: profileData.onboardingCompleted
+  });
+
   const { data: { session } } = await supabase.auth.getSession();
 
   if (!session?.user?.id) {
-    console.error('No authenticated user, cannot save profile');
+    console.error('❌ No authenticated user, cannot save profile');
     return false;
   }
 
+  console.log('👤 Authenticated user ID:', session.user.id);
+
   try {
     // First try to update existing profile
+    console.log('🔄 Attempting to update existing profile...');
     const updateResult = await dispatch(
       enhancedApi.endpoints.UpdateUserProfile.initiate({
         userId: session.user.id,
         profileText: profileData.profileText,
+        onboardingAnswers: profileData.onboardingAnswers,
         onboardingCompleted: profileData.onboardingCompleted
       })
     ).unwrap();
+
+    console.log('📊 Update result:', JSON.stringify(updateResult, null, 2));
 
     if (updateResult?.updateuser_profilesCollection?.records?.length > 0) {
       console.log('✅ Updated user profile in database');
@@ -80,23 +92,28 @@ export async function saveUserProfileToDatabase(profileData: UserProfileData, di
     }
 
     // If no records were updated, try to insert new profile
+    console.log('➕ No existing profile found, attempting to insert new profile...');
     const insertResult = await dispatch(
       enhancedApi.endpoints.InsertUserProfile.initiate({
         userId: session.user.id,
         profileText: profileData.profileText,
+        onboardingAnswers: profileData.onboardingAnswers,
         onboardingCompleted: profileData.onboardingCompleted
       })
     ).unwrap();
+
+    console.log('📊 Insert result:', JSON.stringify(insertResult, null, 2));
 
     if (insertResult?.insertIntouser_profilesCollection?.records && insertResult.insertIntouser_profilesCollection.records.length > 0) {
       console.log('✅ Inserted new user profile in database');
       return true;
     }
 
-    console.error('❌ Failed to save user profile to database');
+    console.error('❌ Failed to save user profile to database - no records affected');
     return false;
   } catch (error) {
-    console.error('❌ Failed to save user profile to database:', error);
+    console.error('❌ Failed to save user profile to database - exception:', error);
+    console.error('❌ Error details:', JSON.stringify(error, null, 2));
     return false;
   }
 }
@@ -142,6 +159,7 @@ export async function updateOnboardingStatus(onboardingCompleted: boolean, dispa
         enhancedApi.endpoints.InsertUserProfile.initiate({
           userId: session.user.id,
           profileText: '', // Empty profile text for now
+          onboardingAnswers: [], // Empty answers
           onboardingCompleted
         })
       ).unwrap();
