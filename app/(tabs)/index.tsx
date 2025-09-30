@@ -1,6 +1,6 @@
 import { router } from "expo-router";
-import { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { RefreshControl, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from 'react-native-paper';
 import Animated, {
   useAnimatedStyle,
@@ -13,24 +13,75 @@ import Statistics from '../../components/Statistics';
 import WorkoutItem, { WorkoutItemData } from '../../components/WorkoutItem';
 import { useBuddyTheme } from '../../constants/BuddyTheme';
 import { useAuth } from '../../contexts/AuthContext';
+import { useWorkoutPlanGeneration } from '../../hooks/useWorkoutPlanGeneration';
 import type { RootState } from '../../store';
+import { useGetUserWorkoutPlansQuery, useGetWorkoutPlanByWeekQuery, useGetWorkoutPlanRequestsQuery } from '../../store/api/enhancedApi';
 import { useAppSelector } from '../../store/hooks';
+import { getDayNameImage } from '../../utils';
 import { useIntro } from '../_layout';
 
 export default function ExploreScreen() {
   const theme = useBuddyTheme();
   const { setShowIntro } = useIntro();
   const { user } = useAuth();
-  
+
   // Get user profile data from Redux store
   const userProfile = useAppSelector((state: RootState) => (state as any).user?.extractedProfile);
   const onboardingCompleted = useAppSelector((state: RootState) => (state as any).user?.onboardingCompleted);
+
+  // Fetch real workout plans from database
+  const { data: workoutPlansData, isLoading: isLoadingWorkoutPlans, isFetching: isFetchingWorkoutPlans, refetch: refetchWorkoutPlans } = useGetUserWorkoutPlansQuery(
+    { userId: user?.id || '' },
+    { skip: !user?.id }
+  );
+  
+  const userWorkoutPlans = workoutPlansData?.workout_plansCollection?.edges?.map(edge => edge.node) || [];
+  const activeWorkoutPlan = userWorkoutPlans.find(plan => plan.status === 'active');
+
+  // Check for workout plan generation requests
+  const { data: workoutPlanRequestsData } = useGetWorkoutPlanRequestsQuery(
+    { userId: user?.id || '' },
+    { skip: !user?.id }
+  );
+  
+  const workoutPlanRequests = workoutPlanRequestsData?.workout_plan_requestsCollection?.edges?.map(edge => edge.node) || [];
+  const latestRequest = workoutPlanRequests[0];
+  const isGeneratingWorkoutPlan = latestRequest?.status === 'processing';
+
+  // Add workout plan generation hook for testing
+  const workoutPlanGeneration = useWorkoutPlanGeneration(user?.id || '');
+
+  // Function to handle workout plan generation
+  const handleTestWorkoutPlanGeneration = async () => {
+    // Use actual profile or create a test profile
+    const profileToUse = userProfile
+
+    try {
+      console.log('🧪 Testing workout plan generation with Trigger.dev');
+      console.log('📝 Profile preview:', profileToUse.substring(0, 100) + '...');
+      console.log('👤 User ID:', user?.id);
+      
+      await workoutPlanGeneration.startGeneration(profileToUse);
+      
+      // Navigate to progress modal instead of showing alert
+      router.push('/workout-plan-progress');
+    } catch (error: any) {
+      console.error('❌ Test generation failed:', error);
+      // Navigate to progress modal to show error state
+      router.push('/workout-plan-progress');
+    }
+  };
+
+  // Function to handle progress link click
+  const handleProgressLinkClick = () => {
+    router.push('/workout-plan-progress');
+  };
   
   // Function to generate personalized morning message
   const getPersonalizedGreeting = () => {
     const now = new Date();
     const hour = now.getHours();
-    
+
     // Fallback for non-authenticated users
     if (!user) {
       return {
@@ -38,13 +89,21 @@ export default function ExploreScreen() {
         message: 'Ready to start your fitness journey? 💪'
       };
     }
-    
+
     // Get user's first name from email or metadata
-    const userName = user?.user_metadata?.full_name?.split(' ')[0] || 
-                    user?.email?.split('@')[0] || 
+    const userName = user?.user_metadata?.full_name?.split(' ')[0] ||
+                    user?.email?.split('@')[0] ||
                     'there';
-    
-    // Time-based greeting
+
+    // Show welcome message for new users who haven't completed onboarding OR have no active plan
+    if (!onboardingCompleted || !activeWorkoutPlan) {
+      return {
+        greeting: `Welcome ${userName}!`,
+        message: 'Ready to start your fitness journey? 💪'
+      };
+    }
+
+    // Time-based greeting for existing users with active plans
     let timeGreeting;
     if (hour < 5) {
       timeGreeting = 'Early start';
@@ -57,7 +116,7 @@ export default function ExploreScreen() {
     } else {
       timeGreeting = 'Good evening';
     }
-    
+
     return {
       greeting: `${timeGreeting} ${userName},`,
       message: getMotivationalMessage(hour, userProfile)
@@ -120,9 +179,10 @@ export default function ExploreScreen() {
   };
   
   // Memoize the greeting so it doesn't change on re-renders (like week selection)
+  // Only recalculate when user identity or plan status changes, NOT when loading states change
   const { greeting, message } = useMemo(() => {
     return getPersonalizedGreeting();
-  }, [user?.email, user?.user_metadata?.full_name, userProfile, onboardingCompleted]);
+  }, [user?.email, user?.user_metadata?.full_name, userProfile, onboardingCompleted, activeWorkoutPlan?.id]);
   
   // Animation values
   const greetingOpacity = useSharedValue(0);
@@ -218,12 +278,117 @@ export default function ExploreScreen() {
   // Active week state
   const [activeWeek, setActiveWeek] = useState(getCurrentWeekNumber()); // Current week based on today's date
 
-  // Generate 8-week workout plan
-  const generateWorkoutPlan = () => {
+  // Fetch detailed workout plan data for current week only (much more efficient!)
+  const { data: workoutPlanData, isLoading: isLoadingWorkoutPlan, isFetching: isFetchingWorkoutPlan, refetch: refetchWorkoutPlan } = useGetWorkoutPlanByWeekQuery(
+    {
+      planId: activeWorkoutPlan?.id || '',
+      weekNumber: activeWeek
+    },
+    { skip: !activeWorkoutPlan?.id }
+  );
+
+  // Convert real workout plan data to WorkoutItemData format (now much more efficient - only current week!)
+  const convertRealWorkoutPlan = (workoutPlan: any): WorkoutItemData[] => {
+    // Check if we have the workout plan data in the expected structure
+    let planData = null;
+    let entries = null;
+
+    // Handle both possible data structures
+    if (workoutPlan?.workout_plansCollection?.edges?.[0]?.node) {
+      // Old structure: wrapped in workout_plansCollection
+      planData = workoutPlan.workout_plansCollection.edges[0].node;
+      entries = planData.workout_entriesCollection?.edges;
+    } else if (workoutPlan?.workout_entriesCollection?.edges) {
+      // New structure: direct workout plan object
+      planData = workoutPlan;
+      entries = workoutPlan.workout_entriesCollection.edges;
+    }
+
+    if (!entries || entries.length === 0) {
+      console.log('No workout entries found in plan for current week');
+      return [];
+    }
+    
+    console.log(`Converting workout plan for week ${activeWeek} with ${entries.length} entries`);
+
+    // Group workout entries by day_name and date (much simpler since we only have 1 week)
+    const entriesByDay = new Map<string, any[]>();
+    
+    entries.forEach((edge: any) => {
+      const entry = edge.node;
+      console.log('Processing entry:', {
+        week: entry.week_number,
+        dayName: entry.day_name,
+        day: entry.day,
+        date: entry.date,
+        sets: entry.sets,
+        reps: entry.reps,
+        exerciseName: entry.exercises?.name
+      });
+      
+      // Simpler grouping key since we only have 1 week
+      const dayKey = `${entry.day_name}-${entry.date}`;
+      
+      if (!entriesByDay.has(dayKey)) {
+        entriesByDay.set(dayKey, []);
+      }
+      entriesByDay.get(dayKey)!.push(entry);
+    });
+
+    // Convert grouped entries to WorkoutItemData format
+    const workouts: WorkoutItemData[] = [];
+    
+    entriesByDay.forEach((dayEntries, dayKey) => {
+      const firstEntry = dayEntries[0];
+      const today = new Date();
+      const workoutDate = new Date(firstEntry.date);
+      const isToday = workoutDate.toDateString() === today.toDateString();
+      const isPastWorkout = workoutDate < today && !isToday;
+
+      // Use EXACT day_name from database (Push, Pull, Legs)
+      const workoutTitle = firstEntry.day_name;
+      console.log(`Week ${firstEntry.week_number} - ${workoutTitle} (${firstEntry.day}) with ${dayEntries.length} exercises`);
+
+      // Calculate total sets from all exercises in this day
+      const totalSets = dayEntries.reduce((sum, entry) => sum + (entry.sets || 0), 0);
+      const estimatedDuration = Math.max(30, Math.min(90, totalSets * 3.5)); // 30-90 min range
+
+      // Map day names to numbers for dayOfWeek
+      const dayMapping: { [key: string]: number } = {
+        'monday': 1, 'tuesday': 2, 'wednesday': 3, 'thursday': 4, 
+        'friday': 5, 'saturday': 6, 'sunday': 0
+      };
+
+      workouts.push({
+        id: `workout-${dayKey}`, // Unique ID for the day's workout
+        title: workoutTitle, // EXACT day_name: Push, Pull, Legs
+        date: firstEntry.date, // EXACT date from database
+        time: firstEntry.time || '08:00',
+        duration: Math.round(estimatedDuration),
+        exercises: dayEntries.length, // Number of different exercises this day
+        reps: totalSets, // Total sets across all exercises
+        isCompleted: isPastWorkout,
+        progress: isPastWorkout ? 100 : 0,
+        weekNumber: firstEntry.week_number, // EXACT week_number from database
+        dayOfWeek: dayMapping[firstEntry.day.toLowerCase()] || 1, // Convert day string to number
+        image: getDayNameImage(workoutTitle) // Use appropriate dayname image based on workout title
+      });
+    });
+
+    console.log(`Created ${workouts.length} workout days for week ${activeWeek}`);
+    
+    // Simple sorting by date (no need to sort by week since we only have 1 week)
+    return workouts.sort((a: WorkoutItemData, b: WorkoutItemData) => {
+      return new Date(a.date).getTime() - new Date(b.date).getTime();
+    });
+  };
+
+  // Generate fallback 8-week workout plan (when no real plan is available)
+  const generateFallbackWorkoutPlan = () => {
     const workoutTypes = [
-      { name: 'Abs', duration: 45, exercises: 8, reps: 8, image: 'abs.png' },
-      { name: 'Legs', duration: 45, exercises: 8, reps: 8, image: 'legs.png' },
-      { name: 'Full Body', duration: 45, exercises: 8, reps: 8, image: 'fullbody.png' }
+      { name: 'Abs', duration: 45, exercises: 8, reps: 8, image: getDayNameImage('Abs') },
+      { name: 'Legs', duration: 45, exercises: 8, reps: 8, image: getDayNameImage('Legs') },
+      { name: 'Full Body', duration: 45, exercises: 8, reps: 8, image: getDayNameImage('Full Body') }
     ];
 
     const allWorkouts: WorkoutItemData[] = [];
@@ -301,14 +466,54 @@ export default function ExploreScreen() {
     });
   };
 
+  // Get the workout plan data (real or fallback)
+  const getWorkoutPlanData = useMemo(() => {
+    // Return null during loading to avoid showing empty state
+    if (isLoadingWorkoutPlan || isFetchingWorkoutPlan || isLoadingWorkoutPlans || isFetchingWorkoutPlans) {
+      return null;
+    }
+
+    // Use real workout plan data if available
+    if (workoutPlanData?.workout_plansCollection?.edges?.[0]?.node) {
+      const realPlan = workoutPlanData.workout_plansCollection.edges[0].node;
+      return convertRealWorkoutPlan(realPlan);
+    }
+
+    // If we have a workout plan but no data for this week, return empty array
+    if (activeWorkoutPlan?.id) {
+      return [];
+    }
+
+    // No workout plan at all
+    return [];
+  }, [workoutPlanData, isLoadingWorkoutPlan, isFetchingWorkoutPlan, isLoadingWorkoutPlans, isFetchingWorkoutPlans, activeWorkoutPlan?.id]);
+
   // Get workouts for current week
   const getCurrentWeekWorkouts = (weekNumber: number) => {
-    const allWorkouts = generateWorkoutPlan();
-    return allWorkouts.filter(workout => workout.weekNumber === weekNumber);
+    if (getWorkoutPlanData === null) {
+      return null; // Still loading
+    }
+    return getWorkoutPlanData?.filter(workout => workout.weekNumber === weekNumber) || [];
   };
 
   // Workout data for current week
   const workoutData = getCurrentWeekWorkouts(activeWeek);
+
+  // Pull to refresh handler
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        refetchWorkoutPlans(),
+        refetchWorkoutPlan()
+      ]);
+    } catch (error) {
+      console.error('Refresh failed:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refetchWorkoutPlans, refetchWorkoutPlan]);
 
   // Sample statistics data
   const statisticsData = {
@@ -355,10 +560,18 @@ export default function ExploreScreen() {
   return (
     <SafeAreaView edges={['top']} style={[styles.container, { backgroundColor: nucleus.light.semantic.bg.subtle }]}>
 
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={nucleus.light.global.blue["50"]}
+            colors={[nucleus.light.global.blue["50"]]}
+          />
+        }
       >
         {/* Greeting Section */}
         <Animated.View style={[styles.greetingContainer, greetingAnimatedStyle]}>
@@ -376,6 +589,38 @@ export default function ExploreScreen() {
           </View>
         </Animated.View>
 
+        {/* Test Button for Workout Plan Generation - ALWAYS VISIBLE FOR TESTING */}
+        {/* <View style={styles.testButtonContainer}>
+          <Button
+            mode="contained"
+            onPress={handleTestWorkoutPlanGeneration}
+            loading={workoutPlanGeneration.isGenerating}
+            disabled={workoutPlanGeneration.isGenerating || isGeneratingWorkoutPlan}
+            style={styles.testButton}
+            labelStyle={styles.testButtonLabel}
+            compact={false}
+          >
+            {workoutPlanGeneration.isGenerating || isGeneratingWorkoutPlan 
+              ? 'Generating Workout Plan...' 
+              : '🧪 Test Generate Workout Plan (Trigger.dev)'
+            }
+          </Button>
+          {workoutPlanGeneration.currentRequest && (
+            <Text style={styles.testStatusText}>
+              Status: {workoutPlanGeneration.currentRequest.status}
+            </Text>
+          )}
+          <Text style={styles.debugText}>
+            Profile: {userProfile ? '✅ Available' : '❌ Not found'}
+          </Text>
+          <Text style={styles.debugText}>
+            User ID: {user?.id ? '✅ ' + user.id.slice(0, 8) + '...' : '❌ Not found'}
+          </Text>
+          <Text style={styles.debugText}>
+            Onboarding: {onboardingCompleted ? '✅ Complete' : '❌ Incomplete'}
+          </Text>
+        </View> */}
+
         {/* Week Calendar Section */}
         <Animated.View style={[styles.calendarContainer, calendarAnimatedStyle]}>
           <ScrollView 
@@ -383,37 +628,48 @@ export default function ExploreScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.calendarScrollContent}
           >
-            {weeks.map((week, index) => (
-              <TouchableOpacity 
-                key={index} 
-                style={[
-                  styles.weekContainer,
-                  week === activeWeek ? styles.activeWeekContainer : 
-                  completedWeeks.includes(week) ? styles.completedWeekContainer : null
-                ]}
-                onPress={() => {
-                  setActiveWeek(week);
-                  // Add haptic feedback or spring animation here if needed
-                }}
-              >
+            {weeks.map((week, index) => {
+              // During loading, assume we will have workout plans (prevent flickering)
+              const isStillLoading = workoutData === null || isLoadingWorkoutPlans || isFetchingWorkoutPlans || isLoadingWorkoutPlan || isFetchingWorkoutPlan;
+              const hasWorkoutPlans = isStillLoading ? true : (workoutData && Array.isArray(workoutData) && workoutData.length > 0);
+              const isDisabled = !hasWorkoutPlans;
+
+              return (
+                <TouchableOpacity
+                  key={index}
+                  style={[
+                    styles.weekContainer,
+                    week === activeWeek && hasWorkoutPlans ? styles.activeWeekContainer :
+                    completedWeeks.includes(week) && hasWorkoutPlans ? styles.completedWeekContainer :
+                    isDisabled ? styles.disabledWeekContainer : null
+                  ]}
+                  onPress={() => {
+                    if (!isDisabled) {
+                      setActiveWeek(week);
+                      // Add haptic feedback or spring animation here if needed
+                    }
+                  }}
+                  disabled={isDisabled}
+                >
                 <Text style={[
                   styles.calendarWeekLabel,
-                  week === activeWeek ? styles.activeWeekLabel :
-                  completedWeeks.includes(week) ? styles.completedWeekLabel :
+                  week === activeWeek && hasWorkoutPlans ? styles.activeWeekLabel :
+                  completedWeeks.includes(week) && hasWorkoutPlans ? styles.completedWeekLabel :
                   styles.disabledWeekLabel
                 ]}>
                   Week
                 </Text>
                 <Text style={[
                   styles.weekNumber,
-                  week === activeWeek ? styles.activeWeekNumber :
-                  completedWeeks.includes(week) ? styles.completedWeekNumber :
+                  week === activeWeek && hasWorkoutPlans ? styles.activeWeekNumber :
+                  completedWeeks.includes(week) && hasWorkoutPlans ? styles.completedWeekNumber :
                   styles.disabledWeekNumber
                 ]}>
                   {week}
                 </Text>
               </TouchableOpacity>
-            ))}
+              );
+            })}
           </ScrollView>
         </Animated.View>
 
@@ -427,19 +683,82 @@ export default function ExploreScreen() {
           </View>
 
           {/* Workout Items */}
+          {/* Subtle Progress Link */}
+          {(isGeneratingWorkoutPlan || workoutPlanGeneration.isGenerating) && (
+            <TouchableOpacity 
+              style={styles.progressLinkContainer} 
+              onPress={handleProgressLinkClick}
+              activeOpacity={0.7}
+            >
+              <View style={styles.progressLinkContent}>
+                <Text style={styles.progressLinkText}>Plan creation in progress</Text>
+                <Text style={styles.progressLinkSubtext}>Tap to view details</Text>
+              </View>
+              <View style={styles.progressDot} />
+            </TouchableOpacity>
+          )}
+
           <View style={styles.workoutItemsContainer}>
-            {workoutData.map((workout, index) => {
-              // Calculate workout number based on sorted position (chronological order)
-              const chronologicalIndex = index;
-              return (
-                <WorkoutItem
-                  key={workout.id}
-                  workout={workout}
-                  index={chronologicalIndex}
-                  onPress={() => router.push('/workout')}
-                />
-              );
-            })}
+            {/* Show loading state while fetching any data */}
+            {(workoutData === null || isLoadingWorkoutPlans || isFetchingWorkoutPlans || isLoadingWorkoutPlan || isFetchingWorkoutPlan) ? (
+              <View style={styles.emptyStateContainer}>
+                <View style={styles.emptyStateContent}>
+                  <Text style={styles.emptyStateTitle}>Loading your workout plan...</Text>
+                  <Text style={styles.emptyStateDescription}>
+                    Please wait while we prepare your fitness journey.
+                  </Text>
+                </View>
+              </View>
+            ) : workoutData && Array.isArray(workoutData) && workoutData.length > 0 ? (
+              workoutData.map((workout, index) => {
+                // Calculate workout number based on sorted position (chronological order)
+                const chronologicalIndex = index;
+                return (
+                  <WorkoutItem
+                    key={workout.id}
+                    workout={workout}
+                    index={chronologicalIndex}
+                    onPress={() => router.push({
+                      pathname: '/workout',
+                      params: {
+                        planId: activeWorkoutPlan?.id || '',
+                        weekNumber: activeWeek.toString(),
+                        day: workout.date ? new Date(workout.date).toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase() : 'monday',
+                        dayName: workout.title,
+                        date: workout.date,
+                      }
+                    })}
+                  />
+                );
+              })
+            ) : !onboardingCompleted ? (
+              // Show onboarding button when no workout plans and onboarding not completed
+              <View style={styles.emptyStateContainer}>
+                <View style={styles.emptyStateContent}>
+                  <Text style={styles.emptyStateTitle}>Ready to start your fitness journey?</Text>
+                  <Text style={styles.emptyStateDescription}>
+                    Let's create a personalized workout plan just for you.
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.onboardingButton}
+                    onPress={() => setShowIntro(true)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.onboardingButtonText}>Let&apos;s go</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              // Show message when onboarding completed but no plans available
+              <View style={styles.emptyStateContainer}>
+                <View style={styles.emptyStateContent}>
+                  <Text style={styles.emptyStateTitle}>No workout plans yet</Text>
+                  <Text style={styles.emptyStateDescription}>
+                    Your personalized workout plan will appear here once it's ready.
+                  </Text>
+                </View>
+              </View>
+            )}
           </View>
         </Animated.View>
 
@@ -642,6 +961,10 @@ const styles = StyleSheet.create({
   },
   completedWeekContainer: {
     backgroundColor: nucleus.light.global.brand["40"],
+  },
+  disabledWeekContainer: {
+    backgroundColor: nucleus.light.global.grey["20"],
+    opacity: 0.8,
   },
   calendarWeekLabel: {
     fontFamily: 'PlusJakartaSans-Bold',
@@ -1000,6 +1323,165 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     color: nucleus.light.semantic.fg.base,
     textAlign: 'center',
+  },
+
+  // Workout Plan Status (keeping for reference but unused)
+  workoutPlanStatusContainer: {
+    marginBottom: 16,
+  },
+  statusIndicator: {
+    backgroundColor: nucleus.light.global.blue["10"],
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: nucleus.light.global.blue["30"],
+  },
+  statusTitle: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 16,
+    fontWeight: '700',
+    lineHeight: 20,
+    color: nucleus.light.global.blue["80"],
+    marginBottom: 8,
+  },
+  statusMessage: {
+    fontFamily: 'PlusJakartaSans-Regular',
+    fontSize: 14,
+    lineHeight: 20,
+    color: nucleus.light.global.blue["70"],
+  },
+
+  // Progress Link Styles
+  progressLinkContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: nucleus.light.semantic.bg.canvas,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: nucleus.light.global.brand["30"],
+  },
+  progressLinkContent: {
+    flex: 1,
+  },
+  progressLinkText: {
+    fontFamily: 'PlusJakartaSans-Medium',
+    fontSize: 14,
+    fontWeight: '500',
+    lineHeight: 17,
+    color: nucleus.light.global.brand["80"],
+    marginBottom: 2,
+  },
+  progressLinkSubtext: {
+    fontFamily: 'PlusJakartaSans-Regular',
+    fontSize: 12,
+    lineHeight: 15,
+    color: nucleus.light.global.brand["60"],
+  },
+  progressDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: nucleus.light.global.brand["60"],
+  },
+
+  // Test Button Styles
+  testButtonContainer: {
+    marginHorizontal: 16,
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  testButton: {
+    backgroundColor: nucleus.light.global.brand["70"],
+    borderRadius: 12,
+    minHeight: 48,
+    elevation: 3,
+    shadowColor: nucleus.light.global.brand["70"],
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  testButtonLabel: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 16,
+    color: nucleus.light.global.blue["10"],
+    includeFontPadding: false,
+  },
+  testStatusText: {
+    fontFamily: 'PlusJakartaSans-Regular',
+    fontSize: 12,
+    color: nucleus.light.global.blue["70"],
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  debugText: {
+    fontFamily: 'PlusJakartaSans-Regular',
+    fontSize: 11,
+    color: nucleus.light.global.blue["60"],
+    marginTop: 4,
+    textAlign: 'center',
+    opacity: 0.7,
+  },
+
+  // Empty State Styles
+  emptyStateContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 24,
+  },
+  emptyStateContent: {
+    alignItems: 'center',
+    gap: 16,
+    maxWidth: 280,
+  },
+  emptyStateTitle: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 20,
+    fontWeight: '700',
+    lineHeight: 24,
+    color: nucleus.light.semantic.fg.base,
+    textAlign: 'center',
+  },
+  emptyStateDescription: {
+    fontFamily: 'PlusJakartaSans-Regular',
+    fontSize: 16,
+    fontWeight: '400',
+    lineHeight: 22,
+    color: nucleus.light.semantic.fg.muted,
+    textAlign: 'center',
+  },
+  onboardingButton: {
+    display: 'flex',
+    height: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
+    alignSelf: 'stretch',
+    borderRadius: 48,
+    minHeight: 48,
+    backgroundColor: nucleus.light.global.blue["70"],
+    marginTop: 8,
+    shadowColor: 'rgba(77, 150, 191, 0.30)',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 25,
+    elevation: 10,
+  },
+  onboardingButtonText: {
+    color: nucleus.light.global.blue["10"],
+    textAlign: 'center',
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 16,
+    fontStyle: 'normal',
+    fontWeight: '700',
+    lineHeight: 20,
+    letterSpacing: 0,
+    marginVertical: 0,
+    includeFontPadding: false,
   },
 
   // Bottom padding

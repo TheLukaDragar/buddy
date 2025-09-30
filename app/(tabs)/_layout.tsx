@@ -172,6 +172,12 @@ export default function TabLayout() {
             title: 'Music Test',
           }}
         />
+        <Tabs.Screen
+          name="fitness-player"
+          options={{
+            title: 'Fitness Player',
+          }}
+        />
       </Tabs>
       
       {/* Custom centered tab bar with SafeAreaView */}

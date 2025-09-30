@@ -1,5 +1,5 @@
 import { openai } from '@ai-sdk/openai';
-import { convertToModelMessages, LanguageModel, smoothStream, streamText, TextStreamPart, tool, ToolSet, UIMessage } from 'ai';
+import { convertToModelMessages, LanguageModel, smoothStream, stepCountIs, streamText, TextStreamPart, tool, ToolSet, UIMessage } from 'ai';
 import { z } from 'zod';
 
 
@@ -71,6 +71,7 @@ export async function POST(req: Request) {
       }
     );
   }
+  console.log('Using OpenAI API key:', process.env.OPENAI_API_KEY);
 
   try {
     const { messages }: {
@@ -306,8 +307,8 @@ const stripDoubleNewLines =
     new TransformStream<TextStreamPart<TOOLS>, TextStreamPart<TOOLS>>({
       transform(chunk, controller) {
         controller.enqueue(
-          // for text chunks, convert the text to uppercase:
-          chunk.type === 'text'
+          // for text-delta chunks, strip newlines:
+          chunk.type === 'text-delta'
             ? { ...chunk, text: chunk.text.replace(/\n/g, '') }
             : chunk,
         );
@@ -316,7 +317,7 @@ const stripDoubleNewLines =
 
     // Define tools using the AI SDK v5 format
     const result = streamText({
-      model: openai('gpt-4.1') as LanguageModel,
+      model: openai('gpt-5') as LanguageModel,
       system: systemPrompt,
       messages: convertToModelMessages(messages),
       experimental_transform: [smoothStream(), stripDoubleNewLines()],
@@ -324,13 +325,13 @@ const stripDoubleNewLines =
       tools: {
         follow_up_suggestions: tool({
           description: 'Follow up suggestions to ask the user after asking a question',
-          parameters: z.object({
+          inputSchema: z.object({
             suggestions: z.array(z.string()).describe('Contextual suggestions for the current question'),
           }),
           execute: async (input: any) => {
             const { suggestions } = input;
             console.log('Providing suggestions:', suggestions);
-            
+
             return {
               success: true,
             };
@@ -338,7 +339,7 @@ const stripDoubleNewLines =
         }),
         user_answers_complete: tool({
           description: 'Call this when all onboarding questions have been asked and answered',
-          parameters: z.object({
+          inputSchema: z.object({
             text: z.string().describe('Text to display to the user when all questions have been answered'),
           }),
           execute: async () => {

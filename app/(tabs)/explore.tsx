@@ -153,6 +153,22 @@ export default function HomeScreen() {
                 </Text>
               </Card.Content>
             </Card>
+
+            <Card 
+              style={[styles.actionCard, { backgroundColor: theme.colors.errorContainer }]}
+              onPress={() => router.push('/fitness-player')}
+            >
+              <Card.Content style={styles.actionCardContent}>
+                <IconButton 
+                  icon="music" 
+                  size={32}
+                  iconColor={theme.colors.onErrorContainer}
+                />
+                <Text variant="labelLarge" style={{ color: theme.colors.onErrorContainer }}>
+                  Music
+                </Text>
+              </Card.Content>
+            </Card>
           </View>
         </View>
 

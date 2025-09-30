@@ -204,6 +204,15 @@ function RootNavigator() {
             animation: 'slide_from_bottom',
           }}
         />
+        <Stack.Screen
+          name="workout-plan-progress"
+          options={{
+            headerShown: false,
+            presentation: 'modal',
+            animation: 'slide_from_bottom',
+            gestureEnabled: false, // Prevent dismissing during progress
+          }}
+        />
       </Stack.Protected>
 
       {/* Public routes - accessible without authentication */}

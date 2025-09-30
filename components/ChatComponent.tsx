@@ -1,5 +1,5 @@
 import { useChat } from '@ai-sdk/react';
-import { defaultChatStore } from 'ai';
+import { DefaultChatTransport } from 'ai';
 import { Image } from "expo-image";
 import { fetch as expoFetch } from 'expo/fetch';
 import React, { useEffect, useRef, useState } from 'react';
@@ -463,8 +463,8 @@ export default function ChatComponent({
   };
 
   // AI SDK Chat Hook - now integrated with Redux
-  const { append } = useChat({
-    chatStore: defaultChatStore({
+  const { sendMessage } = useChat({
+    transport: new DefaultChatTransport({
       api: generateAPIUrl('/api/chat'),
       fetch: expoFetch as unknown as typeof globalThis.fetch,
       body: {
@@ -483,7 +483,7 @@ export default function ChatComponent({
         role: 'assistant',
         content: message.message.parts?.map((part: any) => part.type === 'text' ? part.text : '').join('') || '',
         timestamp: Date.now(),
-        parts: message.message.parts as Array<{ type: string; text: string }>,
+        parts: message.message.parts as { type: string; text: string }[],
       };
       dispatch(addMessage(buddyMessage));
       dispatch(setLoading(false));
@@ -882,7 +882,7 @@ export default function ChatComponent({
         dispatch(setError(null));
         
         // Send to AI
-        append({ role: 'user', parts: [{ type: 'text', text: inputText.trim() }] });
+        sendMessage({ text: inputText.trim() });
       }
       
       setInputText('');

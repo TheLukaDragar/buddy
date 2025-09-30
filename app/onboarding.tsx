@@ -1,5 +1,5 @@
 import { useChat } from '@ai-sdk/react';
-import { defaultChatStore } from 'ai';
+import { DefaultChatTransport } from 'ai';
 import { router } from 'expo-router';
 import { fetch as expoFetch } from 'expo/fetch';
 import React, { useEffect, useRef, useState } from 'react';
@@ -11,7 +11,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { nucleus } from '../Buddy_variables';
 import { useAppDispatch } from '../store/hooks';
 import { generateProfileFromAnswers, setOnboardingAnswers, setOnboardingCompleted } from '../store/slices/userSlice';
+import { enhancedApi } from '../store/api/enhancedApi';
 import { generateAPIUrl } from '../utils';
+import { useAuth } from '../contexts/AuthContext';
 
 // Animated thinking dot component
 const ThinkingDot = ({ delay }: { delay: number }) => {
@@ -82,6 +84,7 @@ const Pagination = ({ activeIndex, count }: { activeIndex: number, count: number
 
 export default function OnboardingScreen() {
   const dispatch = useAppDispatch();
+  const { user } = useAuth();
   
   // Animation values
   const fadeOpacity = useRef(new Animated.Value(0)).current;
@@ -107,8 +110,8 @@ export default function OnboardingScreen() {
   const [totalQuestions, setTotalQuestions] = useState(18);
   
   // AI SDK Chat Hook for onboarding with proper streaming
-  const { messages, append, status } = useChat({
-    chatStore: defaultChatStore({
+  const { messages, sendMessage, status } = useChat({
+    transport: new DefaultChatTransport({
       api: generateAPIUrl('/api/onboarding-chat'),
       fetch: expoFetch as unknown as typeof globalThis.fetch,
     }),
@@ -119,121 +122,117 @@ export default function OnboardingScreen() {
   
     onFinish: (message) => {
       console.log('AI message finished streaming:', message);
-      
-      // Parse the completed message for tools and suggestions
-      let suggestions: string[] = [];
-      let isComplete = false;
-      let multipleSelection = false;
-      
+
+        // Parse the completed message for tools and suggestions
+        let suggestions: string[] = [];
+        let isComplete = false;
+        let multipleSelection = false;
+
       if (message.message.parts) {
+        console.log('Total parts in message:', message.message.parts.length);
+        console.log('All parts:', JSON.stringify(message.message.parts, null, 2));
         for (const part of message.message.parts) {
           console.log('Processing finished part:', part);
-          
-          if (part.type === 'tool-invocation') {
-            // Tool invocation from the AI SDK
-            const toolInvocation = part.toolInvocation;
-            
-            // Check if this is a tool result (state === 'result')
-            if (toolInvocation.state === 'result') {
-              // Type the tool result properly
-              const toolResult = toolInvocation as {
-                state: 'result';
-                step?: number;
-                toolCallId: string;
-                toolName: string;
-                args: unknown;
-                result: unknown;
-              };
-              
-              // Check for follow_up_suggestions tool
-              if (toolResult.toolName === 'follow_up_suggestions') {
-                // The suggestions are in the args, not the result
-                const args = toolResult.args as {
-                  suggestions?: string[];
-                  allowMultiple?: boolean;
-                };
-                const toolSuggestions = args?.suggestions;
-                const toolAllowMultiple = args?.allowMultiple || false;
-                
-                console.log('Found follow_up_suggestions tool result:', toolResult);
+
+          // In AI SDK v5, tool parts have type 'tool-{toolName}' and data is directly on the part
+          if (part.type.startsWith('tool-')) {
+              const toolPart = part as any;
+
+              // Extract tool name from type (e.g., 'tool-follow_up_suggestions' -> 'follow_up_suggestions')
+              const toolName = part.type.replace(/^tool-/, '');
+
+              // Check if this is a tool with output available
+              if (toolPart.state === 'output-available') {
+
+                // Check for follow_up_suggestions tool
+                if (toolName === 'follow_up_suggestions') {
+                    // The suggestions are in the input (tool args)
+                    const args = toolPart.input as {
+                      suggestions?: string[];
+                      allowMultiple?: boolean;
+                    };
+                    const toolSuggestions = args?.suggestions;
+                    const toolAllowMultiple = args?.allowMultiple || false;
+
+                console.log('Found follow_up_suggestions tool:', toolPart);
                 console.log('LLM generated suggestions:', toolSuggestions);
-                console.log('Allow multiple selection:', toolAllowMultiple);
-                
-                // Use LLM-generated suggestions
-                if (Array.isArray(toolSuggestions)) {
-                  suggestions = toolSuggestions;
-                  multipleSelection = toolAllowMultiple;
+                    console.log('Allow multiple selection:', toolAllowMultiple);
+
+                    // Use LLM-generated suggestions
+                    if (Array.isArray(toolSuggestions)) {
+                      suggestions = toolSuggestions;
+                      multipleSelection = toolAllowMultiple;
                   console.log('Setting LLM suggestions:', suggestions);
                   console.log('Setting multiple selection:', multipleSelection);
-                  
-                  // Increment question counter for pagination
+
+                      // Increment question counter for pagination
                   setCurrentQuestionIndex(prev => Math.min(prev + 1, totalQuestions - 1));
+                  }
                 }
-              }
-              
-              // Check for user_answers_complete tool
-              if (toolResult.toolName === 'user_answers_complete') {
-                isComplete = true;
+
+                // Check for user_answers_complete tool
+                if (toolName === 'user_answers_complete') {
+                  isComplete = true;
                 console.log('Onboarding complete!');
+                }
               }
             }
           }
         }
-      }
-      
-      // Update suggestions and completion state only after streaming finishes
-              setCurrentSuggestions(suggestions);
+
+        // Update suggestions and completion state only after streaming finishes
+        setCurrentSuggestions(suggestions);
         setSelectedSuggestions([]); // Reset selections for new question
 
-      
-      if (isComplete) {
-        setShowCompletion(true);
-        // Extract all user messages as answers for profile generation
-        const userAnswers = messages
-          .filter(msg => msg.role === 'user')
-          .map(msg => {
-            // Extract text from message parts
-            return msg.parts
-              .filter(part => part.type === 'text')
-              .map(part => (part as { type: 'text'; text: string }).text)
-              .join('');
-          });
-        
-        dispatch(setOnboardingAnswers(userAnswers));
-      }
-      
-      // Auto scroll to bottom after streaming completes
-      setTimeout(() => {
-        scrollViewRef.current?.scrollToEnd({ animated: true });
-      }, 100);
+
+        if (isComplete) {
+          setShowCompletion(true);
+          // Extract all user messages as answers for profile generation
+            const userAnswers = messages
+              .filter(msg => msg.role === 'user')
+              .map(msg => {
+                // Extract text from message parts
+                return msg.parts
+                  .filter(part => part.type === 'text')
+                  .map(part => (part as { type: 'text'; text: string }).text)
+                  .join('');
+              });
+
+            dispatch(setOnboardingAnswers(userAnswers));
+        }
+
+        // Auto scroll to bottom after streaming completes
+        setTimeout(() => {
+          scrollViewRef.current?.scrollToEnd({ animated: true });
+        }, 100);
     },
   });
 
   // Initialize conversation
   useEffect(() => {
-    if (!hasStarted) {
-      setHasStarted(true);
-      
-      // Send initial message to start the conversation
-      setTimeout(() => {
-        append({ role: 'user', parts: [{ type: 'text', text: "User is ready to start the onboarding conversation. Begin with the greeting and first question." }] });
-      }, 0);
-    }
-    
-    // Animate entrance
-    Animated.parallel([
-      Animated.timing(fadeOpacity, {
-        toValue: 1,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideY, {
-        toValue: 0,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [hasStarted, append]);
+      if (!hasStarted) {
+        setHasStarted(true);
+
+        // Send initial message to start the conversation
+        setTimeout(() => {
+            sendMessage({ text: "User is ready to start the onboarding conversation. Begin with the greeting and first question." });
+        }, 0);
+      }
+
+      // Animate entrance
+      Animated.parallel([
+        Animated.timing(fadeOpacity, {
+          toValue: 1,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideY, {
+          toValue: 0,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+      ]).start();
+  }, [hasStarted, sendMessage]);
 
   // Keyboard listeners
   useEffect(() => {
@@ -296,15 +295,15 @@ export default function OnboardingScreen() {
 
   const handleSendMessage = (text: string) => {
     if (!text.trim()) return;
-    
-    const finalText = text.trim();
-    
-    setCurrentSuggestions([]); // Clear suggestions when user sends message
-    setSelectedSuggestions([]); // Clear selected suggestions
-    setInputText('');
-    
-    // Send to AI
-    append({ role: 'user', parts: [{ type: 'text', text: finalText }] });
+
+      const finalText = text.trim();
+
+      setCurrentSuggestions([]); // Clear suggestions when user sends message
+      setSelectedSuggestions([]); // Clear selected suggestions
+      setInputText('');
+
+      // Send to AI
+      sendMessage({ text: finalText });
   };
 
 
@@ -312,10 +311,24 @@ export default function OnboardingScreen() {
   const handleCompleteOnboarding = async () => {
     if (isNavigating) return;
     setIsNavigating(true);
-    
+
     try {
       dispatch(setOnboardingCompleted(true));
-      
+
+      // Update onboarding status in database directly
+      try {
+        if (user?.id) {
+          await dispatch(enhancedApi.endpoints.UpdateOnboardingStatus.initiate({
+            userId: user.id,
+            onboardingCompleted: true
+          })).unwrap();
+          console.log('✅ Updated onboarding status in database');
+        }
+      } catch (dbError) {
+        console.error('❌ Database update failed, but continuing with flow:', dbError);
+        // Don't fail the entire flow if database update fails - user experience is more important
+      }
+
       // Generate user profile from chat conversation - always regenerate
       const userAnswers = messages
         .filter(msg => msg.role === 'user')
@@ -326,17 +339,17 @@ export default function OnboardingScreen() {
             .map(part => (part as any).text)
             .join('');
         });
-      
+
       console.log('Generating user profile from conversation:', userAnswers);
-      
+
       // Dispatch thunk in background - don't wait for it
       dispatch(generateProfileFromAnswers(userAnswers));
-      
-      // Navigate to main app immediately
-      router.push('/(tabs)');
+
+      // Navigate to progress screen to show workout plan generation progress
+      router.replace('/workout-plan-progress');
     } catch (error) {
       console.error('Error completing onboarding:', error);
-      router.push('/(tabs)');
+      router.replace('/(tabs)');
     }
   };
 
@@ -371,7 +384,7 @@ export default function OnboardingScreen() {
 
     // Debug: Log all messages to see what we have
     //console.log('All messages:', JSON.stringify(messages, null, 2));
-    console.log('Visible messages:', visibleMessages.map(m => ({ role: m.role, content: m.parts?.map(p => p.type === 'text' ? (p as any).text : p.type) })));
+    //console.log('Visible messages:', visibleMessages.map(m => ({ role: m.role, content: m.parts?.map(p => p.type === 'text' ? (p as any).text : p.type) })));
 
     return visibleMessages.map((message, index) => {
       const isUser = message.role === 'user';
@@ -408,7 +421,7 @@ export default function OnboardingScreen() {
       }
       
       // Debug: Log each message being rendered
-      console.log(`Rendering message ${index}: role="${message.role}", isUser=${isUser}, text="${textContent}"`);
+      //console.log(`Rendering message ${index}: role="${message.role}", isUser=${isUser}, text="${textContent}"`);
       
       // For the last assistant message, check if it should show suggestions
       const shouldShowSuggestions = !isUser && isLastMessage && currentSuggestions.length > 0;

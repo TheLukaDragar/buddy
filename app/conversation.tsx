@@ -7,8 +7,7 @@ import {
   Keyboard,
   TouchableWithoutFeedback,
   Alert,
-} from "react-native";
-import { TextInput } from "react-native";
+ TextInput } from "react-native";
 import { useConversation } from "@elevenlabs/react-native";
 import type { ConversationStatus, ConversationEvent, Role } from "@elevenlabs/react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';

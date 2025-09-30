@@ -151,6 +151,60 @@ For more information:
 - [EAS Build documentation](https://docs.expo.dev/build/introduction/)
 - [EAS Update documentation](https://docs.expo.dev/eas-update/introduction/)
 
+# Trigger.dev
+
+- [Trigger.dev documentation](https://trigger.dev/docs)
+
+```bash
+ npx trigger.dev@latest deploy
+```
+
+```bash
+  supabase functions deploy                 
+```
+
+runs localy NOTE set secret in suapabase edge function secret TRIGGER_SECRET_KEY TO production or decelopment!
+ ```bash
+ npx trigger.dev@latest dev     
+ ```
+
+## Workout Plan Generation System
+
+### Overview
+We use **Trigger.dev** for long-running workout plan generation to avoid Supabase Edge Function timeouts.
+
+### How It Works
+
+1. **User Profile Generation** → User completes onboarding questionnaire
+2. **Trigger Workout Plan** → App calls Supabase Edge Function `/trigger-workout-plan`
+3. **Background Processing** → Trigger.dev receives the job and generates 8-week workout plan
+4. **Real-time Updates** → User sees live status updates via Supabase Realtime
+5. **Plan Ready** → Generated plan appears in the app automatically
+
+### Architecture
+
+```
+User App → Supabase Edge Function → Trigger.dev → Database
+    ↑                                                    ↓
+    ←──────── Supabase Realtime Updates ←──────────────
+```
+
+### Key Components
+
+- **`services/workoutPlanService.ts`** - Calls trigger endpoint
+- **`trigger/workout-plan-generation.ts`** - Background job logic  
+- **`store/api/enhancedApi.ts`** - Real-time subscriptions
+- **`lib/realtimeClient.ts`** - WebSocket connection manager
+
+### Real-time Tables
+
+- `workout_plan_requests` - Job status tracking
+- `workout_plans` - Generated plan metadata  
+- `workout_entries` - Individual exercises per week
+
+
+
+
 
 # NOTE DEPLOY
 

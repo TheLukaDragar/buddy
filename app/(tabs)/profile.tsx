@@ -1,18 +1,26 @@
+import { router } from 'expo-router';
+import * as React from 'react';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
-import { ActivityIndicator, Avatar, Button, Card, Text, Chip, Icon } from 'react-native-paper';
+import { ActivityIndicator, Avatar, Button, Card, Icon, Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { nucleus } from '../../Buddy_variables.js';
 import { useAuth } from '../../contexts/AuthContext';
-import type { RootState } from '../../store';
-import { useAppSelector } from '../../store/hooks';
 import { useSpotifyAuth } from '../../hooks/useSpotifyAuth';
+import { regenerateWorkoutPlan } from '../../services/workoutPlanService';
+import type { RootState } from '../../store';
+import { setOnboardingCompleted } from '../../store/slices/userSlice';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { useIntro } from '../_layout';
 
 export default function ProfileScreen() {
+  const dispatch = useAppDispatch();
+  const { setShowIntro } = useIntro();
   const { user, signOut, loading } = useAuth();
   const userProfile = useAppSelector((state: RootState) => (state as any).user?.extractedProfile);
   const onboardingCompleted = useAppSelector((state: RootState) => (state as any).user?.onboardingCompleted);
   const isLoading = useAppSelector((state: RootState) => (state as any).user?.isLoadingProfile);
-  
+  const [isRegenerating, setIsRegenerating] = React.useState(false);
+
   const { isAuthenticated: spotifyAuthenticated, user: spotifyUser, logout: disconnectSpotify } = useSpotifyAuth();
 
   const handleSignOut = async () => {
@@ -39,6 +47,52 @@ export default function ProfileScreen() {
 
   const handleSpotifyDisconnect = () => {
     disconnectSpotify();
+  };
+
+  const handleRegeneratePlan = async () => {
+    if (!userProfile) {
+      Alert.alert(
+        'No Profile',
+        'You need a profile to generate a workout plan. Please complete the onboarding first.',
+        [{ text: 'OK', style: 'default' }]
+      );
+      return;
+    }
+
+    Alert.alert(
+      'Regenerate Workout Plan',
+      'This will deactivate your current workout plan and create a new one based on your profile. Continue?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Regenerate',
+          style: 'default',
+          onPress: async () => {
+            try {
+              setIsRegenerating(true);
+              await regenerateWorkoutPlan(userProfile, dispatch);
+              
+              // Navigate to progress screen
+              router.push('/workout-plan-progress');
+            } catch (error: any) {
+              console.error('❌ Failed to regenerate workout plan:', error);
+              Alert.alert(
+                'Error',
+                error.message || 'Failed to regenerate workout plan. Please try again.',
+                [{ text: 'OK', style: 'default' }]
+              );
+            } finally {
+              setIsRegenerating(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleRedoProfile = () => {
+    // Just navigate to onboarding - don't clear anything
+    router.push('/onboarding');
   };
 
   return (
@@ -93,6 +147,32 @@ export default function ProfileScreen() {
               </Text>
             </Card.Content>
           </Card>
+        )}
+
+        {/* Action Buttons - Subtle */}
+        {!isLoading && userProfile && onboardingCompleted && (
+          <View style={styles.regenerateContainer}>
+            <Button
+              mode="text"
+              onPress={handleRedoProfile}
+              labelStyle={[styles.regenerateLabel, { color: nucleus.light.global.blue["60"] }]}
+              contentStyle={styles.regenerateContent}
+              compact={true}
+            >
+              Redo profile
+            </Button>
+            <Button
+              mode="text"
+              onPress={handleRegeneratePlan}
+              disabled={isRegenerating}
+              loading={isRegenerating}
+              labelStyle={[styles.regenerateLabel, { color: nucleus.light.global.blue["60"] }]}
+              contentStyle={styles.regenerateContent}
+              compact={true}
+            >
+              {isRegenerating ? 'Regenerating plan...' : 'Regenerate workout plan'}
+            </Button>
+          </View>
         )}
 
         {/* No Profile State */}
@@ -254,5 +334,18 @@ const styles = StyleSheet.create({
   spotifyDisconnectLabel: {
     fontFamily: 'PlusJakartaSans-Regular',
     fontSize: 14,
+  },
+  regenerateContainer: {
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  regenerateLabel: {
+    fontFamily: 'PlusJakartaSans-Regular',
+    fontSize: 14,
+    textDecorationLine: 'underline',
+  },
+  regenerateContent: {
+    paddingHorizontal: 0,
+    paddingVertical: 4,
   },
 }); 

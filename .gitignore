@@ -41,3 +41,4 @@ app-example
 *.apk
 *.aab
 credentials.json
+.trigger

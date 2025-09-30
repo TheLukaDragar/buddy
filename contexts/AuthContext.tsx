@@ -1,6 +1,11 @@
 import { Session, User } from '@supabase/supabase-js';
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { useDispatch } from 'react-redux';
 import { authService } from '../services/authService';
+import { syncUserProfileWithDatabase } from '../services/userProfileService';
+import { AppDispatch } from '../store';
+import { enhancedApi } from '../store/api/enhancedApi';
+import { clearUserData } from '../store/slices/userSlice';
 
 interface AuthContextType {
   user: User | null;
@@ -18,24 +23,53 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const dispatch = useDispatch<AppDispatch>();
 
   useEffect(() => {
     // Get initial session
-    authService.getSession().then(({ data: { session } }) => {
+    authService.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
+
+      // Sync user profile from database when session is restored
+      if (session?.user) {
+        try {
+          await syncUserProfileWithDatabase(dispatch);
+        } catch (error) {
+          console.error('Failed to sync user profile on session restore:', error);
+        }
+      }
+
       setLoading(false);
     });
 
     // Listen for auth changes
-    const { data: { subscription } } = authService.onAuthStateChange((_event: string, session: Session | null) => {
+    const { data: { subscription } } = authService.onAuthStateChange(async (_event: string, session: Session | null) => {
+      const previousUser = user;
+
       setSession(session);
       setUser(session?.user ?? null);
+
+      // Clear API cache when user changes to prevent stale cached data
+      if (previousUser?.id !== session?.user?.id) {
+        console.log('🧹 User changed, clearing API cache to prevent stale data');
+        dispatch(enhancedApi.util.resetApiState());
+      }
+
+      // Sync user profile from database when user signs in
+      if (session?.user) {
+        try {
+          await syncUserProfileWithDatabase(dispatch);
+        } catch (error) {
+          console.error('Failed to sync user profile on auth change:', error);
+        }
+      }
+
       setLoading(false);
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [dispatch]);
 
   const signInWithGoogle = async () => {
     try {

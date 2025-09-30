@@ -1,29 +1,148 @@
 import { BlurView } from 'expo-blur';
 import { Image } from "expo-image";
-import { router } from 'expo-router';
-import React, { useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SystemBars } from 'react-native-edge-to-edge';
 import Animated, { Extrapolation, interpolate, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { nucleus } from '../Buddy_variables';
+import ExerciseInfoModal from '../components/ExerciseInfoModal';
 import MusicModal from '../components/MusicModal';
 import { mihasWorkout } from '../data/sampleWorkouts';
+import { Weekday } from '../graphql/generated';
 import { selectWorkout } from '../store/actions/workoutActions';
+import { useGetWorkoutDayQuery } from '../store/api/enhancedApi';
 import { useAppDispatch } from '../store/hooks';
 
 
 const HEADER_HEIGHT = 250;
 const HEADER_MIN_HEIGHT = 120;
 
+// Workout timing constants
+const SET_DURATION_SECONDS = 60; // ~60 seconds per set
+const REST_DURATION_SECONDS = 90; // 90 seconds rest between sets
+
 export default function WorkoutScreen() {
   const [selectedMood, setSelectedMood] = useState<string | null>(null);
+  const [showExerciseInfo, setShowExerciseInfo] = useState(false);
+  const [selectedExercise, setSelectedExercise] = useState<any>(null);
   const [showMusicModal, setShowMusicModal] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [failedUrls, setFailedUrls] = useState<Set<string>>(new Set());
   const scrollY = useSharedValue(0);
   const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
 
-  const weekNumber = 1;
+  // Get route parameters
+  const { planId, weekNumber, day, dayName, date } = useLocalSearchParams<{
+    planId: string;
+    weekNumber: string;
+    day: string;
+    dayName: string;
+    date: string;
+  }>();
+
+  // Fetch workout data for the specific day
+  const { data: workoutData, isLoading, error } = useGetWorkoutDayQuery({
+    planId: planId || '',
+    weekNumber: parseInt(weekNumber || '1'),
+    day: (day as Weekday) || Weekday.Monday,
+  }, {
+    skip: !planId || !weekNumber || !day
+  });
+
+  // Extract workout entries from the query response
+  const workoutEntries = workoutData?.workout_plansCollection?.edges?.[0]?.node?.workout_entriesCollection?.edges || [];
+
+  // Debug logging
+  console.log('Workout Data Debug:');
+  console.log('Raw workout data:', workoutData);
+  console.log('Workout entries count:', workoutEntries.length);
+  console.log('All workout entries:', workoutEntries.map(entry => entry.node));
+  console.log('First workout entry:', workoutEntries[0]?.node);
+
+  // Create dynamic workout title: "Tuesday's Leg Workout" format
+  const dayOfWeek = day ? day.charAt(0).toUpperCase() + day.slice(1) : 'Tuesday';
+  const workoutType = workoutEntries.length > 0 ? workoutEntries[0].node.day_name : 'Workout';
+  const dynamicWorkoutTitle = `${dayOfWeek}'s ${workoutType} Workout`;
+
+  console.log('Day of week:', dayOfWeek);
+  console.log('Workout type:', workoutType);
+  console.log('Dynamic title:', dynamicWorkoutTitle);
+
+  // Calculate total workout duration based on sets
+  const totalSets = workoutEntries.reduce((sum, entry) => sum + entry.node.sets, 0);
+  const totalWorkoutSeconds = (totalSets * SET_DURATION_SECONDS) + ((totalSets - 1) * REST_DURATION_SECONDS);
+  const totalWorkoutMinutes = Math.round(totalWorkoutSeconds / 60);
+
+  console.log('Total sets:', totalSets);
+  console.log('Total workout minutes:', totalWorkoutMinutes);
+
+  // Extract unique equipment from all exercises
+  const allEquipmentStrings = workoutEntries.map(entry => entry.node.equipment);
+  const allEquipmentItems = allEquipmentStrings.flatMap(equipStr =>
+    equipStr.split(',').map(item => item.trim()).filter(Boolean)
+  );
+  const uniqueEquipment = [...new Set(allEquipmentItems)];
+
+  console.log('All equipment strings:', allEquipmentStrings);
+  console.log('Unique equipment:', uniqueEquipment);
+
+  // Extract exercise slugs and create thumbnail URLs (memoized to prevent re-renders)
+  const { exerciseSlugs, thumbnailUrls } = useMemo(() => {
+    const slugs = workoutEntries
+      .map(entry => entry.node.exercises?.slug)
+      .filter(Boolean) as string[];
+
+    const urls = slugs.map(slug =>
+      `https://kmtddcpdqkeqipyetwjs.supabase.co/storage/v1/object/public/workouts/processed/${slug}/${slug}_cropped_thumbnail_low.jpg`
+    );
+
+    return { exerciseSlugs: slugs, thumbnailUrls: urls };
+  }, [workoutEntries]);
+
+  console.log('Exercise slugs:', exerciseSlugs);
+  console.log('Thumbnail URLs:', thumbnailUrls);
+
+  // Preload all thumbnail images for faster loading (only once when URLs change)
+  useEffect(() => {
+    if (thumbnailUrls.length > 0) {
+      thumbnailUrls.forEach(url => {
+        if (!failedUrls.has(url)) {
+          Image.prefetch(url).catch(() => {
+            console.log('Failed to prefetch image:', url);
+            setFailedUrls(prev => new Set(prev).add(url));
+          });
+        }
+      });
+    }
+  }, [thumbnailUrls.join(',')]);
+
+  // Cycle through thumbnails every 3 seconds
+  useEffect(() => {
+    const validCount = thumbnailUrls.filter(url => !failedUrls.has(url)).length;
+    if (validCount <= 1) return; // Don't cycle if only one or no images
+
+    const interval = setInterval(() => {
+      setCurrentImageIndex(prevIndex => (prevIndex + 1) % validCount);
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [thumbnailUrls.length, failedUrls.size]); // Depend on valid URLs count
+
+  // Get current thumbnail URL, skipping failed ones (memoized to prevent flickering)
+  const validThumbnailUrls = useMemo(() =>
+    thumbnailUrls.filter(url => !failedUrls.has(url)),
+    [thumbnailUrls, failedUrls]
+  );
+
+  const currentThumbnailUrl = useMemo(() =>
+    validThumbnailUrls.length > 0
+      ? validThumbnailUrls[currentImageIndex % validThumbnailUrls.length]
+      : 'https://kmtddcpdqkeqipyetwjs.supabase.co/storage/v1/object/public/workouts/processed/barbell-squat/barbell-squat_cropped_thumbnail.jpg',
+    [validThumbnailUrls, currentImageIndex]
+  );
 
   const scrollHandler = useAnimatedScrollHandler((event) => {
     scrollY.value = event.contentOffset.y;
@@ -115,50 +234,27 @@ export default function WorkoutScreen() {
     },
   ];
 
-  const equipment = [
-    {
-      id: 1,
-      name: 'Loop Band',
-      image: require('../assets/icons/loop-band.png'),
-    },
-    {
-      id: 2,
-      name: 'Mat',
-      image: require('../assets/icons/mat.png'),
-    },
-    {
-      id: 3,
-      name: 'Kettlebell',
-      image: require('../assets/icons/kettlebell.png'),
-    },
-  ];
+  // Create equipment array from dynamic data
+  const equipment = uniqueEquipment.map((equipmentName, index) => ({
+    id: index + 1,
+    name: equipmentName,
+    image: require('../assets/icons/mat.png'), // Default image for now
+  }));
 
-  const exercises = [
-    {
-      id: 1,
-      name: 'Squat',
-      sets: '4 sets',
-      muscles: 'quads, glutes, hamstrings, core',
-      description: 'Classic barbell squat movement for lower body strength',
-      image: require('../assets/exercises/squats.png'),
-    },
-    {
-      id: 2,
-      name: 'Lunges',
-      sets: '4 sets',
-      muscles: 'quads, glutes, hamstrings, core',
-      description: 'Classic barbell squat movement for lower body strength',
-      image: require('../assets/exercises/squats.png'),
-    },
-    {
-      id: 3,
-      name: 'Glute Bridges',
-      sets: '4 sets',
-      muscles: 'quads, glutes, hamstrings, core',
-      description: 'Classic barbell squat movement for lower body strength',
-      image: require('../assets/exercises/squats.png'),
-    },
-  ];
+  // Create exercises summary from dynamic data
+  const exercises = workoutEntries.map((entry, index) => {
+    // Clean up exercise name by removing rep ranges in parentheses
+    const cleanName = entry.node.exercises.name.replace(/\s*\([^)]*reps?\)|\s*\(\d+–\d+\)/i, '');
+
+    return {
+      id: index + 1,
+      name: cleanName,
+      sets: `${entry.node.sets} sets`,
+      muscles: entry.node.equipment, // Using equipment as muscle info for now
+      description: entry.node.exercises.instructions || 'Exercise instructions',
+      image: require('../assets/exercises/squats.png'), // Default image
+    };
+  });
 
 
 
@@ -172,9 +268,16 @@ export default function WorkoutScreen() {
         <Animated.View style={[styles.header, headerAnimatedStyle]}>
           <Animated.View style={[styles.headerImageContainer, imageAnimatedStyle]}>
             <Image
-              source={{ uri: 'https://kmtddcpdqkeqipyetwjs.supabase.co/storage/v1/object/public/workouts/processed/barbell-squat/barbell-squat_cropped_thumbnail.jpg' }}
+              key={currentThumbnailUrl}
+              source={{ uri: currentThumbnailUrl }}
               style={styles.headerImage}
               contentFit="cover"
+              cachePolicy="memory-disk"
+              priority="high"
+              onError={() => {
+                console.log('Failed to load thumbnail:', currentThumbnailUrl);
+                setFailedUrls(prev => new Set(prev).add(currentThumbnailUrl));
+              }}
             />
           </Animated.View>
                      <Animated.View style={[styles.headerBackButton, buttonAnimatedStyle]}>
@@ -213,7 +316,7 @@ export default function WorkoutScreen() {
          <View style={styles.contentContainer}>
          <View style={styles.summaryContainer}>
           <Text style={styles.weekNumber}>Week {weekNumber}</Text>
-          <Text style={styles.workoutTitle}>Tuesday's Leg Workout</Text>
+          <Text style={styles.workoutTitle}>{dynamicWorkoutTitle}</Text>
           <Text style={styles.workoutDescription}>
           Based on your last workout Buddy recommends this over that so it will go easy on your knees and  right ankle. 
           </Text>
@@ -221,13 +324,13 @@ export default function WorkoutScreen() {
           <View style={styles.elementwith_icon}>
             <Image source={require('../assets/icons/clock.svg')} style={styles.icon} />
 
-            <Text style={styles.elementText}>45 min</Text>
+            <Text style={styles.elementText}>{totalWorkoutMinutes} min</Text>
           </View>
 
           <View style={styles.elementwith_icon}>
             <Image source={require('../assets/icons/equipment.svg')} style={styles.icon} />
 
-            <Text style={styles.elementText}>8 exercises</Text>
+            <Text style={styles.elementText}>{workoutEntries.length} exercises</Text>
           </View>
 
           <View style={styles.elementwith_icon}>
@@ -285,17 +388,132 @@ export default function WorkoutScreen() {
              </View>
              </View>
 
-        {/* Equipment Section */}
+        
+
+          {/* Summary Section */}
+          <View style={styles.summaryExerciseSection}>
+            <View style={styles.summaryExerciseHeader}>
+              <Text style={styles.summaryExerciseTitle}>Exercises</Text>
+              <TouchableOpacity 
+                style={styles.summaryChevron}
+                onPress={() => {
+                  console.log('Summary chevron pressed');
+                  router.push('/exercises');
+                }}
+              >
+                {/* <Image
+                  source={require('../assets/icons/back.svg')}
+                  style={styles.chevronIcon}
+                  contentFit="contain"
+                /> */}
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.exerciseList}>
+              {exercises.map((exercise, index) => {
+                const handleExercisePress = () => {
+                  console.log(`Pressed info for ${exercise.name}`);
+                  const workoutEntry = workoutEntries.find(entry => {
+                    const cleanDbName = entry.node.exercises?.name?.replace(/\s*\([^)]*reps?\)|\s*\(\d+–\d+\)/i, '') || '';
+                    return cleanDbName === exercise.name || entry.node.exercises?.name === exercise.name;
+                  });
+
+                  const alternativeEntry = !workoutEntry ? workoutEntries.find(entry => {
+                    const cleanDbName = entry.node.exercises?.name?.replace(/\s*\([^)]*reps?\)|\s*\(\d+–\d+\)/i, '') || '';
+                    return cleanDbName.toLowerCase().includes(exercise.name.toLowerCase()) ||
+                           exercise.name.toLowerCase().includes(cleanDbName.toLowerCase());
+                  }) : null;
+
+                  const realExerciseData = workoutEntry?.node.exercises || alternativeEntry?.node.exercises;
+
+                  if (realExerciseData) {
+                    const cleanName = realExerciseData.name.replace(/\s*\([^)]*reps?\)|\s*\(\d+–\d+\)/i, '');
+                    const instructionsParts = realExerciseData.instructions ? realExerciseData.instructions.split(/(?=\(\d+(?:st|nd|rd|th)\))/).filter(Boolean).map(s => s.trim()) : [];
+                    const keyFormTipsSection = instructionsParts.find(s => s.includes('Key Form Tips'));
+                    const keyFormTips = keyFormTipsSection ?
+                      keyFormTipsSection.replace(/.*Key Form Tips:\s*/, '').split(/[;,]/).map(tip => tip.trim()).filter(Boolean) :
+                      ["Follow the form shown in the video", "Start with lighter weights if needed", "Focus on controlled movements"];
+
+                    const exerciseData = {
+                      name: cleanName,
+                      slug: realExerciseData.slug,
+                      id: realExerciseData.id,
+                      instructions: instructionsParts.filter(s => !s.includes('Key Form Tips')),
+                      tips: keyFormTips,
+                      videoUrl: realExerciseData.slug ? `https://kmtddcpdqkeqipyetwjs.supabase.co/storage/v1/object/public/workouts/processed/${realExerciseData.slug}/${realExerciseData.slug}_cropped_video.mp4` : undefined,
+                      equipment: realExerciseData.required_equipment?.split(',').map(e => e.trim()) || [],
+                      category: "How to"
+                    };
+                    setSelectedExercise(exerciseData);
+                    setShowExerciseInfo(true);
+                  } else {
+                    setSelectedExercise({
+                      name: exercise.name,
+                      slug: undefined,
+                      id: undefined,
+                      instructions: ['Exercise instructions not available'],
+                      videoUrl: undefined,
+                      equipment: ['No equipment specified'],
+                      category: "How to"
+                    });
+                    setShowExerciseInfo(true);
+                  }
+                };
+
+                return (
+                <TouchableOpacity
+                  key={exercise.id}
+                  style={styles.exerciseCard}
+                  onPress={handleExercisePress}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.exerciseRow}>
+                    <View style={styles.exerciseImageContainer}>
+                      <Image
+                        source={require('../assets/exercises/squats.png')}
+                        style={styles.exerciseImage}
+                        contentFit="cover"
+                        />
+                    </View>
+                    <View style={styles.exerciseInfo}>
+                      <View style={styles.exerciseTextContainer}>
+                        <Text style={styles.exerciseNumber} numberOfLines={2}>{exercise.name}</Text>
+                        <Text style={[
+                          styles.exerciseDetails,
+                          index === 2 && styles.exerciseDetails2
+                        ]}>
+                          {exercise.sets}  •  {exercise.muscles}
+                        </Text>
+                      </View>
+                      <View style={styles.playButton}>
+                        <Image
+                          source={require('../assets/icons/info.svg')}
+                          style={styles.playIcon}
+                          contentFit="contain"
+                        />
+                      </View>
+                    </View>
+                  </View>
+                  <Text style={styles.exerciseDescription} numberOfLines={3}>
+                    {exercise.description}
+                  </Text>
+                </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
+          {/* Equipment Section */}
         <View style={styles.equipmentSection}>
           <View style={styles.equipmentHeader}>
             <Text style={styles.equipmentTitle}>Equipment</Text>
-            <TouchableOpacity style={styles.equipmentChevron}>
+            {/* <TouchableOpacity style={styles.equipmentChevron}>
               <Image
                 source={require('../assets/icons/back.svg')}
                 style={styles.chevronIcon}
                 contentFit="contain"
               />
-            </TouchableOpacity>
+            </TouchableOpacity> */}
           </View>
           
           <View style={styles.equipmentList}>
@@ -319,72 +537,6 @@ export default function WorkoutScreen() {
             ))}
           </View>
             </View> 
-
-          {/* Summary Section */}
-          <View style={styles.summaryExerciseSection}>
-            <View style={styles.summaryExerciseHeader}>
-              <Text style={styles.summaryExerciseTitle}>Summary</Text>
-              <TouchableOpacity 
-                style={styles.summaryChevron}
-                onPress={() => {
-                  console.log('Summary chevron pressed');
-                  router.push('/exercises');
-                }}
-              >
-                <Image
-                  source={require('../assets/icons/back.svg')}
-                  style={styles.chevronIcon}
-                  contentFit="contain"
-                />
-              </TouchableOpacity>
-            </View>
-            
-            <View style={styles.exerciseList}>
-              {exercises.map((exercise, index) => (
-                <View key={exercise.id} style={styles.exerciseCard}>
-                  <View style={styles.exerciseRow}>
-                    <View style={styles.exerciseImageContainer}>
-                      <Image
-                        source={require('../assets/exercises/squats.png')}
-                        style={styles.exerciseImage}
-                        contentFit="cover"
-                        />
-                    </View>
-                    <View style={styles.exerciseInfo}>
-                      <View style={styles.exerciseTextContainer}>
-                        <Text style={styles.exerciseNumber} numberOfLines={2}>{exercise.name}</Text>
-                        <Text style={[
-                          styles.exerciseDetails,
-                          index === 2 && styles.exerciseDetails2
-                        ]}>
-                          {exercise.sets}  •  {exercise.muscles}
-                        </Text>
-                      </View>
-                      <TouchableOpacity 
-                        style={styles.playButton}
-                        onPress={() => {
-                          console.log(`Pressed info for ${exercise.name}`);
-                          router.push({
-                            pathname: '/exercises',
-                            params: { exerciseId: exercise.id },
-                          });
-                        }}
-                      >
-                        <Image
-                          source={require('../assets/icons/info.svg')}
-                          style={styles.playIcon}
-                          contentFit="contain"
-                        />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                  <Text style={styles.exerciseDescription} numberOfLines={3}>
-                    {exercise.description}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          </View>
           </View>
         </Animated.ScrollView>
 
@@ -470,6 +622,12 @@ export default function WorkoutScreen() {
       <MusicModal 
         visible={showMusicModal} 
         onClose={() => setShowMusicModal(false)} 
+      />
+
+      <ExerciseInfoModal
+        visible={showExerciseInfo}
+        onClose={() => setShowExerciseInfo(false)}
+        exercise={selectedExercise}
       />
     </>
   );
@@ -748,8 +906,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     lineHeight: 19.2,
     letterSpacing: 0,
-    textOverflow: 'ellipsis',
-    overflow: 'hidden',
+    flex: 1,
+    flexShrink: 1,
   },
   summaryExerciseSection: {
     paddingTop: 8,

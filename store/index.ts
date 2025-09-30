@@ -4,9 +4,11 @@ import { setupListeners } from '@reduxjs/toolkit/query'
 import devToolsEnhancer from 'redux-devtools-expo-dev-plugin'
 import { persistReducer, persistStore } from 'redux-persist'
 import { enhancedApi } from './api/enhancedApi'
+import { fitnessApi } from './api/fitnessApi'
 import { spotifyApi } from './api/spotifyApi'
 import { workoutListenerMiddleware } from './middleware/workoutListenerMiddleware'
 import chatSlice from './slices/chatSlice'
+import fitnessPlayerSlice from './slices/fitnessPlayerSlice'
 import musicSlice from './slices/musicSlice'
 import spotifyAuthSlice from './slices/spotifyAuthSlice'
 import userSlice from './slices/userSlice'
@@ -17,10 +19,11 @@ const userPersistConfig = {
   key: 'user',
   storage: AsyncStorage,
   whitelist: [
-    'extractedProfile', 
-    'profileGenerated', 
+    'extractedProfile',
+    'profileGenerated',
     'onboardingAnswers',
-  ], // Persist user profile data only
+    'onboardingCompleted',
+  ], // Persist user profile data and onboarding status
 };
 
 // Configure persistence for Spotify auth (separate from user)
@@ -52,17 +55,32 @@ const musicPersistConfig = {
   ], // Persist all music preferences
 };
 
+// Configure persistence for fitness player slice
+const fitnessPlayerPersistConfig = {
+  key: 'fitnessPlayer',
+  storage: AsyncStorage,
+  whitelist: [
+    'volume',
+    'shuffle',
+    'repeat',
+    'lastMixRequest',
+  ], // Persist player preferences and last mix request
+};
+
 const persistedUserReducer = persistReducer(userPersistConfig, userSlice);
 const persistedMusicReducer = persistReducer(musicPersistConfig, musicSlice);
 const persistedSpotifyAuthReducer = persistReducer(spotifyAuthPersistConfig, spotifyAuthSlice);
+const persistedFitnessPlayerReducer = persistReducer(fitnessPlayerPersistConfig, fitnessPlayerSlice);
 
 export const store = configureStore({
   reducer: {
     [enhancedApi.reducerPath]: enhancedApi.reducer,
+    [fitnessApi.reducerPath]: fitnessApi.reducer,
     [spotifyApi.reducerPath]: spotifyApi.reducer,
     user: persistedUserReducer,
     music: persistedMusicReducer,
     spotifyAuth: persistedSpotifyAuthReducer,
+    fitnessPlayer: persistedFitnessPlayerReducer,
     chat: chatSlice,
     workout: workoutSlice,
   },
@@ -98,6 +116,7 @@ export const store = configureStore({
       },
     })
     .concat(enhancedApi.middleware)
+    .concat(fitnessApi.middleware)
     .concat(spotifyApi.middleware)
     .concat(workoutListenerMiddleware.middleware),
   enhancers: (getDefaultEnhancers) =>
@@ -120,6 +139,8 @@ export const persistor = persistStore(store);
 
 // Setup listeners for automatic refetching
 setupListeners(store.dispatch)
+
+// Note: User profile sync now happens through RTK Query cache and normal app flow
 
 export type RootState = ReturnType<typeof store.getState>
 export type AppDispatch = typeof store.dispatch 

@@ -16,17 +16,17 @@ export class RealtimeClient {
     const subscriptionKey = `${endpoint}_${Date.now()}`
 
     try {
-      console.log('🔌 Setting up Supabase Realtime subscription for todos...')
+      console.log(`🔌 Setting up Supabase Realtime subscription for ${endpoint}...`)
       
-      // Subscribe to Supabase Realtime for the todos table
+      // Subscribe to Supabase Realtime for the specified table
       const subscription = supabase
-        .channel(`public:todos:${subscriptionKey}`)
+        .channel(`${endpoint}-${subscriptionKey}`)
         .on(
           'postgres_changes',
           {
             event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
             schema: 'public',
-            table: 'todos',
+            table: endpoint,
           },
           (payload) => {
             console.log('📡 Raw Supabase payload:', payload)
@@ -49,7 +49,7 @@ export class RealtimeClient {
           console.log('📡 Subscription status:', status)
           if (status === 'SUBSCRIBED') {
             console.log('✅ Successfully subscribed to real-time updates')
-            console.log('🔍 Listening for changes on: public.todos')
+            console.log(`🔍 Listening for changes on: public.${endpoint}`)
             console.log('🎯 Events: INSERT, UPDATE, DELETE')
           } else if (status === 'CHANNEL_ERROR') {
             console.error('❌ Channel subscription error')

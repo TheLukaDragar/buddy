@@ -5,7 +5,7 @@ export async function POST(req: Request) {
   try {
     const { userAnswers, conversationHistory }: { 
       userAnswers: string[], 
-      conversationHistory?: Array<{ role: string, content: string }> 
+      conversationHistory?: { role: string, content: string }[] 
     } = await req.json();
 
     if (!userAnswers || !Array.isArray(userAnswers)) {

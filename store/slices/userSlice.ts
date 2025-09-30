@@ -1,10 +1,11 @@
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { generateWorkoutPlan } from '../../services/workoutPlanService';
 import { generateAPIUrl } from '../../utils';
 
 // Async thunk for profile generation
 export const generateProfileFromAnswers = createAsyncThunk(
   'user/generateProfileFromAnswers',
-  async (userAnswers: string[], { rejectWithValue }) => {
+  async (userAnswers: string[], { rejectWithValue, dispatch }) => {
     try {
       console.log('Calling API to generate user profile from answers:', userAnswers);
 
@@ -25,10 +26,39 @@ export const generateProfileFromAnswers = createAsyncThunk(
       const profileText = await response.text();
       
       console.log('Generated user profile text:', profileText);
+
+      // After profile is generated, trigger workout plan generation
+      try {
+        console.log('Starting workout plan generation with profile:', profileText);
+        dispatch(generateWorkoutPlanFromProfile(profileText));
+      } catch (workoutPlanError) {
+        console.warn('Failed to start workout plan generation:', workoutPlanError);
+        // Don't fail profile generation if workout plan generation fails
+      }
+
       return profileText;
     } catch (error) {
       console.error('Error generating user profile:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to generate profile';
+      return rejectWithValue(errorMessage);
+    }
+  }
+);
+
+// Async thunk for workout plan generation
+export const generateWorkoutPlanFromProfile = createAsyncThunk(
+  'user/generateWorkoutPlanFromProfile',
+  async (userProfile: string, { rejectWithValue }) => {
+    try {
+      console.log('Calling workout plan generation service with profile:', userProfile);
+
+      const response = await generateWorkoutPlan({ userProfile });
+      
+      console.log('Workout plan generation started:', response);
+      return response;
+    } catch (error) {
+      console.error('Error starting workout plan generation:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to start workout plan generation';
       return rejectWithValue(errorMessage);
     }
   }
@@ -42,6 +72,10 @@ export interface UserState {
   isLoading: boolean;
   isLoadingProfile: boolean;
   error: string | null;
+  // Workout plan generation
+  workoutPlanRequestId: string | null;
+  isGeneratingWorkoutPlan: boolean;
+  workoutPlanError: string | null;
   // Spotify authentication
   spotifyAccessToken: string | null;
   spotifyRefreshToken: string | null;
@@ -57,6 +91,10 @@ const initialState: UserState = {
   isLoading: false,
   isLoadingProfile: false,
   error: null,
+  // Workout plan generation
+  workoutPlanRequestId: null,
+  isGeneratingWorkoutPlan: false,
+  workoutPlanError: null,
   // Spotify authentication
   spotifyAccessToken: null,
   spotifyRefreshToken: null,
@@ -145,6 +183,20 @@ const userSlice = createSlice({
       .addCase(generateProfileFromAnswers.rejected, (state, action) => {
         state.isLoadingProfile = false;
         state.error = action.payload as string;
+      })
+      // Handle workout plan generation
+      .addCase(generateWorkoutPlanFromProfile.pending, (state) => {
+        state.isGeneratingWorkoutPlan = true;
+        state.workoutPlanError = null;
+      })
+      .addCase(generateWorkoutPlanFromProfile.fulfilled, (state, action) => {
+        state.workoutPlanRequestId = action.payload.request_id;
+        state.isGeneratingWorkoutPlan = false;
+        state.workoutPlanError = null;
+      })
+      .addCase(generateWorkoutPlanFromProfile.rejected, (state, action) => {
+        state.isGeneratingWorkoutPlan = false;
+        state.workoutPlanError = action.payload as string;
       });
   },
 });
@@ -161,6 +213,9 @@ export const {
   setSpotifyTokens,
   refreshSpotifyToken,
   clearSpotifyTokens,
+  
 } = userSlice.actions;
+
+// Note: generateWorkoutPlanFromProfile is already exported as part of the createAsyncThunk
 
 export default userSlice.reducer; 

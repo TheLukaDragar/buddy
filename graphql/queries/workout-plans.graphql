@@ -1,0 +1,266 @@
+# Query to get workout plan requests for real-time monitoring
+query GetWorkoutPlanRequests($userId: UUID!) {
+  workout_plan_requestsCollection(
+    filter: { user_id: { eq: $userId } }
+    orderBy: [{ created_at: DescNullsLast }]
+    first: 10
+  ) {
+    edges {
+      node {
+        id
+        request_id
+        status
+        workout_plan_id
+        error_message
+        created_at
+        completed_at
+        current_step
+        total_steps
+        step_description
+        exercises_total
+        exercises_completed
+      }
+    }
+  }
+}
+
+# Query to get the completed workout plan
+query GetWorkoutPlan($id: UUID!) {
+  workout_plansCollection(filter: { id: { eq: $id } }) {
+    edges {
+      node {
+        id
+        summary
+        start_date
+        status
+        created_at
+        workout_entriesCollection(orderBy: [{ week_number: AscNullsLast }, { day: AscNullsLast }]) {
+          edges {
+            node {
+              id
+              week_number
+              day_name
+              day
+              date
+              sets
+              reps
+              weight
+              time
+              equipment
+              notes
+              exercises {
+                name
+                instructions
+                required_equipment
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+# Query to get all workout plans for a user
+query GetUserWorkoutPlans($userId: UUID!) {
+  workout_plansCollection(
+    filter: { user_id: { eq: $userId } }
+    orderBy: [{ created_at: DescNullsLast }]
+  ) {
+    edges {
+      node {
+        id
+        summary
+        start_date
+        status
+        created_at
+        workout_entriesCollection(orderBy: [{ week_number: AscNullsLast }, { day: AscNullsLast }]) {
+          edges {
+            node {
+              id
+              week_number
+              day_name
+              day
+              exercises {
+                name
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+# Mutation to set current active workout plans to paused (inactive)
+mutation DeactivateUserWorkoutPlans($userId: UUID!) {
+  updateworkout_plansCollection(
+    filter: { user_id: { eq: $userId }, status: { eq: active } }
+    set: { status: paused }
+  ) {
+    records {
+      id
+      status
+    }
+    affectedCount
+  }
+}
+
+# Query to get user profile
+query GetUserProfile($userId: UUID!) {
+  user_profilesCollection(filter: { user_id: { eq: $userId } }) {
+    edges {
+      node {
+        id
+        user_id
+        profile_text
+        onboarding_completed
+        created_at
+        updated_at
+      }
+    }
+  }
+}
+
+# Mutation to insert user profile
+mutation InsertUserProfile($userId: UUID!, $profileText: String!, $onboardingCompleted: Boolean!) {
+  insertIntouser_profilesCollection(
+    objects: [{
+      user_id: $userId
+      profile_text: $profileText
+      onboarding_completed: $onboardingCompleted
+    }]
+  ) {
+    records {
+      id
+      user_id
+      profile_text
+      onboarding_completed
+      created_at
+      updated_at
+    }
+  }
+}
+
+# Mutation to update user profile
+mutation UpdateUserProfile($userId: UUID!, $profileText: String!, $onboardingCompleted: Boolean!) {
+  updateuser_profilesCollection(
+    filter: { user_id: { eq: $userId } }
+    set: { 
+      profile_text: $profileText
+      onboarding_completed: $onboardingCompleted
+    }
+  ) {
+    records {
+      id
+      user_id
+      profile_text
+      onboarding_completed
+      created_at
+      updated_at
+    }
+  }
+}
+
+# Mutation to update only onboarding completion status
+mutation UpdateOnboardingStatus($userId: UUID!, $onboardingCompleted: Boolean!) {
+  updateuser_profilesCollection(
+    filter: { user_id: { eq: $userId } }
+    set: { onboarding_completed: $onboardingCompleted }
+  ) {
+    records {
+      id
+      onboarding_completed
+      updated_at
+    }
+  }
+}
+
+# More efficient query to get workout summary by week
+query GetWorkoutPlanByWeek($planId: UUID!, $weekNumber: Int!) {
+  workout_plansCollection(filter: { id: { eq: $planId } }) {
+    edges {
+      node {
+        id
+        summary
+        start_date
+        status
+        created_at
+        workout_entriesCollection(
+          filter: { week_number: { eq: $weekNumber } }
+          orderBy: [{ day: AscNullsLast }]
+        ) {
+          edges {
+            node {
+              id
+              week_number
+              day_name
+              day
+              date
+              sets
+              reps
+              weight
+              time
+              equipment
+              notes
+              exercises {
+                name
+                instructions
+                required_equipment
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+# Query to get a single day's workout with all exercises
+query GetWorkoutDay($planId: UUID!, $weekNumber: Int!, $day: weekday!) {
+  workout_plansCollection(filter: { id: { eq: $planId } }) {
+    edges {
+      node {
+        id
+        summary
+        start_date
+        status
+        workout_entriesCollection(
+          filter: {
+            week_number: { eq: $weekNumber }
+            day: { eq: $day }
+          }
+          orderBy: [{ created_at: AscNullsLast }]
+        ) {
+          edges {
+            node {
+              id
+              week_number
+              day_name
+              day
+              date
+              sets
+              reps
+              weight
+              time
+              equipment
+              notes
+              streak_exercise_equipment
+              streak_exercise_notes
+              exercises {
+                id
+                name
+                slug
+                icon_description
+                instructions
+                video_description
+                required_equipment
+                workout_location
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

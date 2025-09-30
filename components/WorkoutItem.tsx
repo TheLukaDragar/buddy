@@ -4,6 +4,7 @@ import { Text, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import Svg, { Circle } from "react-native-svg";
 import { nucleus } from '../Buddy_variables.js';
+import { getDayNameImage } from '../utils';
 
 export interface WorkoutItemData {
   id: string;
@@ -26,6 +27,42 @@ interface WorkoutItemProps {
   index?: number; // Optional index for auto-generating workout number
   onPress?: () => void;
 }
+
+// Function to get the appropriate image source based on day name
+const getWorkoutImageSource = (workoutTitle: string, fallbackImage?: string) => {
+  // First try to use the dayname image based on workout title
+  const dayNameImage = getDayNameImage(workoutTitle);
+  
+  // Map dayname images to require statements
+  const dayNameImageMap: { [key: string]: any } = {
+    'arms.png': require('../assets/dayname/arms.png'),
+    'back.png': require('../assets/dayname/back.png'),
+    'chest.png': require('../assets/dayname/chest.png'),
+    'core.png': require('../assets/dayname/core.png'),
+    'full-body.png': require('../assets/dayname/full-body.png'),
+    'hypertrophy.png': require('../assets/dayname/hypertrophy.png'),
+    'legs.png': require('../assets/dayname/legs.png'),
+    'lower.png': require('../assets/dayname/lower.png'),
+    'pull.png': require('../assets/dayname/pull.png'),
+    'push.png': require('../assets/dayname/push.png'),
+    'recovery.png': require('../assets/dayname/recovery.png'),
+    'shoulders.png': require('../assets/dayname/shoulders.png'),
+    'uper.png': require('../assets/dayname/uper.png'),
+  };
+
+  // Return the mapped dayname image
+  if (dayNameImageMap[dayNameImage]) {
+    return dayNameImageMap[dayNameImage];
+  }
+
+  // Fallback to old image logic if dayname image not found
+  if (fallbackImage === 'abs.png') return require('../assets/images/abs.png');
+  if (fallbackImage === 'legs.png') return require('../assets/images/legs.png');
+  if (fallbackImage === 'fullbody.png') return require('../assets/images/fullbody.png');
+  
+  // Final fallback
+  return require('../assets/dayname/full-body.png');
+};
 
 export default function WorkoutItem({ workout, index, onPress }: WorkoutItemProps) {
 
@@ -210,14 +247,9 @@ export default function WorkoutItem({ workout, index, onPress }: WorkoutItemProp
         {/* Workout Image - positioned absolutely in bottom right */}
         <View style={styles.workoutImageContainer}>
           <Image
-            source={
-              workout.image === 'abs.png' ? require('../assets/images/abs.png') :
-              workout.image === 'legs.png' ? require('../assets/images/legs.png') :
-              workout.image === 'fullbody.png' ? require('../assets/images/fullbody.png') :
-              require('../assets/exercises/squats.png') // fallback
-            }
+            source={getWorkoutImageSource(workout.title, workout.image)}
             style={[styles.workoutImage, styles.monochromeFilter]}
-            contentFit="cover"
+            contentFit="contain"
           />
         </View>
         
@@ -443,6 +475,7 @@ const styles = {
     width: 200,
     height: 120,
     overflow: 'hidden' as const,
+    zIndex: -1,
   },
   workoutImage: {
     width: 200,
