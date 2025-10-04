@@ -1,19 +1,19 @@
 import { Image } from "expo-image";
 import { useVideoPlayer, VideoView } from 'expo-video';
-import React, { useEffect, useMemo } from 'react';
-import { BackHandler, Dimensions, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, BackHandler, Dimensions, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { PanGestureHandler } from 'react-native-gesture-handler';
 import { Text } from 'react-native-paper';
 import Animated, {
-    Easing,
-    Extrapolate,
-    interpolate,
-    runOnJS,
-    useAnimatedGestureHandler,
-    useAnimatedStyle,
-    useSharedValue,
-    withSpring,
-    withTiming,
+  Easing,
+  Extrapolate,
+  interpolate,
+  runOnJS,
+  useAnimatedGestureHandler,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
 } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { nucleus } from '../Buddy_variables';
@@ -29,53 +29,75 @@ interface ExerciseVideoProps {
 
 const ExerciseVideo: React.FC<ExerciseVideoProps> = React.memo(({ videoUrl, exerciseName, slug }) => {
   console.log('ExerciseVideo - Props:', { videoUrl, exerciseName, slug });
-  const [showPlaceholder, setShowPlaceholder] = React.useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  const [showPlaceholder, setShowPlaceholder] = useState(!slug);
+  const videoOpacity = useSharedValue(0);
+  const loadingOpacity = useSharedValue(1);
 
-  // Always show placeholder if no slug
-  if (!slug) {
-    console.log('ExerciseVideo - No slug, showing placeholder');
-    return (
-      <View style={styles.heroContainer}>
-        <Image
-          source={require('../assets/images/9_16_2.png')}
-          style={styles.heroImage}
-          contentFit="cover"
-        />
-      </View>
-    );
-  }
+  // Create video URI
+  const videoUri = slug 
+    ? `https://kmtddcpdqkeqipyetwjs.supabase.co/storage/v1/object/public/workouts/processed/${slug}/${slug}_cropped_video.mp4`
+    : '';
 
-  const videoUri = `https://kmtddcpdqkeqipyetwjs.supabase.co/storage/v1/object/public/workouts/processed/${slug}/${slug}_cropped_video.mp4`;
-  console.log('ExerciseVideo - Video URL:', videoUri);
-
-  const player = useVideoPlayer(videoUri, (player) => {
+  const player = slug ? useVideoPlayer(videoUri, (player) => {
     player.loop = true;
     player.muted = true;
     player.play();
-  });
+  }) : null;
 
   // Handle video loading and errors
   useEffect(() => {
-    if (!player) return;
+    if (!player || !slug) return;
 
     const unsubscribe = player.addListener('statusChange', (status) => {
       console.log('ExerciseVideo - Player status:', status);
 
       if (status.status === 'readyToPlay') {
-        console.log('ExerciseVideo - Video loaded successfully, hiding placeholder');
+        console.log('ExerciseVideo - Video loaded successfully');
+        setIsLoading(false);
         setShowPlaceholder(false);
+        
+        // Smooth fade in video, fade out loading
+        videoOpacity.value = withTiming(1, { 
+          duration: 400, 
+          easing: Easing.out(Easing.ease) 
+        });
+        loadingOpacity.value = withTiming(0, { 
+          duration: 300, 
+          easing: Easing.out(Easing.ease) 
+        });
       } else if (status.status === 'error') {
         console.log('ExerciseVideo - Video failed to load, showing placeholder');
+        setIsLoading(false);
         setShowPlaceholder(true);
+        loadingOpacity.value = withTiming(0, { 
+          duration: 200, 
+          easing: Easing.out(Easing.ease) 
+        });
+      } else if (status.status === 'loading') {
+        console.log('ExerciseVideo - Video is loading');
+        setIsLoading(true);
+        videoOpacity.value = 0;
+        loadingOpacity.value = 1;
       }
     });
 
     return () => {
       unsubscribe.remove();
     };
-  }, [player]);
+  }, [player, slug]);
 
-  if (showPlaceholder) {
+  const videoAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: videoOpacity.value,
+  }));
+
+  const loadingAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: loadingOpacity.value,
+  }));
+
+  // Show placeholder if no slug or if error
+  if (showPlaceholder || !slug) {
+    console.log('ExerciseVideo - Showing placeholder');
     return (
       <View style={styles.heroContainer}>
         <Image
@@ -89,12 +111,23 @@ const ExerciseVideo: React.FC<ExerciseVideoProps> = React.memo(({ videoUrl, exer
 
   return (
     <View style={styles.heroContainer}>
-      <VideoView
-        player={player}
-        style={styles.heroVideo}
-        nativeControls={false}
-        contentFit="cover"
-      />
+      <Animated.View style={[styles.videoWrapper, videoAnimatedStyle]}>
+        <VideoView
+          player={player!}
+          style={styles.heroVideo}
+          nativeControls={false}
+          contentFit="cover"
+        />
+      </Animated.View>
+      <Animated.View 
+        style={[styles.loadingOverlay, loadingAnimatedStyle]}
+        pointerEvents={isLoading ? 'auto' : 'none'}
+      >
+        <ActivityIndicator 
+          size="large" 
+          color={nucleus.light.global.blue[70]} 
+        />
+      </Animated.View>
     </View>
   );
 });
@@ -402,10 +435,32 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  videoWrapper: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+  },
   heroVideo: {
     width: '100%',
     height: '100%',
   },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: nucleus.light.semantic.bg.muted,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 16,
+    zIndex: 10,
+  },
+  
   contentContainer: {
     padding: 32,
     gap: 24,

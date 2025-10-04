@@ -101,6 +101,7 @@ export default function OnboardingScreen() {
   const [selectedSuggestions, setSelectedSuggestions] = useState<string[]>([]);
   const [showCompletion, setShowCompletion] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
+  const [isWaitingForResponse, setIsWaitingForResponse] = useState(false);
   
   
 
@@ -119,9 +120,10 @@ export default function OnboardingScreen() {
       console.error('Onboarding chat error:', error);
     },
 
-  
+
     onFinish: (message) => {
-      console.log('AI message finished streaming:', message);
+      console.log('🏁 AI message finished streaming:', message);
+      console.log('🤔 isWaitingForResponse at finish:', isWaitingForResponse);
 
         // Parse the completed message for tools and suggestions
         let suggestions: string[] = [];
@@ -212,6 +214,7 @@ export default function OnboardingScreen() {
   useEffect(() => {
       if (!hasStarted) {
         setHasStarted(true);
+        setIsWaitingForResponse(true); // Show thinking for initial message
 
         // Send initial message to start the conversation
         setTimeout(() => {
@@ -266,6 +269,32 @@ export default function OnboardingScreen() {
       }, 100);
   }, [messages]);
 
+  // Hide thinking indicator when assistant starts responding with text
+  useEffect(() => {
+    console.log('📨 Messages changed, total messages:', messages.length);
+    console.log('🤔 isWaitingForResponse:', isWaitingForResponse);
+
+    // Check if there's an assistant message being streamed
+    const lastMessage = messages[messages.length - 1];
+    console.log('📝 Last message:', lastMessage ? { role: lastMessage.role, id: lastMessage.id } : 'none');
+
+    if (lastMessage && lastMessage.role === 'assistant') {
+      // Check if the message has actual text content
+      const textContent = lastMessage.parts
+        .filter(part => part.type === 'text')
+        .map(part => (part as any).text)
+        .join('');
+
+      console.log('📝 Message text content length:', textContent.length);
+
+      if (textContent.trim().length > 0) {
+        // Assistant has text, hide thinking indicator
+        console.log('✅ Assistant text detected, hiding thinking indicator');
+        setIsWaitingForResponse(false);
+      }
+    }
+  }, [messages]);
+
   const handleSuggestionTap = (suggestion: string) => {
     const isAlreadySelected = selectedSuggestions.includes(suggestion);
     
@@ -298,9 +327,13 @@ export default function OnboardingScreen() {
 
       const finalText = text.trim();
 
+      console.log('📤 Sending message:', finalText);
+
       setCurrentSuggestions([]); // Clear suggestions when user sends message
       setSelectedSuggestions([]); // Clear selected suggestions
       setInputText('');
+      setIsWaitingForResponse(true); // Show thinking indicator
+      console.log('🤔 Set isWaitingForResponse = true');
 
       // Send to AI
       sendMessage({ text: finalText });
@@ -533,15 +566,15 @@ export default function OnboardingScreen() {
             <Animated.View style={styles.chatContainer}>
               {renderMessages()}
               
-              {/* Buddy thinking indicator - only show when submitted, not when streaming */}
-              {status === 'submitted' && (
+              {/* Buddy thinking indicator - show when waiting for response */}
+              {isWaitingForResponse && (
                 <View style={{ width: '100%' }}>
                   <View style={styles.buddyMessage}>
                     <Avatar.Image size={40} source={require('../assets/avatar.png')} style={styles.avatar} />
                     <Text style={styles.buddyName}>Buddy</Text>
                   </View>
-                  
-                  <ReanimatedAnimated.View 
+
+                  <ReanimatedAnimated.View
                     entering={FadeIn.duration(300)}
                     style={styles.thinkingBubble}
                   >

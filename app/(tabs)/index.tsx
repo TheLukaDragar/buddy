@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from 'react-native-paper';
 import Animated, {
   useAnimatedStyle,
@@ -13,9 +13,8 @@ import Statistics from '../../components/Statistics';
 import WorkoutItem, { WorkoutItemData } from '../../components/WorkoutItem';
 import { useBuddyTheme } from '../../constants/BuddyTheme';
 import { useAuth } from '../../contexts/AuthContext';
-import { useWorkoutPlanGeneration } from '../../hooks/useWorkoutPlanGeneration';
 import type { RootState } from '../../store';
-import { useGetUserWorkoutPlansQuery, useGetWorkoutPlanByWeekQuery, useGetWorkoutPlanRequestsQuery } from '../../store/api/enhancedApi';
+import { useGetUserWorkoutPlansQuery, useGetWorkoutPlanByWeekQuery } from '../../store/api/enhancedApi';
 import { useAppSelector } from '../../store/hooks';
 import { getDayNameImage } from '../../utils';
 import { useIntro } from '../_layout';
@@ -27,7 +26,6 @@ export default function ExploreScreen() {
 
   // Get user profile data from Redux store
   const userProfile = useAppSelector((state: RootState) => (state as any).user?.extractedProfile);
-  const onboardingCompleted = useAppSelector((state: RootState) => (state as any).user?.onboardingCompleted);
 
   // Fetch real workout plans from database
   const { data: workoutPlansData, isLoading: isLoadingWorkoutPlans, isFetching: isFetchingWorkoutPlans, refetch: refetchWorkoutPlans } = useGetUserWorkoutPlansQuery(
@@ -37,45 +35,6 @@ export default function ExploreScreen() {
   
   const userWorkoutPlans = workoutPlansData?.workout_plansCollection?.edges?.map(edge => edge.node) || [];
   const activeWorkoutPlan = userWorkoutPlans.find(plan => plan.status === 'active');
-
-  // Check for workout plan generation requests
-  const { data: workoutPlanRequestsData } = useGetWorkoutPlanRequestsQuery(
-    { userId: user?.id || '' },
-    { skip: !user?.id }
-  );
-  
-  const workoutPlanRequests = workoutPlanRequestsData?.workout_plan_requestsCollection?.edges?.map(edge => edge.node) || [];
-  const latestRequest = workoutPlanRequests[0];
-  const isGeneratingWorkoutPlan = latestRequest?.status === 'processing';
-
-  // Add workout plan generation hook for testing
-  const workoutPlanGeneration = useWorkoutPlanGeneration(user?.id || '');
-
-  // Function to handle workout plan generation
-  const handleTestWorkoutPlanGeneration = async () => {
-    // Use actual profile or create a test profile
-    const profileToUse = userProfile
-
-    try {
-      console.log('🧪 Testing workout plan generation with Trigger.dev');
-      console.log('📝 Profile preview:', profileToUse.substring(0, 100) + '...');
-      console.log('👤 User ID:', user?.id);
-      
-      await workoutPlanGeneration.startGeneration(profileToUse);
-      
-      // Navigate to progress modal instead of showing alert
-      router.push('/workout-plan-progress');
-    } catch (error: any) {
-      console.error('❌ Test generation failed:', error);
-      // Navigate to progress modal to show error state
-      router.push('/workout-plan-progress');
-    }
-  };
-
-  // Function to handle progress link click
-  const handleProgressLinkClick = () => {
-    router.push('/workout-plan-progress');
-  };
   
   // Function to generate personalized morning message
   const getPersonalizedGreeting = () => {
@@ -95,15 +54,7 @@ export default function ExploreScreen() {
                     user?.email?.split('@')[0] ||
                     'there';
 
-    // Show welcome message for new users who haven't completed onboarding OR have no active plan
-    if (!onboardingCompleted || !activeWorkoutPlan) {
-      return {
-        greeting: `Welcome ${userName}!`,
-        message: 'Ready to start your fitness journey? 💪'
-      };
-    }
-
-    // Time-based greeting for existing users with active plans
+    // Time-based greeting
     let timeGreeting;
     if (hour < 5) {
       timeGreeting = 'Early start';
@@ -163,7 +114,7 @@ export default function ExploreScreen() {
     }
     
     // If user has profile data, try to personalize further
-    if (profile && onboardingCompleted) {
+    if (profile) {
       // Simple keyword matching for personalization
       if (profile.toLowerCase().includes('strength') || profile.toLowerCase().includes('muscle')) {
         return hour < 12 ? "Time to build that strength! 💪" : "Perfect time for strength training! 🏋️";
@@ -182,7 +133,7 @@ export default function ExploreScreen() {
   // Only recalculate when user identity or plan status changes, NOT when loading states change
   const { greeting, message } = useMemo(() => {
     return getPersonalizedGreeting();
-  }, [user?.email, user?.user_metadata?.full_name, userProfile, onboardingCompleted, activeWorkoutPlan?.id]);
+  }, [user?.email, user?.user_metadata?.full_name, userProfile, activeWorkoutPlan?.id]);
   
   // Animation values
   const greetingOpacity = useSharedValue(0);
@@ -589,38 +540,6 @@ export default function ExploreScreen() {
           </View>
         </Animated.View>
 
-        {/* Test Button for Workout Plan Generation - ALWAYS VISIBLE FOR TESTING */}
-        {/* <View style={styles.testButtonContainer}>
-          <Button
-            mode="contained"
-            onPress={handleTestWorkoutPlanGeneration}
-            loading={workoutPlanGeneration.isGenerating}
-            disabled={workoutPlanGeneration.isGenerating || isGeneratingWorkoutPlan}
-            style={styles.testButton}
-            labelStyle={styles.testButtonLabel}
-            compact={false}
-          >
-            {workoutPlanGeneration.isGenerating || isGeneratingWorkoutPlan 
-              ? 'Generating Workout Plan...' 
-              : '🧪 Test Generate Workout Plan (Trigger.dev)'
-            }
-          </Button>
-          {workoutPlanGeneration.currentRequest && (
-            <Text style={styles.testStatusText}>
-              Status: {workoutPlanGeneration.currentRequest.status}
-            </Text>
-          )}
-          <Text style={styles.debugText}>
-            Profile: {userProfile ? '✅ Available' : '❌ Not found'}
-          </Text>
-          <Text style={styles.debugText}>
-            User ID: {user?.id ? '✅ ' + user.id.slice(0, 8) + '...' : '❌ Not found'}
-          </Text>
-          <Text style={styles.debugText}>
-            Onboarding: {onboardingCompleted ? '✅ Complete' : '❌ Incomplete'}
-          </Text>
-        </View> */}
-
         {/* Week Calendar Section */}
         <Animated.View style={[styles.calendarContainer, calendarAnimatedStyle]}>
           <ScrollView 
@@ -683,31 +602,11 @@ export default function ExploreScreen() {
           </View>
 
           {/* Workout Items */}
-          {/* Subtle Progress Link */}
-          {(isGeneratingWorkoutPlan || workoutPlanGeneration.isGenerating) && (
-            <TouchableOpacity 
-              style={styles.progressLinkContainer} 
-              onPress={handleProgressLinkClick}
-              activeOpacity={0.7}
-            >
-              <View style={styles.progressLinkContent}>
-                <Text style={styles.progressLinkText}>Plan creation in progress</Text>
-                <Text style={styles.progressLinkSubtext}>Tap to view details</Text>
-              </View>
-              <View style={styles.progressDot} />
-            </TouchableOpacity>
-          )}
-
           <View style={styles.workoutItemsContainer}>
             {/* Show loading state while fetching any data */}
             {(workoutData === null || isLoadingWorkoutPlans || isFetchingWorkoutPlans || isLoadingWorkoutPlan || isFetchingWorkoutPlan) ? (
-              <View style={styles.emptyStateContainer}>
-                <View style={styles.emptyStateContent}>
-                  <Text style={styles.emptyStateTitle}>Loading your workout plan...</Text>
-                  <Text style={styles.emptyStateDescription}>
-                    Please wait while we prepare your fitness journey.
-                  </Text>
-                </View>
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={nucleus.light.global.blue["50"]} />
               </View>
             ) : workoutData && Array.isArray(workoutData) && workoutData.length > 0 ? (
               workoutData.map((workout, index) => {
@@ -731,25 +630,8 @@ export default function ExploreScreen() {
                   />
                 );
               })
-            ) : !onboardingCompleted ? (
-              // Show onboarding button when no workout plans and onboarding not completed
-              <View style={styles.emptyStateContainer}>
-                <View style={styles.emptyStateContent}>
-                  <Text style={styles.emptyStateTitle}>Ready to start your fitness journey?</Text>
-                  <Text style={styles.emptyStateDescription}>
-                    Let's create a personalized workout plan just for you.
-                  </Text>
-                  <TouchableOpacity
-                    style={styles.onboardingButton}
-                    onPress={() => setShowIntro(true)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.onboardingButtonText}>Let&apos;s go</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
             ) : (
-              // Show message when onboarding completed but no plans available
+              // Show message when no plans available
               <View style={styles.emptyStateContainer}>
                 <View style={styles.emptyStateContent}>
                   <Text style={styles.emptyStateTitle}>No workout plans yet</Text>
@@ -1351,79 +1233,12 @@ const styles = StyleSheet.create({
     color: nucleus.light.global.blue["70"],
   },
 
-  // Progress Link Styles
-  progressLinkContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: nucleus.light.semantic.bg.canvas,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: nucleus.light.global.brand["30"],
-  },
-  progressLinkContent: {
+  // Loading State Styles
+  loadingContainer: {
     flex: 1,
-  },
-  progressLinkText: {
-    fontFamily: 'PlusJakartaSans-Medium',
-    fontSize: 14,
-    fontWeight: '500',
-    lineHeight: 17,
-    color: nucleus.light.global.brand["80"],
-    marginBottom: 2,
-  },
-  progressLinkSubtext: {
-    fontFamily: 'PlusJakartaSans-Regular',
-    fontSize: 12,
-    lineHeight: 15,
-    color: nucleus.light.global.brand["60"],
-  },
-  progressDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: nucleus.light.global.brand["60"],
-  },
-
-  // Test Button Styles
-  testButtonContainer: {
-    marginHorizontal: 16,
-    marginBottom: 16,
+    justifyContent: 'center',
     alignItems: 'center',
-  },
-  testButton: {
-    backgroundColor: nucleus.light.global.brand["70"],
-    borderRadius: 12,
-    minHeight: 48,
-    elevation: 3,
-    shadowColor: nucleus.light.global.brand["70"],
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-  },
-  testButtonLabel: {
-    fontFamily: 'PlusJakartaSans-Bold',
-    fontSize: 16,
-    color: nucleus.light.global.blue["10"],
-    includeFontPadding: false,
-  },
-  testStatusText: {
-    fontFamily: 'PlusJakartaSans-Regular',
-    fontSize: 12,
-    color: nucleus.light.global.blue["70"],
-    marginTop: 8,
-    textAlign: 'center',
-  },
-  debugText: {
-    fontFamily: 'PlusJakartaSans-Regular',
-    fontSize: 11,
-    color: nucleus.light.global.blue["60"],
-    marginTop: 4,
-    textAlign: 'center',
-    opacity: 0.7,
+    paddingVertical: 60,
   },
 
   // Empty State Styles
@@ -1454,34 +1269,6 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     color: nucleus.light.semantic.fg.muted,
     textAlign: 'center',
-  },
-  onboardingButton: {
-    display: 'flex',
-    height: 48,
-    justifyContent: 'center',
-    alignItems: 'center',
-    alignSelf: 'stretch',
-    borderRadius: 48,
-    minHeight: 48,
-    backgroundColor: nucleus.light.global.blue["70"],
-    marginTop: 8,
-    shadowColor: 'rgba(77, 150, 191, 0.30)',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 25,
-    elevation: 10,
-  },
-  onboardingButtonText: {
-    color: nucleus.light.global.blue["10"],
-    textAlign: 'center',
-    fontFamily: 'PlusJakartaSans-Bold',
-    fontSize: 16,
-    fontStyle: 'normal',
-    fontWeight: '700',
-    lineHeight: 20,
-    letterSpacing: 0,
-    marginVertical: 0,
-    includeFontPadding: false,
   },
 
   // Bottom padding

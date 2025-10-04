@@ -35,6 +35,10 @@ import { Track } from '../../store/api/fitnessApi';
 
 const FITNESS_BASE_URL = 'https://mod.partynet.serv.si';
 
+// Note: Track URLs from the API are complete, time-limited (1 hour), single-use URLs
+// Format: "fitness/file/{id}?expires={timestamp}&sig={signature}"
+// They return the complete MP3 file without range support
+
 export default function FitnessPlayerScreen() {
   const theme = useBuddyTheme();
   const dispatch = useAppDispatch();
@@ -75,10 +79,10 @@ export default function FitnessPlayerScreen() {
   });
 
   // Audio player - using modern expo-audio hooks with direct streaming
-  const [currentAudioSource, setCurrentAudioSource] = useState<any>(null);
-  const player = useAudioPlayer(currentAudioSource);
-  console.log('[Fitness Player] Player:', player);
+  // Create a single player instance that we'll reuse
+  const player = useAudioPlayer();
   const playerStatus = useAudioPlayerStatus(player);
+  console.log('[Fitness Player] Player:', player);
 
   // State to track when we want to play test audio
   const [shouldPlayPublicTest, setShouldPlayPublicTest] = useState(false);
@@ -240,25 +244,30 @@ export default function FitnessPlayerScreen() {
   };
 
   // Play track using direct streaming from Partynet
+  // Note: Track URLs are complete URLs with expiry and signature, valid for 1 hour and single-use only
   const playTrack = async (track: Track, index: number) => {
     if (!track || !token) return;
 
     try {
       dispatch(setIsLoading(true));
-      
+
       console.log('[Fitness Player] Playing track:', track.title, 'by', track.artist);
-      console.log('[Fitness Player] Track URL:', `${FITNESS_BASE_URL}/fitness/file/${track.url}`);
-      
-      // Create audio source with authentication headers for direct streaming
+      console.log('[Fitness Player] Track URL:', `${FITNESS_BASE_URL}/${track.url}`);
+
+      // The URL from the API contains the full path with expiry and signature
+      // BUT we still need to send the Authorization header with the Bearer token
       const audioSource = {
-        uri: `${FITNESS_BASE_URL}/fitness/file/${track.url}`,
+        uri: `${FITNESS_BASE_URL}/${track.url}`,
         headers: {
           'Authorization': `Bearer ${token}`,
         },
       };
-      
-      console.log('[Fitness Player] Setting audio source for direct streaming');
-      setCurrentAudioSource(audioSource);
+
+      console.log('[Fitness Player] Replacing audio source for direct streaming (single-use, time-limited URL)');
+
+      // Replace the audio source in the existing player
+      player.replace(audioSource);
+
       dispatch(setCurrentTrack({ track, index }));
       dispatch(setIsPlaying(true)); // Set playing state to trigger auto-play
       dispatch(setError(null));
@@ -299,6 +308,21 @@ export default function FitnessPlayerScreen() {
     }
   }, [currentTrackIndex]);
 
+  // Respond to isPlaying state changes from Redux (music actions)
+  useEffect(() => {
+    if (!playerStatus.isLoaded) return; // Only respond when player is ready
+
+    if (isPlaying && !playerStatus.playing) {
+      // Redux wants play, but player is paused - start playing
+      console.log('[Fitness Player] Redux isPlaying=true, starting playback');
+      player.play();
+    } else if (!isPlaying && playerStatus.playing) {
+      // Redux wants pause, but player is playing - pause it
+      console.log('[Fitness Player] Redux isPlaying=false, pausing playback');
+      player.pause();
+    }
+  }, [isPlaying, playerStatus.isLoaded, playerStatus.playing]);
+
   // Sync player status with Redux state
   useEffect(() => {
     if (playerStatus) {
@@ -309,35 +333,18 @@ export default function FitnessPlayerScreen() {
         currentTime: playerStatus.currentTime,
         duration: playerStatus.duration
       });
-      
+
       dispatch(setPosition(playerStatus.currentTime * 1000)); // Convert to milliseconds
       dispatch(setDuration(playerStatus.duration * 1000)); // Convert to milliseconds
-      
-      // Handle track end
+
+      // Handle track end - auto next
       if (playerStatus.didJustFinish) {
+        console.log('[Fitness Player] Track finished, auto-advancing to next');
         handleTrackEnd();
       }
-      
+
       // Update loading state
       dispatch(setIsLoading(!playerStatus.isLoaded && playerStatus.isBuffering));
-      
-      // Auto-play when loaded
-      if (playerStatus.isLoaded && !playerStatus.playing && isPlaying) {
-        console.log('[Fitness Player] Auto-play triggered: isLoaded=true, playing=false, isPlaying=true');
-        try {
-          player.play();
-          console.log('[Fitness Player] player.play() called successfully');
-        } catch (error) {
-          console.error('[Fitness Player] player.play() failed:', error);
-          dispatch(setError('Failed to start playback'));
-        }
-      } else if (playerStatus.isLoaded && !isPlaying) {
-        console.log('[Fitness Player] Audio loaded but not set to play:', {
-          isLoaded: playerStatus.isLoaded,
-          playing: playerStatus.playing,
-          isPlaying: isPlaying
-        });
-      }
     }
   }, [playerStatus]);
 
@@ -449,14 +456,6 @@ export default function FitnessPlayerScreen() {
       player.volume = volume;
     }
   }, [volume, player]);
-
-  // Seek functionality
-  const seekTo = (seconds: number) => {
-    if (player) {
-      player.seekTo(seconds);
-      dispatch(setPosition(seconds * 1000));
-    }
-  };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: nucleus.light.global.blue["20"] }]}>

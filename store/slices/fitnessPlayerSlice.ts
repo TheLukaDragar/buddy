@@ -177,5 +177,14 @@ export const {
   reset,
 } = fitnessPlayerSlice.actions;
 
+// Selectors for use in music actions
+export const selectPartynetToken = (state: { fitnessPlayer: PlayerState }) => state.fitnessPlayer.token;
+export const selectPartynetPlaylist = (state: { fitnessPlayer: PlayerState }) => state.fitnessPlayer.playlist;
+export const selectPartynetCurrentTrack = (state: { fitnessPlayer: PlayerState }) => state.fitnessPlayer.currentTrack;
+export const selectPartynetIsPlaying = (state: { fitnessPlayer: PlayerState }) => state.fitnessPlayer.isPlaying;
+export const selectPartynetVolume = (state: { fitnessPlayer: PlayerState }) => state.fitnessPlayer.volume;
+export const selectPartynetPosition = (state: { fitnessPlayer: PlayerState }) => state.fitnessPlayer.position;
+export const selectPartynetDuration = (state: { fitnessPlayer: PlayerState }) => state.fitnessPlayer.duration;
+
 export default fitnessPlayerSlice.reducer;
 

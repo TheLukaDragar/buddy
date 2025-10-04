@@ -99,19 +99,18 @@ export default function EmailLoginScreen() {
 
     try {
       console.log("Verifying OTP code:", fullCode);
-      
-      // Verify the OTP
+
+      // Verify the OTP - RootNavigator will handle redirect based on onboarding status
       await verifyOtp(email, fullCode);
-      
-      // Navigate to main app on success
-      router.push("/(tabs)");
+
+      // Don't navigate here - let RootNavigator handle it based on onboarding status
     } catch (error) {
       console.error('OTP verification error:', error);
-      
+
       // Set error state and animate
       setHasError(true);
       animateDigitError();
-      
+
       // Clear the code and error state after a short delay
       setTimeout(() => {
         setCode(['', '', '', '', '', '']);

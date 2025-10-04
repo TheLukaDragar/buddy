@@ -137,9 +137,16 @@ export class AuthService {
    */
   async signOut(): Promise<AuthResult> {
     try {
-      // Sign out from Google as well
-      await GoogleSignin.signOut();
-      
+      // Sign out from Google if the user was signed in with Google
+      // Ignore errors if user wasn't signed in with Google
+      try {
+        await GoogleSignin.signOut();
+        console.log('✅ AuthService: Signed out from Google');
+      } catch (googleError) {
+        // Silently ignore Google sign-out errors (user might have signed in with email)
+        console.log('ℹ️ AuthService: Google sign-out skipped (likely email login)');
+      }
+
       const { error } = await this.supabase.auth.signOut();
 
       if (error) {
@@ -152,6 +159,7 @@ export class AuthService {
         };
       }
 
+      console.log('✅ AuthService: Signed out from Supabase');
       return { success: true };
     } catch (error) {
       return {

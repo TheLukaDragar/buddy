@@ -75,7 +75,8 @@ import {
 import type { ConversationEvent, ConversationStatus, Mode, Role } from '@elevenlabs/react-native';
 import { useConversation } from '@elevenlabs/react-native';
 import { AnimatedAIButton } from '../components/AnimatedAIButton';
-import SpotifyPlayerMini from '../components/SpotifyPlayerMini';
+import MusicPlayerMini from '../components/MusicPlayerMini';
+import PartynetAudioPlayer from '../components/PartynetAudioPlayer';
 import { useAuth } from '../contexts/AuthContext';
 import { useMicrophonePermission } from '../hooks/useMicrophonePermission';
 
@@ -352,11 +353,13 @@ const VideoContainer: React.FC<VideoContainerProps> = ({
   const session = useSelector(selectWorkoutSession);
   const [controlsVisible, setControlsVisible] = useState(true);
   const controlsOpacity = useSharedValue(1);
+
   // Auto-show controls when paused/preparing, hide when exercising
   useEffect(() => {
     if (status === 'paused' || activeWorkout?.isPaused || status === 'preparing') {
       setControlsVisible(true);
       controlsOpacity.value = withTiming(1, { duration: 300 });
+      dispatch(showMiniPlayer()); // Show mini player when START button appears
     } else if (status === 'exercising') {
       // Hide controls immediately when exercising starts
       setControlsVisible(false);
@@ -2665,16 +2668,19 @@ export default function ActiveWorkoutScreen() {
         onFinish={handleFinishWorkout}
       />
 
-      {/* Spotify Player Mini - Global Overlay */}
+      {/* Partynet Audio Player - Background audio playback */}
+      <PartynetAudioPlayer />
+
+      {/* Music Player Mini - Global Overlay (Spotify or Partynet) */}
       {status !== 'workout-completed' && (
-        <SpotifyPlayerMini 
+        <MusicPlayerMini
           onPress={() => setShowMusicModal(true)}
         />
       )}
 
       {/* Music Modal */}
-    
-      <MusicModal 
+
+      <MusicModal
         visible={showMusicModal}
         onClose={() => setShowMusicModal(false)}
       />
@@ -3005,7 +3011,7 @@ const styles = StyleSheet.create({
   // Bottom Modal Styles
   modalOverlay: {
     ...StyleSheet.absoluteFillObject,
-    zIndex: 2000, // Higher than SpotifyPlayerMini (1000)
+    zIndex: 2000, // Higher than MusicPlayerMini (1000)
     pointerEvents: 'box-none', // Allow touches to pass through to backdrop
   },
   modalBackdrop: {

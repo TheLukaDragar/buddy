@@ -14,7 +14,7 @@ export default function LoginCallback() {
       try {
         // Handle the OAuth callback
         const { data, error } = await supabase.auth.getSession();
-        
+
         if (error) {
           console.error('Auth callback error:', error);
           router.replace('/login');
@@ -22,8 +22,8 @@ export default function LoginCallback() {
         }
 
         if (data.session) {
-          // Successfully authenticated, redirect to main app
-          router.replace('/(tabs)');
+          // Session exists - RootNavigator will handle redirect based on onboarding status
+          // Don't navigate here to avoid flash of wrong screen
         } else {
           // No session found, redirect to login
           router.replace('/login');

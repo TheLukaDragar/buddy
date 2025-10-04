@@ -818,6 +818,7 @@ export const generateWorkoutPlanTask = task({
 
         console.log('Processing exercise slug:', slug, 'with name:', exerciseName);
         const exerciseId = await ensureExerciseExists(exerciseName);
+        co
         exerciseIds[slug] = exerciseId; // Store by slug, not exercise name
         
         // Update progress after each exercise is processed
@@ -833,6 +834,8 @@ export const generateWorkoutPlanTask = task({
       }
 
       console.log('All exercises ensured, now inserting workout plan...');
+
+      console.log('Workout plan with data:', JSON.stringify(workoutPlanWithData, null, 2));
 
       // Step 4: Insert workout plan
       const { data: planData, error: planError } = await supabase

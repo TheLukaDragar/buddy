@@ -259,7 +259,7 @@ export default function WorkoutPlanProgress() {
   };
 
   return (
-    <SafeAreaView edges={['top']} style={[
+    <SafeAreaView edges={['top', 'bottom']} style={[
       styles.container,
       { backgroundColor: nucleus.light.semantic.bg.subtle }
     ]}>

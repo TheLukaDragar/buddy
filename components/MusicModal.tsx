@@ -18,11 +18,107 @@ import { nucleus } from '../Buddy_variables';
 import { useSpotifyAuth } from '../hooks/useSpotifyAuth';
 import { syncPlaylistToSpotify } from '../store/actions/musicActions';
 import { useGetAvailableDevicesQuery, useGetUserPlaylistsQuery, useTransferPlaybackMutation } from '../store/api/spotifyApi';
+import { useGetMixMutation } from '../store/api/fitnessApi';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
-import { SelectedPlaylist, setMusicOption, setSelectedAppMusic, setSelectedPlaylist } from '../store/slices/musicSlice';
+import { SelectedPlaylist, setMusicOption, setSelectedAppMusic, setSelectedPlaylist, setSelectedPartynetMix, type PartynetMix } from '../store/slices/musicSlice';
+import { setPlaylist as setPartynetPlaylist, setIsPlaying as setPartynetIsPlaying } from '../store/slices/fitnessPlayerSlice';
 import SpotifyConnectModal from './SpotifyConnectModal';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
+
+// Predefined Partynet workout mixes
+const PARTYNET_MIXES: Array<PartynetMix & { id: string; name: string; description: string }> = [
+  {
+    id: 'high-energy-pop',
+    name: 'High Energy Pop',
+    description: '140-160 BPM • Party hits',
+    genre: 'POP',
+    style: 'PARTY HITS',
+    energyLevel: 'HIGH',
+    timePeriod: '2015-2025',
+    bpm: '140-160',
+  },
+  {
+    id: 'cardio-dance',
+    name: 'Cardio Dance',
+    description: '125-145 BPM • EDM beats',
+    genre: 'DANCE',
+    style: 'EDM',
+    energyLevel: 'HIGH',
+    timePeriod: '2018-2025',
+    bpm: '125-145',
+  },
+  {
+    id: 'power-house',
+    name: 'Power House',
+    description: '122-128 BPM • Deep house',
+    genre: 'HOUSE',
+    style: 'DEEP',
+    energyLevel: 'HIGH',
+    timePeriod: '2015-2025',
+    bpm: '122-128',
+  },
+  {
+    id: 'tropical-vibes',
+    name: 'Tropical Vibes',
+    description: '100-115 BPM • Tropical house',
+    genre: 'DANCE',
+    style: 'TROPICAL HOUSE',
+    energyLevel: 'MID',
+    timePeriod: '2015-2023',
+    bpm: '100-115',
+  },
+  {
+    id: 'rock-energy',
+    name: 'Rock Energy',
+    description: '130-150 BPM • Rock hits',
+    genre: 'ROCK',
+    style: 'ROCK',
+    energyLevel: 'HIGH',
+    timePeriod: '2000-2025',
+    bpm: '130-150',
+  },
+  {
+    id: 'electronic-pulse',
+    name: 'Electronic Pulse',
+    description: '128-135 BPM • Techno beats',
+    genre: 'ELECTRONIC',
+    style: 'TECHNO',
+    energyLevel: 'HIGH',
+    timePeriod: '2018-2025',
+    bpm: '128-135',
+  },
+  {
+    id: 'indie-groove',
+    name: 'Indie Groove',
+    description: '115-125 BPM • Indie dance',
+    genre: 'DANCE',
+    style: 'INDIE DANCE',
+    energyLevel: 'MID',
+    timePeriod: '2015-2025',
+    bpm: '115-125',
+  },
+  {
+    id: 'latin-heat',
+    name: 'Latin Heat',
+    description: '95-110 BPM • Latin house',
+    genre: 'HOUSE',
+    style: 'LATIN HOUSE',
+    energyLevel: 'HIGH',
+    timePeriod: '2015-2025',
+    bpm: '95-110',
+  },
+  {
+    id: 'summer-hits',
+    name: 'Summer Hits',
+    description: '118-130 BPM • Summer vibes',
+    genre: 'POP',
+    style: 'SUMMER HITS',
+    energyLevel: 'MID',
+    timePeriod: '2018-2024',
+    bpm: '118-130',
+  },
+];
 
 interface MusicModalProps {
   visible: boolean;
@@ -34,12 +130,18 @@ export default function MusicModal({ visible, onClose }: MusicModalProps) {
   const dispatch = useAppDispatch();
   const [showSpotifyConnect, setShowSpotifyConnect] = useState(false);
   const [previousPlaylistId, setPreviousPlaylistId] = useState<string | null>(null);
-  
+  const [selectedPartynetMixId, setSelectedPartynetMixId] = useState<string | null>(null);
+  const [isGeneratingMix, setIsGeneratingMix] = useState(false);
+
   // Redux state
-  const { selectedMusicOption, selectedPlaylist, selectedAppMusic } = useAppSelector(state => state.music);
-  
+  const { selectedMusicOption, selectedPlaylist, selectedAppMusic, selectedPartynetMix } = useAppSelector(state => state.music);
+  const partynetPlaylist = useAppSelector(state => state.fitnessPlayer.playlist);
+
   // Spotify auth
   const { isAuthenticated, loading: spotifyLoading } = useSpotifyAuth();
+
+  // Partynet mix generation
+  const [getMix] = useGetMixMutation();
 
   // Fetch user's Spotify playlists when authenticated (20 playlists)
   const { data: playlistsData, isLoading: playlistsLoading } = useGetUserPlaylistsQuery({ limit: 20 }, {
@@ -90,6 +192,14 @@ export default function MusicModal({ visible, onClose }: MusicModalProps) {
     }
   }, [isAuthenticated, showSpotifyConnect, dispatch]);
 
+  // Auto-select and generate first Partynet mix when user selects Partynet
+  useEffect(() => {
+    if (selectedMusicOption === 'partynet' && partynetPlaylist.length === 0 && !isGeneratingMix) {
+      console.log('🎵 [MusicModal] Auto-selecting first Partynet mix');
+      handlePartynetMixSelect(PARTYNET_MIXES[0]);
+    }
+  }, [selectedMusicOption, partynetPlaylist.length, isGeneratingMix]);
+
   // Auto-select first playlist when playlists load and none is selected
   useEffect(() => {
     if (playlistsData?.items && 
@@ -133,6 +243,74 @@ export default function MusicModal({ visible, onClose }: MusicModalProps) {
     }
   }, [selectedPlaylist, isAuthenticated, selectedMusicOption, dispatch, previousPlaylistId]);
 
+  // Handle Partynet mix selection
+  const handlePartynetMixSelect = async (mix: typeof PARTYNET_MIXES[0]) => {
+    console.log('🎵 [MusicModal] Selecting Partynet mix:', mix.name);
+    setSelectedPartynetMixId(mix.id);
+    setIsGeneratingMix(true);
+
+    try {
+      console.log('🎵 [MusicModal] Requesting mix with params:', {
+        genre: mix.genre,
+        style: mix.style,
+        energyLevel: mix.energyLevel,
+        timePeriod: mix.timePeriod,
+        bpm: mix.bpm,
+      });
+
+      const result = await getMix({
+        topHits: false,
+        explicitSongs: true,
+        mixParameters: [{
+          genre: mix.genre,
+          style: mix.style,
+          percentage: 100,
+          energyLevel: mix.energyLevel,
+          timePeriod: mix.timePeriod,
+          bpm: mix.bpm,
+        }],
+      }).unwrap();
+
+      console.log('🎵 [MusicModal] Mix received:', {
+        trackCount: result?.length || 0,
+        firstTrack: result?.[0]?.title || 'N/A',
+        resultType: typeof result,
+        isArray: Array.isArray(result),
+      });
+
+      // Ensure result is an array
+      const tracks = Array.isArray(result) ? result : [];
+
+      if (tracks.length === 0) {
+        console.warn('🎵 [MusicModal] Received empty playlist for mix:', mix.name);
+      }
+
+      // Store playlist in Redux
+      dispatch(setPartynetPlaylist(tracks));
+
+      // Update selected mix
+      dispatch(setSelectedPartynetMix({
+        genre: mix.genre,
+        style: mix.style,
+        energyLevel: mix.energyLevel,
+        timePeriod: mix.timePeriod,
+        bpm: mix.bpm,
+      }));
+
+      // Auto-start playback
+      if (tracks.length > 0) {
+        console.log('🎵 [MusicModal] Auto-starting Partynet playback');
+        dispatch(setPartynetIsPlaying(true));
+      }
+
+      console.log('🎵 [MusicModal] Partynet playlist stored successfully:', tracks.length, 'tracks');
+    } catch (error) {
+      console.error('🎵 [MusicModal] Failed to generate Partynet mix:', error);
+    } finally {
+      setIsGeneratingMix(false);
+    }
+  };
+
   // Render music cards based on selected option
   const renderMusicCards = () => {
     if (selectedMusicOption === 'spotify' && isAuthenticated) {
@@ -148,7 +326,7 @@ export default function MusicModal({ visible, onClose }: MusicModalProps) {
 
       if (playlistsData?.items && playlistsData.items.length > 0) {
         return playlistsData.items.map((playlist: any, index: number) => (
-          <Pressable 
+          <Pressable
             key={playlist.id || index}
             style={styles.musicCard}
             onPress={() => dispatch(setSelectedPlaylist({
@@ -196,10 +374,71 @@ export default function MusicModal({ visible, onClose }: MusicModalProps) {
       );
     }
 
+    if (selectedMusicOption === 'partynet') {
+      // Show Partynet predefined mixes
+      const partynetImages = [
+        require('../assets/images/9_16.png'),
+        require('../assets/images/9_16_2.png'),
+        require('../assets/images/9_16_3.png'),
+      ];
+
+      return PARTYNET_MIXES.map((mix, index) => {
+        const isThisMixGenerating = isGeneratingMix && selectedPartynetMixId === mix.id;
+        const isThisMixSelected = selectedPartynetMixId === mix.id && !isThisMixGenerating;
+        const trackCount = isThisMixSelected ? partynetPlaylist.length : 0;
+
+        return (
+          <Pressable
+            key={mix.id}
+            style={styles.musicCard}
+            onPress={() => handlePartynetMixSelect(mix)}
+            disabled={isGeneratingMix}
+          >
+            <Image
+              source={partynetImages[index % partynetImages.length]}
+              style={styles.musicCardBackground}
+              contentFit="cover"
+            />
+
+            {/* Loading overlay for this specific card */}
+            {isThisMixGenerating && (
+              <View style={styles.loadingOverlay}>
+                <ActivityIndicator size="small" color={nucleus.light.global.blue["10"]} />
+              </View>
+            )}
+
+            <View style={styles.musicCardTopRight}>
+              <View style={[
+                styles.musicBadgeGreen,
+                { opacity: isThisMixSelected ? 1 : 0 }
+              ]}>
+                <Image
+                  source={require('../assets/icons/check.svg')}
+                  style={styles.checkIcon}
+                  contentFit="contain"
+                />
+              </View>
+            </View>
+            <View style={styles.musicCardBottom}>
+              <Text style={styles.musicCardTitle} numberOfLines={1}>
+                {mix.name}
+              </Text>
+              <Text style={styles.musicCardSubtitle}>
+                {isThisMixSelected && trackCount > 0
+                  ? `${trackCount} tracks • ${mix.description}`
+                  : mix.description
+                }
+              </Text>
+            </View>
+          </Pressable>
+        );
+      });
+    }
+
     // Show default app music cards
     return (
       <>
-        <Pressable 
+        <Pressable
           style={styles.musicCard}
           onPress={() => dispatch(setSelectedAppMusic('beast-mode'))}
         >
@@ -225,7 +464,7 @@ export default function MusicModal({ visible, onClose }: MusicModalProps) {
           </View>
         </Pressable>
 
-        <Pressable 
+        <Pressable
           style={styles.musicCard}
           onPress={() => dispatch(setSelectedAppMusic('sweet-session'))}
         >
@@ -251,7 +490,7 @@ export default function MusicModal({ visible, onClose }: MusicModalProps) {
           </View>
         </Pressable>
 
-        <Pressable 
+        <Pressable
           style={styles.musicCard}
           onPress={() => dispatch(setSelectedAppMusic('feel'))}
         >
@@ -377,7 +616,7 @@ export default function MusicModal({ visible, onClose }: MusicModalProps) {
               
               {/* Radio Options */}
               <View style={styles.radioSection}>
-                <Pressable 
+                <Pressable
                   style={styles.radioOption}
                   onPress={() => dispatch(setMusicOption('app'))}
                 >
@@ -393,7 +632,7 @@ export default function MusicModal({ visible, onClose }: MusicModalProps) {
                   </View>
                 </Pressable>
 
-                <Pressable 
+                <Pressable
                   style={styles.radioOption}
                   onPress={handleSpotifySelect}
                 >
@@ -407,6 +646,22 @@ export default function MusicModal({ visible, onClose }: MusicModalProps) {
                     <View style={[
                       styles.radioButtonInner,
                       { opacity: selectedMusicOption === 'spotify' ? 1 : 0 }
+                    ]} />
+                  </View>
+                </Pressable>
+
+                <Pressable
+                  style={styles.radioOption}
+                  onPress={() => dispatch(setMusicOption('partynet'))}
+                >
+                  <Text style={styles.radioOptionText}>Partynet Fitness</Text>
+                  <View style={[
+                    styles.radioButton,
+                    selectedMusicOption === 'partynet' && styles.radioButtonSelected
+                  ]}>
+                    <View style={[
+                      styles.radioButtonInner,
+                      { opacity: selectedMusicOption === 'partynet' ? 1 : 0 }
                     ]} />
                   </View>
                 </Pressable>
@@ -778,5 +1033,16 @@ const styles = StyleSheet.create({
     lineHeight: 14.4,
     opacity: 0.8,
     marginTop: 2,
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

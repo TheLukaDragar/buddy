@@ -1,10 +1,11 @@
 import { BlurView } from 'expo-blur';
 import { Image } from "expo-image";
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Dimensions, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SystemBars } from 'react-native-edge-to-edge';
 import Animated, { Extrapolation, interpolate, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
+import Carousel, { ICarouselInstance } from 'react-native-reanimated-carousel';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { nucleus } from '../Buddy_variables';
 import ExerciseInfoModal from '../components/ExerciseInfoModal';
@@ -14,6 +15,8 @@ import { Weekday } from '../graphql/generated';
 import { selectWorkout } from '../store/actions/workoutActions';
 import { useGetWorkoutDayQuery } from '../store/api/enhancedApi';
 import { useAppDispatch } from '../store/hooks';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 
 const HEADER_HEIGHT = 250;
@@ -28,9 +31,9 @@ export default function WorkoutScreen() {
   const [showExerciseInfo, setShowExerciseInfo] = useState(false);
   const [selectedExercise, setSelectedExercise] = useState<any>(null);
   const [showMusicModal, setShowMusicModal] = useState(false);
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [failedUrls, setFailedUrls] = useState<Set<string>>(new Set());
   const scrollY = useSharedValue(0);
+  const carouselRef = useRef<ICarouselInstance>(null);
   const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
 
@@ -105,6 +108,12 @@ export default function WorkoutScreen() {
   console.log('Exercise slugs:', exerciseSlugs);
   console.log('Thumbnail URLs:', thumbnailUrls);
 
+  // Get valid thumbnail URLs, skipping failed ones (memoized to prevent flickering)
+  const validThumbnailUrls = useMemo(() =>
+    thumbnailUrls.filter(url => !failedUrls.has(url)),
+    [thumbnailUrls, failedUrls]
+  );
+
   // Preload all thumbnail images for faster loading (only once when URLs change)
   useEffect(() => {
     if (thumbnailUrls.length > 0) {
@@ -119,30 +128,17 @@ export default function WorkoutScreen() {
     }
   }, [thumbnailUrls.join(',')]);
 
-  // Cycle through thumbnails every 3 seconds
+  // Auto-play carousel every 3 seconds
   useEffect(() => {
-    const validCount = thumbnailUrls.filter(url => !failedUrls.has(url)).length;
-    if (validCount <= 1) return; // Don't cycle if only one or no images
+    const validCount = validThumbnailUrls.length;
+    if (validCount <= 1) return; // Don't auto-play if only one or no images
 
     const interval = setInterval(() => {
-      setCurrentImageIndex(prevIndex => (prevIndex + 1) % validCount);
+      carouselRef.current?.next();
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [thumbnailUrls.length, failedUrls.size]); // Depend on valid URLs count
-
-  // Get current thumbnail URL, skipping failed ones (memoized to prevent flickering)
-  const validThumbnailUrls = useMemo(() =>
-    thumbnailUrls.filter(url => !failedUrls.has(url)),
-    [thumbnailUrls, failedUrls]
-  );
-
-  const currentThumbnailUrl = useMemo(() =>
-    validThumbnailUrls.length > 0
-      ? validThumbnailUrls[currentImageIndex % validThumbnailUrls.length]
-      : 'https://kmtddcpdqkeqipyetwjs.supabase.co/storage/v1/object/public/workouts/processed/barbell-squat/barbell-squat_cropped_thumbnail.jpg',
-    [validThumbnailUrls, currentImageIndex]
-  );
+  }, [validThumbnailUrls.length]);
 
   const scrollHandler = useAnimatedScrollHandler((event) => {
     scrollY.value = event.contentOffset.y;
@@ -161,7 +157,7 @@ export default function WorkoutScreen() {
     };
   });
 
-  const imageAnimatedStyle = useAnimatedStyle(() => {
+  const carouselAnimatedStyle = useAnimatedStyle(() => {
     const opacity = interpolate(
       scrollY.value,
       [0, HEADER_HEIGHT - HEADER_MIN_HEIGHT],
@@ -241,10 +237,16 @@ export default function WorkoutScreen() {
     image: require('../assets/icons/mat.png'), // Default image for now
   }));
 
-  // Create exercises summary from dynamic data
+  // Create exercises summary from dynamic data with thumbnail URLs
   const exercises = workoutEntries.map((entry, index) => {
     // Clean up exercise name by removing rep ranges in parentheses
     const cleanName = entry.node.exercises.name.replace(/\s*\([^)]*reps?\)|\s*\(\d+–\d+\)/i, '');
+    
+    // Get thumbnail URL for this exercise
+    const slug = entry.node.exercises?.slug;
+    const thumbnailUrl = slug 
+      ? `https://kmtddcpdqkeqipyetwjs.supabase.co/storage/v1/object/public/workouts/processed/${slug}/${slug}_cropped_thumbnail_low.jpg`
+      : null;
 
     return {
       id: index + 1,
@@ -252,7 +254,8 @@ export default function WorkoutScreen() {
       sets: `${entry.node.sets} sets`,
       muscles: entry.node.equipment, // Using equipment as muscle info for now
       description: entry.node.exercises.instructions || 'Exercise instructions',
-      image: require('../assets/exercises/squats.png'), // Default image
+      thumbnailUrl: thumbnailUrl,
+      slug: slug,
     };
   });
 
@@ -266,19 +269,42 @@ export default function WorkoutScreen() {
         
         {/* Collapsible Header */}
         <Animated.View style={[styles.header, headerAnimatedStyle]}>
-          <Animated.View style={[styles.headerImageContainer, imageAnimatedStyle]}>
-            <Image
-              key={currentThumbnailUrl}
-              source={{ uri: currentThumbnailUrl }}
-              style={styles.headerImage}
-              contentFit="cover"
-              cachePolicy="memory-disk"
-              priority="high"
-              onError={() => {
-                console.log('Failed to load thumbnail:', currentThumbnailUrl);
-                setFailedUrls(prev => new Set(prev).add(currentThumbnailUrl));
-              }}
-            />
+          <Animated.View style={[styles.headerImageContainer, carouselAnimatedStyle]}>
+            {validThumbnailUrls.length > 0 ? (
+              <Carousel
+                ref={carouselRef}
+                loop
+                width={SCREEN_WIDTH}
+                height={HEADER_HEIGHT}
+                autoPlay={false}
+                data={validThumbnailUrls}
+                scrollAnimationDuration={600}
+                mode="parallax"
+                modeConfig={{
+                  parallaxScrollingScale: 1,
+                  parallaxScrollingOffset: 0,
+                }}
+                renderItem={({ item }) => (
+                  <Image
+                    source={{ uri: item }}
+                    style={styles.headerImage}
+                    contentFit="cover"
+                    cachePolicy="memory-disk"
+                    priority="high"
+                    onError={() => {
+                      console.log('Failed to load thumbnail:', item);
+                      setFailedUrls(prev => new Set(prev).add(item));
+                    }}
+                  />
+                )}
+              />
+            ) : (
+              <Image
+                source={{ uri: 'https://kmtddcpdqkeqipyetwjs.supabase.co/storage/v1/object/public/workouts/processed/barbell-squat/barbell-squat_cropped_thumbnail.jpg' }}
+                style={styles.headerImage}
+                contentFit="cover"
+              />
+            )}
           </Animated.View>
                      <Animated.View style={[styles.headerBackButton, buttonAnimatedStyle]}>
              <TouchableOpacity
@@ -469,11 +495,25 @@ export default function WorkoutScreen() {
                 >
                   <View style={styles.exerciseRow}>
                     <View style={styles.exerciseImageContainer}>
-                      <Image
-                        source={require('../assets/exercises/squats.png')}
-                        style={styles.exerciseImage}
-                        contentFit="cover"
+                      {exercise.thumbnailUrl ? (
+                        <Image
+                          source={{ uri: exercise.thumbnailUrl }}
+                          style={styles.exerciseImage}
+                          contentFit="cover"
+                          cachePolicy="memory-disk"
+                          onError={() => {
+                            console.log('Failed to load exercise thumbnail:', exercise.thumbnailUrl);
+                          }}
+                          placeholder={require('../assets/exercises/squats.png')}
+                          placeholderContentFit="cover"
                         />
+                      ) : (
+                        <Image
+                          source={require('../assets/exercises/squats.png')}
+                          style={styles.exerciseImage}
+                          contentFit="cover"
+                        />
+                      )}
                     </View>
                     <View style={styles.exerciseInfo}>
                       <View style={styles.exerciseTextContainer}>

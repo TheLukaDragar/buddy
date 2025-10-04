@@ -1,7 +1,19 @@
 import { createAsyncThunk } from '@reduxjs/toolkit';
 import { spotifyApi } from '../api/spotifyApi';
 import type { RootState } from '../index';
-import { setSelectedAppMusic, setSelectedPlaylist } from '../slices/musicSlice';
+import { setSelectedAppMusic, setSelectedPlaylist, type MusicProvider } from '../slices/musicSlice';
+import {
+  setIsPlaying as setPartynetPlaying,
+  setVolume as setPartynetVolume,
+  nextTrack as partynetNextTrack,
+  previousTrack as partynetPreviousTrack,
+  selectPartynetCurrentTrack,
+  selectPartynetIsPlaying,
+  selectPartynetVolume,
+  selectPartynetPlaylist,
+  selectPartynetPosition,
+  selectPartynetDuration
+} from '../slices/fitnessPlayerSlice';
 
 // =============================================================================
 // MUSIC NAVIGATION TOOLS - Agent Tools for Playlist Control
@@ -459,7 +471,7 @@ export const playTrack = createAsyncThunk(
         let tracks: any[] = [];
         
         if (selectedPlaylist.id === 'liked') {
-          // Get ALL liked songs (cached for 1 hour)
+          // Get ALL liked songs (cached for 1 hour)h
           const likedSongs = dispatch(
             spotifyApi.endpoints.getLikedSongs.initiate()
           );
@@ -591,10 +603,21 @@ export const skipNext = createAsyncThunk(
   'music/skipNext',
   async (_, { getState, dispatch, rejectWithValue }) => {
     const state = getState() as RootState;
+    const provider = state.music.selectedMusicOption;
     const isSpotifyAuth = state.spotifyAuth.accessToken && state.spotifyAuth.user;
-    const selectedMusicOption = state.music.selectedMusicOption;
-    
-    if (!isSpotifyAuth || selectedMusicOption === 'app') {
+
+    // Partynet
+    if (provider === 'partynet') {
+      dispatch(partynetNextTrack());
+      return {
+        success: true,
+        platform: 'partynet',
+        message: 'Skipped to next track'
+      };
+    }
+
+    // App music or no Spotify auth
+    if (!isSpotifyAuth || provider === 'app') {
       return {
         success: true,
         platform: 'app',
@@ -641,10 +664,21 @@ export const skipPrevious = createAsyncThunk(
   'music/skipPrevious',
   async (_, { getState, dispatch, rejectWithValue }) => {
     const state = getState() as RootState;
+    const provider = state.music.selectedMusicOption;
     const isSpotifyAuth = state.spotifyAuth.accessToken && state.spotifyAuth.user;
-    const selectedMusicOption = state.music.selectedMusicOption;
-    
-    if (!isSpotifyAuth || selectedMusicOption === 'app') {
+
+    // Partynet
+    if (provider === 'partynet') {
+      dispatch(partynetPreviousTrack());
+      return {
+        success: true,
+        platform: 'partynet',
+        message: 'Skipped to previous track'
+      };
+    }
+
+    // App music or no Spotify auth
+    if (!isSpotifyAuth || provider === 'app') {
       return {
         success: true,
         platform: 'app',
@@ -681,10 +715,21 @@ export const pauseMusic = createAsyncThunk(
   'music/pauseMusic',
   async (_, { getState, dispatch, rejectWithValue }) => {
     const state = getState() as RootState;
+    const provider = state.music.selectedMusicOption;
     const isSpotifyAuth = state.spotifyAuth.accessToken && state.spotifyAuth.user;
-    const selectedMusicOption = state.music.selectedMusicOption;
-    
-    if (!isSpotifyAuth || selectedMusicOption === 'app') {
+
+    // Partynet
+    if (provider === 'partynet') {
+      dispatch(setPartynetPlaying(false));
+      return {
+        success: true,
+        platform: 'partynet',
+        message: 'Music paused'
+      };
+    }
+
+    // App music or no Spotify auth
+    if (!isSpotifyAuth || provider === 'app') {
       return {
         success: true,
         platform: 'app',
@@ -737,10 +782,21 @@ export const resumeMusic = createAsyncThunk(
   'music/resumeMusic',
   async (_, { getState, dispatch, rejectWithValue }) => {
     const state = getState() as RootState;
+    const provider = state.music.selectedMusicOption;
     const isSpotifyAuth = state.spotifyAuth.accessToken && state.spotifyAuth.user;
-    const selectedMusicOption = state.music.selectedMusicOption;
-    
-    if (!isSpotifyAuth || selectedMusicOption === 'app') {
+
+    // Partynet
+    if (provider === 'partynet') {
+      dispatch(setPartynetPlaying(true));
+      return {
+        success: true,
+        platform: 'partynet',
+        message: 'Music resumed'
+      };
+    }
+
+    // App music or no Spotify auth
+    if (!isSpotifyAuth || provider === 'app') {
       return {
         success: true,
         platform: 'app',
@@ -819,12 +875,24 @@ export const setVolume = createAsyncThunk(
   'music/setVolume',
   async ({ volume }: { volume: number }, { getState, dispatch, rejectWithValue }) => {
     const state = getState() as RootState;
+    const provider = state.music.selectedMusicOption;
     const isSpotifyAuth = state.spotifyAuth.accessToken && state.spotifyAuth.user;
-    const selectedMusicOption = state.music.selectedMusicOption;
-    
+
     const clampedVolume = Math.max(0, Math.min(100, volume));
-    
-    if (!isSpotifyAuth || selectedMusicOption === 'app') {
+
+    // Partynet (volume is 0-1 in fitnessPlayerSlice)
+    if (provider === 'partynet') {
+      dispatch(setPartynetVolume(clampedVolume / 100));
+      return {
+        success: true,
+        platform: 'partynet',
+        volume: clampedVolume,
+        message: `Volume set to ${clampedVolume}%`
+      };
+    }
+
+    // App music
+    if (!isSpotifyAuth || provider === 'app') {
       return {
         success: true,
         platform: 'app',

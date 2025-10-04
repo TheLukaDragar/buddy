@@ -56,13 +56,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         dispatch(enhancedApi.util.resetApiState());
       }
 
-      // Sync user profile from database when user signs in
+      // Sync user profile from database when user signs in OR clear on sign out
       if (session?.user) {
         try {
           await syncUserProfileWithDatabase(dispatch);
         } catch (error) {
           console.error('Failed to sync user profile on auth change:', error);
         }
+      } else if (!session?.user && previousUser) {
+        // User signed out, clear Redux state
+        console.log('🧹 User signed out, clearing Redux state');
+        dispatch(clearUserData());
       }
 
       setLoading(false);
