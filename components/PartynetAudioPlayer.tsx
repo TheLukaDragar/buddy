@@ -33,6 +33,7 @@ export default function PartynetAudioPlayer() {
 
   // Track current loaded track to avoid reloading same track
   const currentLoadedTrackUrl = useRef<string | null>(null);
+  const shouldPlayAfterLoadRef = useRef<boolean>(false);
 
   // Update volume when Redux volume changes
   useEffect(() => {
@@ -55,6 +56,13 @@ export default function PartynetAudioPlayer() {
     if (trackUrl !== currentLoadedTrackUrl.current) {
       console.log('[PartynetAudioPlayer] Loading new track:', currentTrack.title);
 
+      // Remember if we should auto-play after loading
+      shouldPlayAfterLoadRef.current = isPlaying;
+
+      // Reset position in Redux before loading new track
+      dispatch(setPosition(0));
+      dispatch(setDuration(0));
+
       player.replace({
         uri: trackUrl,
         headers: {
@@ -66,12 +74,24 @@ export default function PartynetAudioPlayer() {
     }
   }, [provider, currentTrack, token]);
 
-  // Handle play/pause based on Redux state (separate effect to avoid loops)
+  // Handle play/pause based on Redux state AND auto-play new tracks
   useEffect(() => {
     if (provider !== 'partynet' || !playerStatus.isLoaded) {
       return;
     }
 
+    // Auto-play newly loaded track if we should be playing
+    if (shouldPlayAfterLoadRef.current) {
+      console.log('[PartynetAudioPlayer] Auto-playing newly loaded track');
+      shouldPlayAfterLoadRef.current = false;
+      // Only play if we're actually supposed to be playing
+      if (isPlaying) {
+        player.play();
+      }
+      return;
+    }
+
+    // Normal play/pause sync - only act if there's a mismatch
     if (isPlaying && !playerStatus.playing) {
       console.log('[PartynetAudioPlayer] Starting playback');
       player.play();
@@ -79,7 +99,7 @@ export default function PartynetAudioPlayer() {
       console.log('[PartynetAudioPlayer] Pausing playback');
       player.pause();
     }
-  }, [provider, isPlaying, playerStatus.isLoaded]);
+  }, [provider, isPlaying, playerStatus.isLoaded, playerStatus.playing]);
 
   // Sync position and duration to Redux
   useEffect(() => {
@@ -91,7 +111,16 @@ export default function PartynetAudioPlayer() {
 
   // Handle track completion - auto-advance to next track
   useEffect(() => {
-    if (playerStatus.isLoaded && !playerStatus.playing && playerStatus.duration > 0 &&
+    // Only consider track finished if:
+    // 1. Track is loaded
+    // 2. Not currently playing
+    // 3. Has a valid duration
+    // 4. Current time is near the end (within 0.5s)
+    // 5. Current time is greater than 1 second (to avoid false positives on track changes)
+    if (playerStatus.isLoaded &&
+        !playerStatus.playing &&
+        playerStatus.duration > 0 &&
+        playerStatus.currentTime > 1 &&
         playerStatus.currentTime >= playerStatus.duration - 0.5) {
       console.log('[PartynetAudioPlayer] Track finished, advancing to next');
       dispatch(nextTrack());

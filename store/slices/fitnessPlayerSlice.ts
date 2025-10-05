@@ -50,7 +50,7 @@ const initialState: PlayerState = {
   isLoading: false,
   position: 0,
   duration: 0,
-  volume: 1.0,
+  volume: 0.5,
   shuffle: false,
   repeat: 'off',
   error: null,

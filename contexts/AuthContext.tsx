@@ -1,5 +1,5 @@
 import { Session, User } from '@supabase/supabase-js';
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { authService } from '../services/authService';
 import { syncUserProfileWithDatabase } from '../services/userProfileService';
@@ -24,12 +24,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const dispatch = useDispatch<AppDispatch>();
+  const previousUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     // Get initial session
     authService.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
+      previousUserIdRef.current = session?.user?.id ?? null;
 
       // Sync user profile from database when session is restored
       if (session?.user) {
@@ -45,15 +47,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Listen for auth changes
     const { data: { subscription } } = authService.onAuthStateChange(async (_event: string, session: Session | null) => {
-      const previousUser = user;
+      const currentUserId = session?.user?.id ?? null;
+      const previousUserId = previousUserIdRef.current;
 
       setSession(session);
       setUser(session?.user ?? null);
 
       // Clear API cache when user changes to prevent stale cached data
-      if (previousUser?.id !== session?.user?.id) {
+      if (previousUserId !== currentUserId) {
         console.log('🧹 User changed, clearing API cache to prevent stale data');
         dispatch(enhancedApi.util.resetApiState());
+        previousUserIdRef.current = currentUserId;
       }
 
       // Sync user profile from database when user signs in OR clear on sign out
@@ -63,7 +67,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } catch (error) {
           console.error('Failed to sync user profile on auth change:', error);
         }
-      } else if (!session?.user && previousUser) {
+      } else if (!session?.user && previousUserId) {
         // User signed out, clear Redux state
         console.log('🧹 User signed out, clearing Redux state');
         dispatch(clearUserData());
