@@ -8,7 +8,10 @@ import {
   setPosition,
   setDuration,
   nextTrack,
+  updateTrackUrl,
+  setError,
 } from '../store/slices/fitnessPlayerSlice';
+import { useGetMixMutation } from '../store/api/fitnessApi';
 
 const FITNESS_BASE_URL = 'https://mod.partynet.serv.si';
 
@@ -24,16 +27,25 @@ export default function PartynetAudioPlayer() {
   const provider = useSelector((state: RootState) => state.music.selectedMusicOption);
   const token = useSelector((state: RootState) => state.fitnessPlayer.token);
   const currentTrack = useSelector((state: RootState) => state.fitnessPlayer.currentTrack);
+  const currentTrackIndex = useSelector((state: RootState) => state.fitnessPlayer.currentTrackIndex);
   const isPlaying = useSelector((state: RootState) => state.fitnessPlayer.isPlaying);
   const volume = useSelector((state: RootState) => state.fitnessPlayer.volume);
+  const playCount = useSelector((state: RootState) => state.fitnessPlayer.playCount);
+  const lastMixRequest = useSelector((state: RootState) => state.fitnessPlayer.lastMixRequest);
+
+  // API hooks
+  const [getMix] = useGetMixMutation();
 
   // Create audio player instance
   const player = useAudioPlayer();
   const playerStatus = useAudioPlayerStatus(player);
 
-  // Track current loaded track to avoid reloading same track
+  // Track current loaded track to detect when to reload
   const currentLoadedTrackUrl = useRef<string | null>(null);
+  const lastPlayCount = useRef<number>(-1);
   const shouldPlayAfterLoadRef = useRef<boolean>(false);
+  // Track which URLs have been used (Partynet URLs are single-use)
+  const usedUrls = useRef<Set<string>>(new Set());
 
   // Update volume when Redux volume changes
   useEffect(() => {
@@ -44,35 +56,78 @@ export default function PartynetAudioPlayer() {
     }
   }, [volume, playerStatus.isLoaded]);
 
-  // Load track when currentTrack changes
+  // Load track when currentTrack changes OR when same track is replayed (playCount changes)
   useEffect(() => {
     if (provider !== 'partynet' || !currentTrack || !token) {
       return;
     }
 
-    const trackUrl = `${FITNESS_BASE_URL}/${currentTrack.url}`;
+    const loadTrack = async () => {
+      const trackUrl = `${FITNESS_BASE_URL}/${currentTrack.url}`;
+      const urlWasUsed = usedUrls.current.has(currentTrack.url);
 
-    // Load new track if different from current
-    if (trackUrl !== currentLoadedTrackUrl.current) {
-      console.log('[PartynetAudioPlayer] Loading new track:', currentTrack.title);
+      console.log(`[PartynetAudioPlayer] loadTrack: ${currentTrack.title}, URL previously used: ${urlWasUsed}, hasLastMixRequest: ${!!lastMixRequest}`);
 
-      // Remember if we should auto-play after loading
-      shouldPlayAfterLoadRef.current = isPlaying;
+      // Check if URL was already used (Partynet URLs are single-use)
+      if (urlWasUsed && lastMixRequest) {
+        console.log('[PartynetAudioPlayer] ⚠️ URL already used (single-use), fetching new mix for fresh URL...');
 
-      // Reset position in Redux before loading new track
-      dispatch(setPosition(0));
-      dispatch(setDuration(0));
+        try {
+          const response = await getMix(lastMixRequest).unwrap();
 
-      player.replace({
-        uri: trackUrl,
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
+          // Find the same song in the new mix
+          const refreshedTrack = response.find(
+            (track: any) => track.title === currentTrack.title && track.artist === currentTrack.artist
+          );
 
-      currentLoadedTrackUrl.current = trackUrl;
-    }
-  }, [provider, currentTrack, token]);
+          if (refreshedTrack) {
+            console.log('[PartynetAudioPlayer] ✅ Got fresh URL for:', currentTrack.title);
+            // Update the URL in Redux
+            dispatch(updateTrackUrl({ index: currentTrackIndex, newUrl: refreshedTrack.url }));
+            // Remove old URL from used set, the effect will re-run with new URL
+            usedUrls.current.delete(currentTrack.url);
+            // The effect will re-run with the new URL
+            return;
+          } else {
+            console.error('[PartynetAudioPlayer] Could not find track in refreshed mix');
+            dispatch(setError('Failed to refresh track URL'));
+            return;
+          }
+        } catch (error) {
+          console.error('[PartynetAudioPlayer] Failed to refresh mix:', error);
+          dispatch(setError('Failed to refresh track URL'));
+          return;
+        }
+      }
+
+      // Load track if URL changed OR if playCount changed (same track replayed)
+      if (trackUrl !== currentLoadedTrackUrl.current || playCount !== lastPlayCount.current) {
+        console.log('[PartynetAudioPlayer] 🎵 Loading track:', currentTrack.title);
+
+        // Mark this URL as used (Partynet URLs are single-use)
+        usedUrls.current.add(currentTrack.url);
+
+        // Remember if we should auto-play after loading
+        shouldPlayAfterLoadRef.current = isPlaying;
+
+        // Reset position in Redux before loading new track
+        dispatch(setPosition(0));
+        dispatch(setDuration(0));
+
+        player.replace({
+          uri: trackUrl,
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        currentLoadedTrackUrl.current = trackUrl;
+        lastPlayCount.current = playCount;
+      }
+    };
+
+    loadTrack();
+  }, [provider, currentTrack, token, playCount, lastMixRequest]);
 
   // Handle play/pause based on Redux state AND auto-play new tracks
   useEffect(() => {

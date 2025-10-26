@@ -108,7 +108,7 @@ export default function OnboardingScreen() {
   
   // Question tracking for pagination - use a simple counter instead
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [totalQuestions, setTotalQuestions] = useState(18);
+  const [totalQuestions, setTotalQuestions] = useState(17);
   
   // AI SDK Chat Hook for onboarding with proper streaming
   const { messages, sendMessage, status } = useChat({

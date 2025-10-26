@@ -754,9 +754,11 @@ export default function FitnessPlayerScreen() {
                       size={24}
                       iconColor={nucleus.light.global.blue["70"]}
                       onPress={() => {
-                        if (currentTrackIndex === index) {
+                        if (currentTrackIndex === index && isPlaying) {
+                          // Pause if same track is already playing
                           togglePlayback();
                         } else {
+                          // Play/restart track (works for both new tracks and replaying same track)
                           playTrack(track, index);
                         }
                       }}

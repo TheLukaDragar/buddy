@@ -58,10 +58,10 @@ IMPORTANT: Your response should be a direct reaction to their specific answer, n
 
 Question categories:
 1. Fitness goals
-2. Training frequency  
-3. Experience level
-4. Workout duration
-5. Muscle group focus
+2. Training frequency
+3. Training days
+4. Experience level
+5. Workout duration
 6. Favorite exercises
 7. Last time exercising
 8. Sports activity

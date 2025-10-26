@@ -3,7 +3,7 @@ import { useFonts } from 'expo-font';
 import * as NavigationBar from 'expo-navigation-bar';
 import { Stack } from 'expo-router';
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Platform } from 'react-native';
+import { ActivityIndicator, Platform, View } from 'react-native';
 import { SystemBars } from 'react-native-edge-to-edge';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { PaperProvider } from 'react-native-paper';
@@ -132,13 +132,22 @@ export default function RootLayout() {
 
 // Separate this into a new component so it can access the AuthProvider context
 function RootNavigator() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+
+  // Show loading screen while checking authentication
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: nucleus.light.semantic.bg.subtle }}>
+        <ActivityIndicator size="large" color={nucleus.light.global.blue["50"]} />
+      </View>
+    );
+  }
 
   return (
     <Stack
       screenOptions={{
-        contentStyle: { 
-          backgroundColor: nucleus.light.semantic.bg.subtle 
+        contentStyle: {
+          backgroundColor: nucleus.light.semantic.bg.subtle
         },
       }}
     >

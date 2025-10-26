@@ -25,6 +25,7 @@ interface PlayerState {
   shuffle: boolean;
   repeat: 'off' | 'one' | 'all';
   error: string | null;
+  playCount: number; // Increments every time a track is played, even if it's the same track
   // Mix parameters for easy re-fetching
   lastMixRequest: {
     topHits: boolean;
@@ -54,6 +55,7 @@ const initialState: PlayerState = {
   shuffle: false,
   repeat: 'off',
   error: null,
+  playCount: 0,
   lastMixRequest: null,
 };
 
@@ -78,6 +80,7 @@ const fitnessPlayerSlice = createSlice({
     setCurrentTrack(state, action: PayloadAction<{ track: Track | null; index: number }>) {
       state.currentTrack = action.payload.track;
       state.currentTrackIndex = action.payload.index;
+      state.playCount += 1; // Increment every time a track is set, even if it's the same
     },
     setIsPlaying(state, action: PayloadAction<boolean>) {
       state.isPlaying = action.payload;
@@ -105,7 +108,7 @@ const fitnessPlayerSlice = createSlice({
     },
     nextTrack(state) {
       if (state.playlist.length === 0) return;
-      
+
       let nextIndex: number;
       if (state.shuffle) {
         // Random next track (excluding current)
@@ -116,14 +119,15 @@ const fitnessPlayerSlice = createSlice({
       } else {
         nextIndex = (state.currentTrackIndex + 1) % state.playlist.length;
       }
-      
+
       state.currentTrackIndex = nextIndex;
       state.currentTrack = state.playlist[nextIndex];
       state.position = 0;
+      state.playCount += 1; // Increment to trigger re-render
     },
     previousTrack(state) {
       if (state.playlist.length === 0) return;
-      
+
       let prevIndex: number;
       if (state.shuffle) {
         // Random previous track (excluding current)
@@ -135,10 +139,11 @@ const fitnessPlayerSlice = createSlice({
         prevIndex = state.currentTrackIndex - 1;
         if (prevIndex < 0) prevIndex = state.playlist.length - 1;
       }
-      
+
       state.currentTrackIndex = prevIndex;
       state.currentTrack = state.playlist[prevIndex];
       state.position = 0;
+      state.playCount += 1; // Increment to trigger re-render
     },
     playTrackAtIndex(state, action: PayloadAction<number>) {
       const index = action.payload;
@@ -146,6 +151,18 @@ const fitnessPlayerSlice = createSlice({
         state.currentTrackIndex = index;
         state.currentTrack = state.playlist[index];
         state.position = 0;
+        state.playCount += 1; // Increment to trigger re-render even for same track
+      }
+    },
+    updateTrackUrl(state, action: PayloadAction<{ index: number; newUrl: string }>) {
+      const { index, newUrl } = action.payload;
+      if (index >= 0 && index < state.playlist.length) {
+        state.playlist[index].url = newUrl;
+
+        // If this is the current track, update it too
+        if (index === state.currentTrackIndex && state.currentTrack) {
+          state.currentTrack.url = newUrl;
+        }
       }
     },
     setLastMixRequest(state, action: PayloadAction<PlayerState['lastMixRequest']>) {
@@ -173,6 +190,7 @@ export const {
   nextTrack,
   previousTrack,
   playTrackAtIndex,
+  updateTrackUrl,
   setLastMixRequest,
   reset,
 } = fitnessPlayerSlice.actions;

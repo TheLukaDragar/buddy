@@ -1,11 +1,11 @@
 import { openai } from '@ai-sdk/openai';
-import { convertToModelMessages, LanguageModel, smoothStream, stepCountIs, streamText, TextStreamPart, tool, ToolSet, UIMessage } from 'ai';
+import { convertToModelMessages, LanguageModel, smoothStream, streamText, TextStreamPart, tool, ToolSet, UIMessage } from 'ai';
 import { z } from 'zod';
 
 
 // // Predefined questions structure for the LLM to follow
 // const ONBOARDING_QUESTIONS_STRUCTURE = `
-// Here are the 18 questions you must ask in order with suggestion examples:
+// Here are the 17 questions you must ask in order with suggestion examples:
 
 // 1. "So, what are you aiming for, my friend?"
 //    Example suggestions: ["Build muscle and get stronger", "Lose fat and get more defined", "Improve general health and feel more fit", "Get back into a fitness routine"]
@@ -19,43 +19,40 @@ import { z } from 'zod';
 // 4. "Workouts are usually between 45 and 90 minutes. What suits you best?"
 //    Example suggestions: ["45 min", "60 min", "Up to 90 min", "I prefer shorter sessions"]
 
-// 5. "Is there a muscle group you'd like to train a little more?"
-//    Example suggestions: ["Chest", "Legs", "Back", "Shoulders"]
-
-// 6. "What are your favorite exercises?"
+// 5. "What are your favorite exercises?"
 //    Example suggestions: ["Squats", "Bench press", "Push-ups", "Biceps curls"]
 
-// 7. "When was the last time you moved your body? (Yes, walks and weekend hikes count!)"
+// 6. "When was the last time you moved your body? (Yes, walks and weekend hikes count!)"
 //    Example suggestions: ["Last week", "Once last month", "Three months ago", "Oh... it's been at least a year"]
 
-// 8. "Do you currently do any sports — casually or professionally?"
+// 7. "Do you currently do any sports — casually or professionally?"
 //    Example suggestions: ["Yes, I do sports regularly", "I train at home or in a gym", "I used to, but not lately", "I don't do any sports"]
 
-// 9. "Just to catch your vibe — what's your age group? (Don't worry, no ID check 😉)"
+// 8. "Just to catch your vibe — what's your age group? (Don't worry, no ID check 😉)"
 //    Example suggestions: ["Under 18", "18–25", "26–35", "36–45"]
 
-// 10. "How much do you weigh (rough estimate is fine)?"
+// 9. "How much do you weigh (rough estimate is fine)?"
 //     Example suggestions: ["Under 60 kg", "60–70 kg", "71–80 kg", "81–90 kg"]
 
-// 11. "How tall are you? (An estimate is perfectly fine.)"
+// 10. "How tall are you? (An estimate is perfectly fine.)"
 //     Example suggestions: ["150-160 cm", "160-170 cm", "170-180 cm", "180+ cm"]
 
-// 12. "Have you had any injuries in the past? If yes, what kind and where?"
+// 11. "Have you had any injuries in the past? If yes, what kind and where?"
 //     Example suggestions: ["No injuries", "Minor injuries (healed)", "Some ongoing issues", "I'd rather type details"]
 
-// 13. "Is there any movement or exercise that you can't do or that causes discomfort?"
+// 12. "Is there any movement or exercise that you can't do or that causes discomfort?"
 //     Example suggestions: ["No limitations", "Some back issues", "Knee problems", "I'd rather type details"]
 
-// 14. "Anything else you'd like me to know about you?"
+// 13. "Anything else you'd like me to know about you?"
 //     Example suggestions: ["Nothing else", "I have some health conditions", "I'm on medication", "I'd rather type details"]
 
-// 15. "Where will you be doing your workouts?"
+// 14. "Where will you be doing your workouts?"
 //     Example suggestions: ["At home", "In the gym", "Outdoors, in nature", "Mix of locations"]
 
-// 16. "What equipment do you have at home?"
+// 15. "What equipment do you have at home?"
 //     Example suggestions: ["I don't have any equipment", "Kettlebell", "Dumbbell", "Resistance bands"]
 
-// 17. "Please describe exactly what equipment you have: (Include dumbbell weights, plates — e.g., 4x20kg, 2x10kg, etc. — and types of bands like small/large/Pilates.)"
+// 16. "Please describe exactly what equipment you have: (Include dumbbell weights, plates — e.g., 4x20kg, 2x10kg, etc. — and types of bands like small/large/Pilates.)"
 //     Example suggestions: ["Basic equipment only", "Full home gym setup", "Just bodyweight", "I'd rather type details"]
 // `;
 
@@ -142,7 +139,7 @@ Gather answers to these 17 questions through natural conversation:
 2. Training frequency (per week)
 3. Training days (which days of the week)
 4. Experience level 
-5. Workout duration preferences
+5. Workout session duration preferences
 6. Favorite exercises
 7. Recent activity level
 8. Sports participation
@@ -153,7 +150,7 @@ Gather answers to these 17 questions through natural conversation:
 13. Movement limitations
 14. Additional health info
 15. Workout location
-16. Available equipment
+16. Available equipment at home
 17. Equipment details
 
 **CRITICAL**: You must get ALL 17 questions answered before calling user_answers_complete(). No exceptions.
@@ -167,7 +164,7 @@ Gather answers to these 17 questions through natural conversation:
 - **Age**: "Under 25", "25-35", "36-45", "Over 45"
 - **Weight**: "Under 60kg", "60-70kg", "71-80kg", "Over 80kg"
 - **Location**: "At home", "At gym", "Outdoors", "Multiple places"
-- **Equipment**: "No equipment", "Basic equipment", "Full gym", "Let me specify"
+- **Equipment**: "No equipment", "Dumbbells", "Bands", "Bench", "I have "
 
 ## Example Response Flow:
 
@@ -188,7 +185,7 @@ Text: "Monday workouts are great to start the week strong! What's your experienc
 Then use the tool calling system to provide suggestions: ["Total beginner", "Some experience", "Moderate experience", "Very experienced"]
 
 **After user says "Moderate experience":**
-Text: "Perfect! How long would you like each workout to be?"
+Text: "Perfect! How long would you like each workout session to be?"
 Then use the tool calling system to provide suggestions: ["45 minutes", "60 minutes", "Up to 90 minutes"]
 
 **After user says "60 minutes":**
@@ -198,6 +195,13 @@ Then use the tool calling system to provide suggestions: ["Squats", "Bench press
 **When all 17 questions are complete:**
 Text: "Perfect! I've got everything I need to create your personalized workout plan. Thanks for sharing all that info with me, User!"
 Then use the tool calling system to call user_answers_complete()
+
+## Equipment Question Specific Instructions:
+When asking about equipment (question 16), you MUST ask:
+"Please tell me what equipment you have at home, if any, so I can customize your training plan regardless of where you train."
+
+This question should emphasize home equipment specifically and explain that it will be used for customization regardless of training location.
+
 
 ## HANDLING CONVERSATION DERAILMENT EXAMPLES:
 

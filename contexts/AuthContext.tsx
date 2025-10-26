@@ -29,51 +29,58 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Get initial session
     authService.getSession().then(async ({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      previousUserIdRef.current = session?.user?.id ?? null;
+      try {
+        setSession(session);
+        setUser(session?.user ?? null);
+        previousUserIdRef.current = session?.user?.id ?? null;
 
-      // Sync user profile from database when session is restored
-      if (session?.user) {
-        try {
-          await syncUserProfileWithDatabase(dispatch);
-        } catch (error) {
-          console.error('Failed to sync user profile on session restore:', error);
+        // Sync user profile from database when session is restored
+        if (session?.user) {
+          try {
+            await syncUserProfileWithDatabase(dispatch);
+          } catch (error) {
+            console.error('Failed to sync user profile on session restore:', error);
+          }
         }
+      } finally {
+        setLoading(false);
       }
-
+    }).catch((error) => {
+      console.error('Failed to get initial session:', error);
       setLoading(false);
     });
 
     // Listen for auth changes
     const { data: { subscription } } = authService.onAuthStateChange(async (_event: string, session: Session | null) => {
-      const currentUserId = session?.user?.id ?? null;
-      const previousUserId = previousUserIdRef.current;
+      try {
+        const currentUserId = session?.user?.id ?? null;
+        const previousUserId = previousUserIdRef.current;
 
-      setSession(session);
-      setUser(session?.user ?? null);
+        setSession(session);
+        setUser(session?.user ?? null);
 
-      // Clear API cache when user changes to prevent stale cached data
-      if (previousUserId !== currentUserId) {
-        console.log('🧹 User changed, clearing API cache to prevent stale data');
-        dispatch(enhancedApi.util.resetApiState());
-        previousUserIdRef.current = currentUserId;
-      }
-
-      // Sync user profile from database when user signs in OR clear on sign out
-      if (session?.user) {
-        try {
-          await syncUserProfileWithDatabase(dispatch);
-        } catch (error) {
-          console.error('Failed to sync user profile on auth change:', error);
+        // Clear API cache when user changes to prevent stale cached data
+        if (previousUserId !== currentUserId) {
+          console.log('🧹 User changed, clearing API cache to prevent stale data');
+          dispatch(enhancedApi.util.resetApiState());
+          previousUserIdRef.current = currentUserId;
         }
-      } else if (!session?.user && previousUserId) {
-        // User signed out, clear Redux state
-        console.log('🧹 User signed out, clearing Redux state');
-        dispatch(clearUserData());
-      }
 
-      setLoading(false);
+        // Sync user profile from database when user signs in OR clear on sign out
+        if (session?.user) {
+          try {
+            await syncUserProfileWithDatabase(dispatch);
+          } catch (error) {
+            console.error('Failed to sync user profile on auth change:', error);
+          }
+        } else if (!session?.user && previousUserId) {
+          // User signed out, clear Redux state
+          console.log('🧹 User signed out, clearing Redux state');
+          dispatch(clearUserData());
+        }
+      } finally {
+        setLoading(false);
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -115,9 +122,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInWithOtp = async (email: string) => {
     try {
-      setLoading(true);
       const result = await authService.signInWithOtp(email);
-      
+
       if (!result.success) {
         console.error('OTP send error:', result.error);
         throw new Error(result.error?.message || 'Failed to send OTP');
@@ -125,16 +131,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('OTP send error:', error);
       throw error;
-    } finally {
-      setLoading(false);
     }
   };
 
   const verifyOtp = async (email: string, token: string) => {
     try {
-      setLoading(true);
       const result = await authService.verifyOtp(email, token);
-      
+
       if (!result.success) {
         console.error('OTP verification error:', result.error);
         throw new Error(result.error?.message || 'Failed to verify OTP');
@@ -142,8 +145,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('OTP verification error:', error);
       throw error;
-    } finally {
-      setLoading(false);
     }
   };
 

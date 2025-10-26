@@ -15,14 +15,13 @@ export async function POST(req: Request) {
       );
     }
 
-    // Complete list of all 18 onboarding questions in order
+    // Complete list of all 17 onboarding questions in order (matches actual onboarding chat flow)
     const ONBOARDING_QUESTIONS = [
       "What are your main fitness goals?",
       "How often would you like to work out each week?",
       "Which days of the week work best for you?",
       "What's your experience level with fitness?",
-      "How long would you like each workout to be?",
-      "Is there a specific muscle group you'd like to focus more on?",
+      "How long would you like each workout session to be?",
       "What are your favorite exercises?",
       "When was the last time you moved your body?",
       "Do you currently do any sports - casually or professionally?",

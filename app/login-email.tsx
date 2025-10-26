@@ -20,13 +20,14 @@ import { nucleus } from "../Buddy_variables.js";
 import { useAuth } from "../contexts/AuthContext";
 
 export default function EmailLoginScreen() {
-  const { signInWithOtp, verifyOtp, loading } = useAuth();
+  const { signInWithOtp, verifyOtp } = useAuth();
   const [email, setEmail] = React.useState("");
   const [rememberSignIn, setRememberSignIn] = React.useState(true);
   const [showCodeInput, setShowCodeInput] = React.useState(false);
   const [code, setCode] = React.useState(['', '', '', '', '', '']);
   const [focusedIndex, setFocusedIndex] = React.useState(0);
   const [hasError, setHasError] = React.useState(false);
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   // Animation values
   const slideOffset = useSharedValue(0);
@@ -42,22 +43,24 @@ export default function EmailLoginScreen() {
     Keyboard.dismiss();
 
     try {
+      setIsSubmitting(true);
       console.log("Sending OTP to email:", email);
-      
+
       // Send OTP first
       await signInWithOtp(email);
-      
+
       // Animate the transition
       slideOffset.value = withTiming(-100, {
         duration: 300,
         easing: Easing.out(Easing.cubic),
       });
-      
+
       fadeOpacity.value = withTiming(0, {
         duration: 200,
         easing: Easing.out(Easing.cubic),
       }, () => {
         runOnJS(setShowCodeInput)(true);
+        runOnJS(setIsSubmitting)(false);
         slideOffset.value = 100;
         fadeOpacity.value = withTiming(1, {
           duration: 300,
@@ -70,6 +73,7 @@ export default function EmailLoginScreen() {
       });
     } catch (error) {
       console.error('OTP send error:', error);
+      setIsSubmitting(false);
       // Silently handle error - user can try again
     }
   };
@@ -98,6 +102,7 @@ export default function EmailLoginScreen() {
     }
 
     try {
+      setIsSubmitting(true);
       console.log("Verifying OTP code:", fullCode);
 
       // Verify the OTP - RootNavigator will handle redirect based on onboarding status
@@ -106,6 +111,7 @@ export default function EmailLoginScreen() {
       // Don't navigate here - let RootNavigator handle it based on onboarding status
     } catch (error) {
       console.error('OTP verification error:', error);
+      setIsSubmitting(false);
 
       // Set error state and animate
       setHasError(true);
@@ -319,13 +325,13 @@ export default function EmailLoginScreen() {
             </View>
 
             {/* Resend Code Button */}
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.resendButton}
               onPress={handleContinue}
-              disabled={loading}
+              disabled={isSubmitting}
             >
               <Text style={styles.resendButtonText}>
-                {loading ? 'Sending...' : 'Resend code'}
+                {isSubmitting ? 'Sending...' : 'Resend code'}
               </Text>
             </TouchableOpacity>
           </Animated.View>
@@ -341,11 +347,11 @@ export default function EmailLoginScreen() {
           contentStyle={styles.continueButtonContent}
           onPress={showCodeInput ? handleVerifyCode : handleContinue}
           compact={false}
-          disabled={loading || (showCodeInput ? code.join('').length !== 6 : !email.trim())}
-          loading={loading}
+          disabled={isSubmitting || (showCodeInput ? code.join('').length !== 6 : !email.trim())}
+          loading={isSubmitting}
         >
-          {loading 
-            ? (showCodeInput ? 'Verifying...' : 'Sending...') 
+          {isSubmitting
+            ? (showCodeInput ? 'Verifying...' : 'Sending...')
             : (showCodeInput ? 'Verify' : 'Continue')
           }
         </Button>

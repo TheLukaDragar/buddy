@@ -21,7 +21,7 @@ import { useGetAvailableDevicesQuery, useGetUserPlaylistsQuery, useTransferPlayb
 import { useGetMixMutation } from '../store/api/fitnessApi';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { SelectedPlaylist, setMusicOption, setSelectedAppMusic, setSelectedPlaylist, setSelectedPartynetMix, type PartynetMix } from '../store/slices/musicSlice';
-import { setPlaylist as setPartynetPlaylist, setIsPlaying as setPartynetIsPlaying } from '../store/slices/fitnessPlayerSlice';
+import { setPlaylist as setPartynetPlaylist, setIsPlaying as setPartynetIsPlaying, setLastMixRequest } from '../store/slices/fitnessPlayerSlice';
 import SpotifyConnectModal from './SpotifyConnectModal';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -258,7 +258,7 @@ export default function MusicModal({ visible, onClose }: MusicModalProps) {
         bpm: mix.bpm,
       });
 
-      const result = await getMix({
+      const mixRequest = {
         topHits: false,
         explicitSongs: true,
         mixParameters: [{
@@ -269,7 +269,9 @@ export default function MusicModal({ visible, onClose }: MusicModalProps) {
           timePeriod: mix.timePeriod,
           bpm: mix.bpm,
         }],
-      }).unwrap();
+      };
+
+      const result = await getMix(mixRequest).unwrap();
 
       console.log('🎵 [MusicModal] Mix received:', {
         trackCount: result?.length || 0,
@@ -287,6 +289,9 @@ export default function MusicModal({ visible, onClose }: MusicModalProps) {
 
       // Store playlist in Redux
       dispatch(setPartynetPlaylist(tracks));
+
+      // Store the mix request so we can re-fetch for single-use URLs
+      dispatch(setLastMixRequest(mixRequest));
 
       // Update selected mix
       dispatch(setSelectedPartynetMix({
