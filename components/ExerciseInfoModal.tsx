@@ -20,6 +20,84 @@ import { nucleus } from '../Buddy_variables';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 
+// Helper function to get equipment icon based on slug
+const getEquipmentIcon = (slug: string) => {
+  const iconMap: { [key: string]: any } = {
+    'back-extension-machine': require('../assets/equipment_icons/back-extension-machine.png'),
+    'barbell': require('../assets/equipment_icons/barbell.png'),
+    'barbells': require('../assets/equipment_icons/barbell.png'),
+    'bench': require('../assets/equipment_icons/bench.png'),
+    'body-weight': require('../assets/equipment_icons/body-weight.png'),
+    'cable': require('../assets/equipment_icons/cable.png'),
+    'cables': require('../assets/equipment_icons/cable.png'),
+    'calf-raise-machine': require('../assets/equipment_icons/calf-raise-machine.png'),
+    'chair': require('../assets/equipment_icons/chair.png'),
+    'chairs': require('../assets/equipment_icons/chair.png'),
+    'chest-fly-machine': require('../assets/equipment_icons/chest-fly-machine.png'),
+    'decline-bench-press': require('../assets/equipment_icons/decline-bench-press.png'),
+    'decline-bench': require('../assets/equipment_icons/decline-bench.png'),
+    'dips-machine': require('../assets/equipment_icons/dips-machine.png'),
+    'door-frame': require('../assets/equipment_icons/door-frame.png'),
+    'dumbbell': require('../assets/equipment_icons/dumbbell.png'),
+    'dumbbells': require('../assets/equipment_icons/dumbbell.png'),
+    'ez-bar': require('../assets/equipment_icons/ez-bar.png'),
+    'ez-bars': require('../assets/equipment_icons/ez-bar.png'),
+    'filled-bag': require('../assets/equipment_icons/filled-bag.png'),
+    'filled-bags': require('../assets/equipment_icons/filled-bag.png'),
+    'hack-squat-machine': require('../assets/equipment_icons/hack-squat-machine.png'),
+    'incline-bench-press': require('../assets/equipment_icons/incline-bench-press.png'),
+    'incline-bench': require('../assets/equipment_icons/incline-bench.png'),
+    'incline-chest-press-machine': require('../assets/equipment_icons/incline-chest-press-machine.png'),
+    'kettlebell': require('../assets/equipment_icons/kettlebell.png'),
+    'kettlebells': require('../assets/equipment_icons/kettlebell.png'),
+    'knee-extension-machine': require('../assets/equipment_icons/knee-extension-machine.png'),
+    'knee-flexion-machine': require('../assets/equipment_icons/knee-flexion-machine.png'),
+    'leg-press': require('../assets/equipment_icons/leg-press.png'),
+    'pull-up-bar': require('../assets/equipment_icons/pull-up-bar.png'),
+    'pull-up-bars': require('../assets/equipment_icons/pull-up-bar.png'),
+    'pull-up-machine': require('../assets/equipment_icons/pull-up-machine.png'),
+    'resistance-band': require('../assets/equipment_icons/resistance-band.png'),
+    'resistance-bands': require('../assets/equipment_icons/resistance-band.png'),
+    'seated-calf-raise-machine': require('../assets/equipment_icons/seated-calf-raise-machine.png'),
+    'shoulder-abduction-machine': require('../assets/equipment_icons/shoulder-abduction-machine.png'),
+    'shoulder-press-machine': require('../assets/equipment_icons/shoulder-press-machine.png'),
+    'sliders': require('../assets/equipment_icons/sliders.png'),
+    'smith-machine': require('../assets/equipment_icons/smith-machine.png'),
+    'squat-rack': require('../assets/equipment_icons/squat-rack.png'),
+    'squat-racks': require('../assets/equipment_icons/squat-rack.png'),
+    'suspension-trainer': require('../assets/equipment_icons/suspension-trainer.png'),
+    'suspension-trainers': require('../assets/equipment_icons/suspension-trainer.png'),
+    'swiss-ball': require('../assets/equipment_icons/swiss-ball.png'),
+    'swiss-balls': require('../assets/equipment_icons/swiss-ball.png'),
+    'towel': require('../assets/equipment_icons/towel.png'),
+    'towels': require('../assets/equipment_icons/towel.png'),
+    'trap-bar': require('../assets/equipment_icons/trap-bar.png'),
+    'trap-bars': require('../assets/equipment_icons/trap-bar.png'),
+    'weight-plate': require('../assets/equipment_icons/weight-plate.png'),
+    'weight-plates': require('../assets/equipment_icons/weight-plate.png'),
+  };
+  
+  // Try exact match first
+  if (iconMap[slug]) {
+    return iconMap[slug];
+  }
+  
+  // Try with 's' added for plural
+  const pluralSlug = slug + 's';
+  if (iconMap[pluralSlug]) {
+    return iconMap[pluralSlug];
+  }
+  
+  // Try removing 's' for singular (in case slug is already plural)
+  const singularSlug = slug.endsWith('s') ? slug.slice(0, -1) : slug;
+  if (iconMap[singularSlug]) {
+    return iconMap[singularSlug];
+  }
+  
+  // Default fallback
+  return require('../assets/equipment_icons/body-weight.png');
+};
+
 // Exercise Video Component
 interface ExerciseVideoProps {
   videoUrl?: string;
@@ -141,6 +219,7 @@ interface ExerciseInfoModalProps {
     instructions: string[];
     tips: string[];
     equipment: string[];
+    equipmentGroups?: string[][];
     videoUrl?: string;
     imageUrl?: string;
     slug?: string;
@@ -237,6 +316,7 @@ const ExerciseInfoModal = React.memo<ExerciseInfoModalProps>(function ExerciseIn
         "Engage your core throughout the movement"
       ],
       equipment: ["Mat"],
+      equipmentGroups: [["body-weight"]],
       imageUrl: require('../assets/images/9_16_2.png'),
       videoUrl: undefined,
       slug: undefined,
@@ -248,6 +328,8 @@ const ExerciseInfoModal = React.memo<ExerciseInfoModalProps>(function ExerciseIn
     // Only log when the exercise data actually changes
     if (visible && exercise) {
       console.log('ExerciseInfoModal - exerciseData updated:', result);
+      console.log('ExerciseInfoModal - equipmentGroups:', result.equipmentGroups);
+      console.log('ExerciseInfoModal - equipment array:', result.equipment);
     }
     
     return result;
@@ -332,25 +414,71 @@ const ExerciseInfoModal = React.memo<ExerciseInfoModalProps>(function ExerciseIn
                   </View>
                 </View>
 
-                {/* Equipment Section */}
+                {/* Equipment Section - Unified UI with smart layout */}
                 <View style={styles.equipmentSection}>
                   <Text style={styles.equipmentTitle}>Equipment</Text>
-                  <View style={styles.equipmentCard}>
-                    <View style={styles.equipmentItem}>
-                      <View style={styles.equipmentImageContainer}>
-                        <Image
-                          source={require('../assets/exercises/squats.png')}
-                          style={styles.equipmentImage}
-                          contentFit="cover"
-                        />
-                      </View>
-                      <View style={styles.equipmentInfo}>
-                        <Text style={styles.equipmentName}>
-                          {exerciseData.equipment[0] || "Mat"}
+                  
+                  {exerciseData.equipmentGroups && exerciseData.equipmentGroups.length > 0 ? (
+                    <View style={styles.equipmentContainer}>
+                      {exerciseData.equipmentGroups.map((group, groupIndex) => (
+                        <View key={groupIndex} style={styles.equipmentGroupWrapper}>
+                          {/* Each group is a row of alternatives (OR) */}
+                          <View style={styles.equipmentAlternativesRow}>
+                            {group.map((equipmentSlug, itemIndex) => {
+                              const equipmentName = equipmentSlug
+                                .split('-')
+                                .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
+                                .join(' ');
+                              
+                              return (
+                                <React.Fragment key={`${groupIndex}-${itemIndex}`}>
+                                  <View style={styles.equipmentChip}>
+                                    <View style={styles.equipmentChipIconContainer}>
+                                      <Image
+                                        source={getEquipmentIcon(equipmentSlug)}
+                                        style={styles.equipmentChipImage}
+                                        contentFit="contain"
+                                      />
+                                    </View>
+                                    <Text style={styles.equipmentChipText} numberOfLines={1}>
+                                      {equipmentName}
+                                    </Text>
+                                  </View>
+                                  {/* "or" text between alternatives in the same group */}
+                                  {itemIndex < group.length - 1 && (
+                                    <Text style={styles.equipmentOrText}>or</Text>
+                                  )}
+                                </React.Fragment>
+                              );
+                            })}
+                          </View>
+                          {/* "and" indicator between required groups (AND) */}
+                          {groupIndex < exerciseData.equipmentGroups!.length - 1 && (
+                            <View style={styles.equipmentAndSeparator}>
+                              <View style={styles.equipmentAndLine} />
+                              <Text style={styles.equipmentAndText}>and</Text>
+                              <View style={styles.equipmentAndLine} />
+                            </View>
+                          )}
+                        </View>
+                      ))}
+                    </View>
+                  ) : (
+                    <View style={styles.equipmentContainer}>
+                      <View style={styles.equipmentChip}>
+                        <View style={styles.equipmentChipIconContainer}>
+                          <Image
+                            source={require('../assets/equipment_icons/body-weight.png')}
+                            style={styles.equipmentChipImage}
+                            contentFit="contain"
+                          />
+                        </View>
+                        <Text style={styles.equipmentChipText}>
+                          {exerciseData.equipment[0] || "Body Weight"}
                         </Text>
                       </View>
                     </View>
-                  </View>
+                  )}
                 </View>
               </View>
             </ScrollView>
@@ -518,38 +646,73 @@ const styles = StyleSheet.create({
     color: nucleus.light.semantic.fg.base,
     includeFontPadding: false,
   },
-  equipmentCard: {
-    backgroundColor: nucleus.light.global.blue["20"],
-    borderRadius: 12,
-    padding: 8,
+  // New unified equipment UI styles (bigger than workout screen)
+  equipmentContainer: {
+    gap: 12,
   },
-  equipmentItem: {
+  equipmentGroupWrapper: {
+    gap: 12,
+  },
+  equipmentAlternativesRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
-    padding: 8,
+    flexWrap: 'wrap',
+    gap: 12,
   },
-  equipmentImageContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 8,
-    backgroundColor: nucleus.light.semantic.bg.canvas,
+  equipmentChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: nucleus.light.semantic.bg.subtle,
+    borderRadius: 24,
+    paddingVertical: 8,
+    paddingLeft: 8,
+    paddingRight: 16,
+    gap: 12,
+  },
+  equipmentChipIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: nucleus.light.global.white,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  equipmentImage: {
-    width: 60,
-    height: 60,
+  equipmentChipImage: {
+    width: 30,
+    height: 30,
   },
-  equipmentInfo: {
-    flex: 1,
-  },
-  equipmentName: {
-    fontFamily: 'PlusJakartaSans-Bold',
+  equipmentChipText: {
+    fontFamily: 'PlusJakartaSans-SemiBold',
     fontSize: 16,
-    lineHeight: 19.2, // 1.2 * 16
-    color: nucleus.light.global.grey["80"],
-    includeFontPadding: false,
+    fontWeight: '600',
+    lineHeight: 20,
+    color: nucleus.light.global.grey[80],
+    letterSpacing: 0,
+  },
+  equipmentOrText: {
+    fontFamily: 'PlusJakartaSans-Regular',
+    fontSize: 14,
+    fontWeight: '400',
+    color: nucleus.light.global.grey[60],
+    paddingHorizontal: 4,
+  },
+  equipmentAndSeparator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 6,
+  },
+  equipmentAndLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: nucleus.light.global.grey[30],
+  },
+  equipmentAndText: {
+    fontFamily: 'PlusJakartaSans-Regular',
+    fontSize: 14,
+    fontWeight: '400',
+    color: nucleus.light.global.grey[60],
+    paddingHorizontal: 6,
   },
 });
 

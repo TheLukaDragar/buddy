@@ -83,6 +83,7 @@ export default function WorkoutScreen() {
   console.log('Total workout minutes:', totalWorkoutMinutes);
 
   // Extract unique equipment from all exercises using equipment_groups
+  // Keep track of all unique equipment items across all exercises
   const allEquipmentItems = workoutEntries.flatMap(entry => {
     const equipmentGroups = entry.node.exercises?.equipment_groups;
     
@@ -339,10 +340,10 @@ export default function WorkoutScreen() {
     image: getEquipmentIcon(uniqueEquipment[index]), // Match icon based on slug
   }));
 
-  // Create exercises summary from dynamic data with thumbnail URLs
+  // Create exercises summary from dynamic data with thumbnail URLs and equipment groups
   const exercises = workoutEntries.map((entry, index) => {
-    // Clean up exercise name by removing rep ranges in parentheses
-    const cleanName = entry.node.exercises.name.replace(/\s*\([^)]*reps?\)|\s*\(\d+–\d+\)/i, '');
+    // Clean up exercise name by removing ALL parentheses and their contents
+    const cleanName = entry.node.exercises.name.replace(/\s*\([^)]*\)/g, '').trim();
     
     // Get thumbnail URL for this exercise
     const slug = entry.node.exercises?.slug;
@@ -350,14 +351,29 @@ export default function WorkoutScreen() {
       ? `https://kmtddcpdqkeqipyetwjs.supabase.co/storage/v1/object/public/workouts/processed/${slug}/${slug}_cropped_thumbnail_low.jpg`
       : null;
 
+    // Parse equipment groups for this exercise
+    const equipmentGroups = entry.node.exercises?.equipment_groups;
+    let parsedGroups: string[][] = [];
+    if (typeof equipmentGroups === 'string') {
+      try {
+        const parsed = JSON.parse(equipmentGroups);
+        parsedGroups = parsed.groups || [];
+      } catch (e) {
+        console.error('Failed to parse equipment_groups:', e);
+      }
+    } else if (equipmentGroups && typeof equipmentGroups === 'object') {
+      parsedGroups = equipmentGroups.groups || [];
+    }
+
     return {
       id: index + 1,
       name: cleanName,
       sets: `${entry.node.sets} sets`,
-      muscles: entry.node.exercises?.muscle_categories?.join(', ') || '', // Using equipment as muscle info for now
+      muscles: entry.node.exercises?.muscle_categories?.join(', ') || '', 
       description: entry.node.exercises.instructions || 'Exercise instructions',
       thumbnailUrl: thumbnailUrl,
       slug: slug,
+      equipmentGroups: parsedGroups, // [[item1, item2], [item3]] means (item1 OR item2) AND item3
     };
   });
 
@@ -542,12 +558,12 @@ export default function WorkoutScreen() {
                 const handleExercisePress = () => {
                   console.log(`Pressed info for ${exercise.name}`);
                   const workoutEntry = workoutEntries.find(entry => {
-                    const cleanDbName = entry.node.exercises?.name?.replace(/\s*\([^)]*reps?\)|\s*\(\d+–\d+\)/i, '') || '';
+                    const cleanDbName = entry.node.exercises?.name?.replace(/\s*\([^)]*\)/g, '').trim() || '';
                     return cleanDbName === exercise.name || entry.node.exercises?.name === exercise.name;
                   });
 
                   const alternativeEntry = !workoutEntry ? workoutEntries.find(entry => {
-                    const cleanDbName = entry.node.exercises?.name?.replace(/\s*\([^)]*reps?\)|\s*\(\d+–\d+\)/i, '') || '';
+                    const cleanDbName = entry.node.exercises?.name?.replace(/\s*\([^)]*\)/g, '').trim() || '';
                     return cleanDbName.toLowerCase().includes(exercise.name.toLowerCase()) ||
                            exercise.name.toLowerCase().includes(cleanDbName.toLowerCase());
                   }) : null;
@@ -555,12 +571,28 @@ export default function WorkoutScreen() {
                   const realExerciseData = workoutEntry?.node.exercises || alternativeEntry?.node.exercises;
 
                   if (realExerciseData) {
-                    const cleanName = realExerciseData.name.replace(/\s*\([^)]*reps?\)|\s*\(\d+–\d+\)/i, '');
+                    const cleanName = realExerciseData.name.replace(/\s*\([^)]*\)/g, '').trim();
                     const instructionsParts = realExerciseData.instructions ? realExerciseData.instructions.split(/(?=\(\d+(?:st|nd|rd|th)\))/).filter(Boolean).map(s => s.trim()) : [];
                     const keyFormTipsSection = instructionsParts.find(s => s.includes('Key Form Tips'));
                     const keyFormTips = keyFormTipsSection ?
                       keyFormTipsSection.replace(/.*Key Form Tips:\s*/, '').split(/[;,]/).map(tip => tip.trim()).filter(Boolean) :
                       ["Follow the form shown in the video", "Start with lighter weights if needed", "Focus on controlled movements"];
+
+                    // Parse equipment groups the same way as in exercises array
+                    const equipmentGroups = realExerciseData.equipment_groups;
+                    let parsedGroups: string[][] = [];
+                    if (typeof equipmentGroups === 'string') {
+                      try {
+                        const parsed = JSON.parse(equipmentGroups);
+                        parsedGroups = parsed.groups || [];
+                      } catch (e) {
+                        console.error('Failed to parse equipment_groups for modal:', e);
+                      }
+                    } else if (equipmentGroups && typeof equipmentGroups === 'object') {
+                      parsedGroups = equipmentGroups.groups || [];
+                    }
+
+                    console.log('Modal Exercise Data - Equipment Groups:', parsedGroups);
 
                     const exerciseData = {
                       name: cleanName,
@@ -569,9 +601,10 @@ export default function WorkoutScreen() {
                       instructions: instructionsParts.filter(s => !s.includes('Key Form Tips')),
                       tips: keyFormTips,
                       videoUrl: realExerciseData.slug ? `https://kmtddcpdqkeqipyetwjs.supabase.co/storage/v1/object/public/workouts/processed/${realExerciseData.slug}/${realExerciseData.slug}_cropped_video.mp4` : undefined,
-                      equipment: realExerciseData.equipment_groups?.groups?.flat().map((slug: string) => 
+                      equipment: parsedGroups.flat().map((slug: string) => 
                         slug.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
-                      ) || [],
+                      ),
+                      equipmentGroups: parsedGroups,
                       category: "How to"
                     };
                     setSelectedExercise(exerciseData);
@@ -584,11 +617,16 @@ export default function WorkoutScreen() {
                       instructions: ['Exercise instructions not available'],
                       videoUrl: undefined,
                       equipment: ['No equipment specified'],
+                      equipmentGroups: [],
                       category: "How to"
                     });
                     setShowExerciseInfo(true);
                   }
                 };
+
+                // Check if there's only one equipment chip total
+                const totalEquipmentItems = exercise.equipmentGroups?.reduce((sum, group) => sum + group.length, 0) || 0;
+                const hasOnlyOneEquipment = totalEquipmentItems === 1 && exercise.equipmentGroups?.length === 1;
 
                 return (
                 <TouchableOpacity
@@ -621,13 +659,39 @@ export default function WorkoutScreen() {
                     </View>
                     <View style={styles.exerciseInfo}>
                       <View style={styles.exerciseTextContainer}>
-                        <Text style={styles.exerciseNumber} numberOfLines={2}>{exercise.name}</Text>
-                        <Text style={[
-                          styles.exerciseDetails,
-                          index === 2 && styles.exerciseDetails2
-                        ]}>
+                        <Text style={styles.exerciseNumber} numberOfLines={3} ellipsizeMode="tail">
+                          {exercise.name}
+                        </Text>
+                        <Text style={styles.exerciseDetails} numberOfLines={1} ellipsizeMode="tail">
                           {exercise.sets}  •  {exercise.muscles}
                         </Text>
+                        
+                        {/* If only one equipment, show it here inline */}
+                        {hasOnlyOneEquipment && exercise.equipmentGroups && exercise.equipmentGroups[0] && (
+                          <View style={styles.equipmentInlineContainer}>
+                            {exercise.equipmentGroups[0].map((equipmentSlug) => {
+                              const equipmentName = equipmentSlug
+                                .split('-')
+                                .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                                .join(' ');
+                              
+                              return (
+                                <View key={equipmentSlug} style={styles.equipmentChipInline}>
+                                  <View style={styles.equipmentChipIcon}>
+                                    <Image
+                                      source={getEquipmentIcon(equipmentSlug)}
+                                      style={styles.equipmentChipImage}
+                                      contentFit="contain"
+                                    />
+                                  </View>
+                                  <Text style={styles.equipmentChipText} numberOfLines={1}>
+                                    {equipmentName}
+                                  </Text>
+                                </View>
+                              );
+                            })}
+                          </View>
+                        )}
                       </View>
                       <View style={styles.playButton}>
                         <Image
@@ -638,9 +702,54 @@ export default function WorkoutScreen() {
                       </View>
                     </View>
                   </View>
-                  <Text style={styles.exerciseDescription} numberOfLines={3}>
-                    {exercise.description}
-                  </Text>
+                  
+                  {/* Equipment Groups Display - Show at bottom only if multiple items */}
+                  {!hasOnlyOneEquipment && exercise.equipmentGroups && exercise.equipmentGroups.length > 0 && (
+                    <View style={styles.exerciseEquipmentContainer}>
+                      {exercise.equipmentGroups.map((group, groupIndex) => (
+                        <View key={groupIndex} style={styles.equipmentGroupWrapper}>
+                          {/* Each group is a row of alternatives (OR) */}
+                          <View style={styles.equipmentAlternativesRow}>
+                            {group.map((equipmentSlug, itemIndex) => {
+                              const equipmentName = equipmentSlug
+                                .split('-')
+                                .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                                .join(' ');
+                              
+                              return (
+                                <React.Fragment key={`${groupIndex}-${itemIndex}`}>
+                                  <View style={styles.equipmentChip}>
+                                    <View style={styles.equipmentChipIcon}>
+                                      <Image
+                                        source={getEquipmentIcon(equipmentSlug)}
+                                        style={styles.equipmentChipImage}
+                                        contentFit="contain"
+                                      />
+                                    </View>
+                                    <Text style={styles.equipmentChipText} numberOfLines={1}>
+                                      {equipmentName}
+                                    </Text>
+                                  </View>
+                                  {/* "or" text between alternatives in the same group */}
+                                  {itemIndex < group.length - 1 && (
+                                    <Text style={styles.equipmentOrText}>or</Text>
+                                  )}
+                                </React.Fragment>
+                              );
+                            })}
+                          </View>
+                          {/* "and" indicator between required groups (AND) */}
+                          {groupIndex < exercise.equipmentGroups.length - 1 && (
+                            <View style={styles.equipmentAndSeparator}>
+                              <View style={styles.equipmentAndLine} />
+                              <Text style={styles.equipmentAndText}>and</Text>
+                              <View style={styles.equipmentAndLine} />
+                            </View>
+                          )}
+                        </View>
+                      ))}
+                    </View>
+                  )}
                 </TouchableOpacity>
                 );
               })}
@@ -648,9 +757,9 @@ export default function WorkoutScreen() {
           </View>
 
           {/* Equipment Section */}
-        <View style={styles.equipmentSection}>
+        {/* <View style={styles.equipmentSection}>
           <View style={styles.equipmentHeader}>
-            <Text style={styles.equipmentTitle}>Equipment</Text>
+            <Text style={styles.equipmentTitle}>Equipment</Text> */}
             {/* <TouchableOpacity style={styles.equipmentChevron}>
               <Image
                 source={require('../assets/icons/back.svg')}
@@ -658,7 +767,7 @@ export default function WorkoutScreen() {
                 contentFit="contain"
               />
             </TouchableOpacity> */}
-          </View>
+          {/* </View>
           
           <View style={styles.equipmentList}>
             {equipment.map((item) => (
@@ -680,7 +789,7 @@ export default function WorkoutScreen() {
               </TouchableOpacity>
             ))}
           </View>
-            </View> 
+            </View>  */}
           </View>
         </Animated.ScrollView>
 
@@ -1091,19 +1200,19 @@ const styles = StyleSheet.create({
   exerciseCard: {
     backgroundColor: nucleus.light.global.white,
     borderRadius: 12,
-    padding: 8,
+    padding: 16,
     gap: 12,
     alignSelf: 'stretch',
   },
   exerciseRow: {
-    alignItems: 'center',
+    alignItems: 'flex-start',
     flexDirection: 'row',
     gap: 16,
   },
   exerciseImageContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 8,
+    width: 120,
+    height: 120,
+    borderRadius: 12,
   },
   exerciseImage: {
     position: 'absolute',
@@ -1114,39 +1223,42 @@ const styles = StyleSheet.create({
     left: 0,
     maxWidth: '100%',
     maxHeight: '100%',
-    borderRadius: 8,
+    borderRadius: 12,
     overflow: 'hidden',
     width: '100%',
   },
   exerciseInfo: {
-    gap: 4,
+    gap: 8,
     flex: 1,
-    alignItems: 'center',
+    alignItems: 'flex-start',
     flexDirection: 'row',
+    justifyContent: 'space-between',
   },
   exerciseTextContainer: {
-    gap: 4,
+    gap: 6,
     flex: 1,
+    flexShrink: 1,
+    paddingTop: 4,
   },
   exerciseNumber: {
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 16,
     fontWeight: '700',
-    lineHeight: 19,
+    lineHeight: 20,
     color: nucleus.light.global.grey[80],
     includeFontPadding: false,
-    overflow: 'hidden',
     textAlign: 'left',
+    flexWrap: 'wrap',
   },
   exerciseDetails: {
     fontFamily: 'PlusJakartaSans-Regular',
     fontSize: 14,
     fontWeight: '400',
-    lineHeight: 21,
+    lineHeight: 20,
     color: nucleus.light.global.grey[70],
     includeFontPadding: false,
-    width: 175,
     textAlign: 'left',
+    flexShrink: 1,
   },
   exerciseDetails2: {
     fontFamily: 'PlusJakartaSans-Regular',
@@ -1180,6 +1292,90 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     overflow: 'hidden',
+  },
+  // Equipment display in exercise cards
+  exerciseEquipmentContainer: {
+    paddingTop: 8,
+    paddingHorizontal: 0,
+    gap: 8,
+  },
+  equipmentInlineContainer: {
+    marginTop: 8,
+  },
+  equipmentGroupWrapper: {
+    gap: 8,
+  },
+  equipmentAlternativesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  equipmentChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: nucleus.light.semantic.bg.subtle,
+    borderRadius: 20,
+    paddingVertical: 6,
+    paddingLeft: 6,
+    paddingRight: 12,
+    gap: 8,
+  },
+  equipmentChipInline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: nucleus.light.semantic.bg.subtle,
+    borderRadius: 20,
+    paddingVertical: 6,
+    paddingLeft: 6,
+    paddingRight: 12,
+    gap: 8,
+    alignSelf: 'flex-start',
+  },
+  equipmentChipIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: nucleus.light.global.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  equipmentChipImage: {
+    width: 24,
+    height: 24,
+  },
+  equipmentChipText: {
+    fontFamily: 'PlusJakartaSans-SemiBold',
+    fontSize: 13,
+    fontWeight: '600',
+    lineHeight: 16,
+    color: nucleus.light.global.grey[80],
+    letterSpacing: 0,
+  },
+  equipmentOrText: {
+    fontFamily: 'PlusJakartaSans-Regular',
+    fontSize: 12,
+    fontWeight: '400',
+    color: nucleus.light.global.grey[60],
+    paddingHorizontal: 4,
+  },
+  equipmentAndSeparator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 4,
+  },
+  equipmentAndLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: nucleus.light.global.grey[30],
+  },
+  equipmentAndText: {
+    fontFamily: 'PlusJakartaSans-Regular',
+    fontSize: 12,
+    fontWeight: '400',
+    color: nucleus.light.global.grey[60],
+    paddingHorizontal: 4,
   },
   floatingButtonWrapper: {
     position: 'absolute',
