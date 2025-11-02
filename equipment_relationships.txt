@@ -1,0 +1,28 @@
+EQUIPMENT RELATIONSHIPS
+==============================
+
+AND RELATIONSHIPS (equipment used together):
+--------------------------------------------------
+bench + chair + dumbbells + kettlebells  |  61 times
+bench + dumbbells + kettlebells          |  44 times
+bench + dumbbells                        |  23 times
+bench + chair + dumbbell                 |   7 times
+barbell + bench                          |   4 times
+bench + smith machine                    |   3 times
+bench + chair + resistance band          |   3 times
+barbell + weight plates                  |   2 times
+bench + ez bar                           |   1 times
+barbell + decline bench                  |   1 times
+barbell + incline bench                  |   1 times
+decline bench + dumbbells                |   1 times
+
+OR RELATIONSHIPS (alternative equipment):
+--------------------------------------------------
+dumbbells / kettlebells                  | 147 times
+bench / chair / dumbbells / kettlebells  |  61 times
+bench / dumbbells / kettlebells          |  44 times
+bench / chair                            |   8 times
+bench / chair / dumbbell                 |   7 times
+bench / chair / resistance band          |   3 times
+sliders / towel                          |   3 times
+dumbbell / kettlebell                    |   1 times

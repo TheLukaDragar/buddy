@@ -1,0 +1,162 @@
+[
+  {
+    "equipment_slug": "back-extension-machine",
+    "equipment_name": "Back Extension Machine"
+  },
+  {
+    "equipment_slug": "barbell",
+    "equipment_name": "Barbell"
+  },
+  {
+    "equipment_slug": "bench",
+    "equipment_name": "Bench"
+  },
+  {
+    "equipment_slug": "bench-press",
+    "equipment_name": "Bench Press"
+  },
+  {
+    "equipment_slug": "body-weight",
+    "equipment_name": "Body Weight"
+  },
+  {
+    "equipment_slug": "cable",
+    "equipment_name": "Cable"
+  },
+  {
+    "equipment_slug": "calf-raise-machine",
+    "equipment_name": "Calf Raise Machine"
+  },
+  {
+    "equipment_slug": "chair",
+    "equipment_name": "Chair"
+  },
+  {
+    "equipment_slug": "chest-fly-machine",
+    "equipment_name": "Chest Fly Machine"
+  },
+  {
+    "equipment_slug": "decline-bench",
+    "equipment_name": "Decline Bench"
+  },
+  {
+    "equipment_slug": "decline-bench-press",
+    "equipment_name": "Decline Bench Press"
+  },
+  {
+    "equipment_slug": "dips-machine",
+    "equipment_name": "Dips Machine"
+  },
+  {
+    "equipment_slug": "door-frame",
+    "equipment_name": "Door Frame"
+  },
+  {
+    "equipment_slug": "dumbbell",
+    "equipment_name": "Dumbbell"
+  },
+  {
+    "equipment_slug": "dumbbells",
+    "equipment_name": "Dumbbells"
+  },
+  {
+    "equipment_slug": "ez-bar",
+    "equipment_name": "Ez Bar"
+  },
+  {
+    "equipment_slug": "filled-bag",
+    "equipment_name": "Filled Bag"
+  },
+  {
+    "equipment_slug": "hack-squat-machine",
+    "equipment_name": "Hack Squat Machine"
+  },
+  {
+    "equipment_slug": "incline-bench-press",
+    "equipment_name": "Incline Bench Press"
+  },
+  {
+    "equipment_slug": "incline-chest-machine",
+    "equipment_name": "Incline Chest Machine"
+  },
+  {
+    "equipment_slug": "kettlebell",
+    "equipment_name": "Kettlebell"
+  },
+  {
+    "equipment_slug": "kettlebells",
+    "equipment_name": "Kettlebells"
+  },
+  {
+    "equipment_slug": "knee-extension-machine",
+    "equipment_name": "Knee Extension Machine"
+  },
+  {
+    "equipment_slug": "knee-flexion-machine",
+    "equipment_name": "Knee Flexion Machine"
+  },
+  {
+    "equipment_slug": "leg-press-machine",
+    "equipment_name": "Leg Press Machine"
+  },
+  {
+    "equipment_slug": "pull-up-bar",
+    "equipment_name": "Pull Up Bar"
+  },
+  {
+    "equipment_slug": "pull-up-machine",
+    "equipment_name": "Pull Up Machine"
+  },
+  {
+    "equipment_slug": "resistance-band",
+    "equipment_name": "Resistance Band"
+  },
+  {
+    "equipment_slug": "seated-calf-raise-machine",
+    "equipment_name": "Seated Calf Raise Machine"
+  },
+  {
+    "equipment_slug": "shoulder-abduction-machine",
+    "equipment_name": "Shoulder Abduction Machine"
+  },
+  {
+    "equipment_slug": "shoulder-press-machine",
+    "equipment_name": "Shoulder Press Machine"
+  },
+  {
+    "equipment_slug": "sliders",
+    "equipment_name": "Sliders"
+  },
+  {
+    "equipment_slug": "smith-machine",
+    "equipment_name": "Smith Machine"
+  },
+  {
+    "equipment_slug": "squat-rack",
+    "equipment_name": "Squat Rack"
+  },
+  {
+    "equipment_slug": "suspension-trainer",
+    "equipment_name": "Suspension Trainer"
+  },
+  {
+    "equipment_slug": "swiss-ball",
+    "equipment_name": "Swiss Ball"
+  },
+  {
+    "equipment_slug": "towel",
+    "equipment_name": "Towel"
+  },
+  {
+    "equipment_slug": "trap-bar",
+    "equipment_name": "Trap Bar"
+  },
+  {
+    "equipment_slug": "weight-plate",
+    "equipment_name": "Weight Plate"
+  },
+  {
+    "equipment_slug": "weight-plates",
+    "equipment_name": "Weight Plates"
+  }
+]

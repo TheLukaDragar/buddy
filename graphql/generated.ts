@@ -562,37 +562,28 @@ export type UuidListFilter = {
 export type Exercises = Node & {
   __typename?: "exercises";
   created_at?: Maybe<Scalars["Datetime"]["output"]>;
+  equipment_groups: Scalars["JSON"]["output"];
+  equipment_text: Scalars["String"]["output"];
+  exercise_location: Array<Maybe<Scalars["String"]["output"]>>;
   icon_description: Scalars["String"]["output"];
   id: Scalars["UUID"]["output"];
   instructions: Scalars["String"]["output"];
+  muscle_categories?: Maybe<Array<Maybe<Scalars["String"]["output"]>>>;
   name: Scalars["String"]["output"];
   /** Globally Unique Record Identifier */
   nodeId: Scalars["ID"]["output"];
   pain_injury_protocol: Scalars["String"]["output"];
   progression_by_client_feedback: Scalars["String"]["output"];
   rep_limitations_progression_rules: Scalars["String"]["output"];
-  required_equipment: Scalars["String"]["output"];
   slug: Scalars["String"]["output"];
   special_rules_by_location: Scalars["String"]["output"];
   trainer_notes: Scalars["String"]["output"];
   updated_at?: Maybe<Scalars["Datetime"]["output"]>;
   video_description: Scalars["String"]["output"];
   workout_entriesCollection?: Maybe<Workout_EntriesConnection>;
-  workout_entries_by_streak_exercise?: Maybe<Workout_EntriesConnection>;
-  workout_location: Scalars["String"]["output"];
 };
 
 export type ExercisesWorkout_EntriesCollectionArgs = {
-  after?: InputMaybe<Scalars["Cursor"]["input"]>;
-  before?: InputMaybe<Scalars["Cursor"]["input"]>;
-  filter?: InputMaybe<Workout_EntriesFilter>;
-  first?: InputMaybe<Scalars["Int"]["input"]>;
-  last?: InputMaybe<Scalars["Int"]["input"]>;
-  offset?: InputMaybe<Scalars["Int"]["input"]>;
-  orderBy?: InputMaybe<Array<Workout_EntriesOrderBy>>;
-};
-
-export type ExercisesWorkout_Entries_By_Streak_ExerciseArgs = {
   after?: InputMaybe<Scalars["Cursor"]["input"]>;
   before?: InputMaybe<Scalars["Cursor"]["input"]>;
   filter?: InputMaybe<Workout_EntriesFilter>;
@@ -626,9 +617,12 @@ export type ExercisesFilter = {
   /** Returns true only if all its inner filters are true, otherwise returns false */
   and?: InputMaybe<Array<ExercisesFilter>>;
   created_at?: InputMaybe<DatetimeFilter>;
+  equipment_text?: InputMaybe<StringFilter>;
+  exercise_location?: InputMaybe<StringListFilter>;
   icon_description?: InputMaybe<StringFilter>;
   id?: InputMaybe<UuidFilter>;
   instructions?: InputMaybe<StringFilter>;
+  muscle_categories?: InputMaybe<StringListFilter>;
   name?: InputMaybe<StringFilter>;
   nodeId?: InputMaybe<IdFilter>;
   /** Negates a filter */
@@ -638,31 +632,31 @@ export type ExercisesFilter = {
   pain_injury_protocol?: InputMaybe<StringFilter>;
   progression_by_client_feedback?: InputMaybe<StringFilter>;
   rep_limitations_progression_rules?: InputMaybe<StringFilter>;
-  required_equipment?: InputMaybe<StringFilter>;
   slug?: InputMaybe<StringFilter>;
   special_rules_by_location?: InputMaybe<StringFilter>;
   trainer_notes?: InputMaybe<StringFilter>;
   updated_at?: InputMaybe<DatetimeFilter>;
   video_description?: InputMaybe<StringFilter>;
-  workout_location?: InputMaybe<StringFilter>;
 };
 
 export type ExercisesInsertInput = {
   created_at?: InputMaybe<Scalars["Datetime"]["input"]>;
+  equipment_groups?: InputMaybe<Scalars["JSON"]["input"]>;
+  equipment_text?: InputMaybe<Scalars["String"]["input"]>;
+  exercise_location?: InputMaybe<Array<InputMaybe<Scalars["String"]["input"]>>>;
   icon_description?: InputMaybe<Scalars["String"]["input"]>;
   id?: InputMaybe<Scalars["UUID"]["input"]>;
   instructions?: InputMaybe<Scalars["String"]["input"]>;
+  muscle_categories?: InputMaybe<Array<InputMaybe<Scalars["String"]["input"]>>>;
   name?: InputMaybe<Scalars["String"]["input"]>;
   pain_injury_protocol?: InputMaybe<Scalars["String"]["input"]>;
   progression_by_client_feedback?: InputMaybe<Scalars["String"]["input"]>;
   rep_limitations_progression_rules?: InputMaybe<Scalars["String"]["input"]>;
-  required_equipment?: InputMaybe<Scalars["String"]["input"]>;
   slug?: InputMaybe<Scalars["String"]["input"]>;
   special_rules_by_location?: InputMaybe<Scalars["String"]["input"]>;
   trainer_notes?: InputMaybe<Scalars["String"]["input"]>;
   updated_at?: InputMaybe<Scalars["Datetime"]["input"]>;
   video_description?: InputMaybe<Scalars["String"]["input"]>;
-  workout_location?: InputMaybe<Scalars["String"]["input"]>;
 };
 
 export type ExercisesInsertResponse = {
@@ -675,6 +669,7 @@ export type ExercisesInsertResponse = {
 
 export type ExercisesOrderBy = {
   created_at?: InputMaybe<OrderByDirection>;
+  equipment_text?: InputMaybe<OrderByDirection>;
   icon_description?: InputMaybe<OrderByDirection>;
   id?: InputMaybe<OrderByDirection>;
   instructions?: InputMaybe<OrderByDirection>;
@@ -682,31 +677,31 @@ export type ExercisesOrderBy = {
   pain_injury_protocol?: InputMaybe<OrderByDirection>;
   progression_by_client_feedback?: InputMaybe<OrderByDirection>;
   rep_limitations_progression_rules?: InputMaybe<OrderByDirection>;
-  required_equipment?: InputMaybe<OrderByDirection>;
   slug?: InputMaybe<OrderByDirection>;
   special_rules_by_location?: InputMaybe<OrderByDirection>;
   trainer_notes?: InputMaybe<OrderByDirection>;
   updated_at?: InputMaybe<OrderByDirection>;
   video_description?: InputMaybe<OrderByDirection>;
-  workout_location?: InputMaybe<OrderByDirection>;
 };
 
 export type ExercisesUpdateInput = {
   created_at?: InputMaybe<Scalars["Datetime"]["input"]>;
+  equipment_groups?: InputMaybe<Scalars["JSON"]["input"]>;
+  equipment_text?: InputMaybe<Scalars["String"]["input"]>;
+  exercise_location?: InputMaybe<Array<InputMaybe<Scalars["String"]["input"]>>>;
   icon_description?: InputMaybe<Scalars["String"]["input"]>;
   id?: InputMaybe<Scalars["UUID"]["input"]>;
   instructions?: InputMaybe<Scalars["String"]["input"]>;
+  muscle_categories?: InputMaybe<Array<InputMaybe<Scalars["String"]["input"]>>>;
   name?: InputMaybe<Scalars["String"]["input"]>;
   pain_injury_protocol?: InputMaybe<Scalars["String"]["input"]>;
   progression_by_client_feedback?: InputMaybe<Scalars["String"]["input"]>;
   rep_limitations_progression_rules?: InputMaybe<Scalars["String"]["input"]>;
-  required_equipment?: InputMaybe<Scalars["String"]["input"]>;
   slug?: InputMaybe<Scalars["String"]["input"]>;
   special_rules_by_location?: InputMaybe<Scalars["String"]["input"]>;
   trainer_notes?: InputMaybe<Scalars["String"]["input"]>;
   updated_at?: InputMaybe<Scalars["Datetime"]["input"]>;
   video_description?: InputMaybe<Scalars["String"]["input"]>;
-  workout_location?: InputMaybe<Scalars["String"]["input"]>;
 };
 
 export type ExercisesUpdateResponse = {
@@ -1024,7 +1019,6 @@ export type Workout_Entries = Node & {
   date: Scalars["Date"]["output"];
   day: Weekday;
   day_name: Scalars["String"]["output"];
-  equipment: Scalars["String"]["output"];
   exercise_id: Scalars["UUID"]["output"];
   exercises: Exercises;
   id: Scalars["UUID"]["output"];
@@ -1034,8 +1028,6 @@ export type Workout_Entries = Node & {
   notes?: Maybe<Scalars["String"]["output"]>;
   reps: Scalars["String"]["output"];
   sets: Scalars["Int"]["output"];
-  streakExercises: Exercises;
-  streak_exercise_equipment: Scalars["String"]["output"];
   streak_exercise_id: Scalars["UUID"]["output"];
   streak_exercise_notes?: Maybe<Scalars["String"]["output"]>;
   time?: Maybe<Scalars["String"]["output"]>;
@@ -1074,7 +1066,6 @@ export type Workout_EntriesFilter = {
   date?: InputMaybe<DateFilter>;
   day?: InputMaybe<WeekdayFilter>;
   day_name?: InputMaybe<StringFilter>;
-  equipment?: InputMaybe<StringFilter>;
   exercise_id?: InputMaybe<UuidFilter>;
   id?: InputMaybe<UuidFilter>;
   is_adjusted?: InputMaybe<BooleanFilter>;
@@ -1086,7 +1077,6 @@ export type Workout_EntriesFilter = {
   or?: InputMaybe<Array<Workout_EntriesFilter>>;
   reps?: InputMaybe<StringFilter>;
   sets?: InputMaybe<IntFilter>;
-  streak_exercise_equipment?: InputMaybe<StringFilter>;
   streak_exercise_id?: InputMaybe<UuidFilter>;
   streak_exercise_notes?: InputMaybe<StringFilter>;
   time?: InputMaybe<StringFilter>;
@@ -1102,14 +1092,12 @@ export type Workout_EntriesInsertInput = {
   date?: InputMaybe<Scalars["Date"]["input"]>;
   day?: InputMaybe<Weekday>;
   day_name?: InputMaybe<Scalars["String"]["input"]>;
-  equipment?: InputMaybe<Scalars["String"]["input"]>;
   exercise_id?: InputMaybe<Scalars["UUID"]["input"]>;
   id?: InputMaybe<Scalars["UUID"]["input"]>;
   is_adjusted?: InputMaybe<Scalars["Boolean"]["input"]>;
   notes?: InputMaybe<Scalars["String"]["input"]>;
   reps?: InputMaybe<Scalars["String"]["input"]>;
   sets?: InputMaybe<Scalars["Int"]["input"]>;
-  streak_exercise_equipment?: InputMaybe<Scalars["String"]["input"]>;
   streak_exercise_id?: InputMaybe<Scalars["UUID"]["input"]>;
   streak_exercise_notes?: InputMaybe<Scalars["String"]["input"]>;
   time?: InputMaybe<Scalars["String"]["input"]>;
@@ -1133,14 +1121,12 @@ export type Workout_EntriesOrderBy = {
   date?: InputMaybe<OrderByDirection>;
   day?: InputMaybe<OrderByDirection>;
   day_name?: InputMaybe<OrderByDirection>;
-  equipment?: InputMaybe<OrderByDirection>;
   exercise_id?: InputMaybe<OrderByDirection>;
   id?: InputMaybe<OrderByDirection>;
   is_adjusted?: InputMaybe<OrderByDirection>;
   notes?: InputMaybe<OrderByDirection>;
   reps?: InputMaybe<OrderByDirection>;
   sets?: InputMaybe<OrderByDirection>;
-  streak_exercise_equipment?: InputMaybe<OrderByDirection>;
   streak_exercise_id?: InputMaybe<OrderByDirection>;
   streak_exercise_notes?: InputMaybe<OrderByDirection>;
   time?: InputMaybe<OrderByDirection>;
@@ -1156,14 +1142,12 @@ export type Workout_EntriesUpdateInput = {
   date?: InputMaybe<Scalars["Date"]["input"]>;
   day?: InputMaybe<Weekday>;
   day_name?: InputMaybe<Scalars["String"]["input"]>;
-  equipment?: InputMaybe<Scalars["String"]["input"]>;
   exercise_id?: InputMaybe<Scalars["UUID"]["input"]>;
   id?: InputMaybe<Scalars["UUID"]["input"]>;
   is_adjusted?: InputMaybe<Scalars["Boolean"]["input"]>;
   notes?: InputMaybe<Scalars["String"]["input"]>;
   reps?: InputMaybe<Scalars["String"]["input"]>;
   sets?: InputMaybe<Scalars["Int"]["input"]>;
-  streak_exercise_equipment?: InputMaybe<Scalars["String"]["input"]>;
   streak_exercise_id?: InputMaybe<Scalars["UUID"]["input"]>;
   streak_exercise_notes?: InputMaybe<Scalars["String"]["input"]>;
   time?: InputMaybe<Scalars["String"]["input"]>;
@@ -1614,17 +1598,20 @@ export type GetWorkoutPlanQuery = {
               day_name: string;
               day: Weekday;
               date: any;
+              exercise_id: any;
               sets: number;
               reps: string;
               weight?: string | null;
               time?: string | null;
-              equipment: string;
               notes?: string | null;
+              streak_exercise_id: any;
+              streak_exercise_notes?: string | null;
               exercises: {
                 __typename?: "exercises";
                 name: string;
                 instructions: string;
-                required_equipment: string;
+                equipment_text: string;
+                equipment_groups: any;
               };
             };
           }>;
@@ -1661,6 +1648,7 @@ export type GetUserWorkoutPlansQuery = {
               week_number: number;
               day_name: string;
               day: Weekday;
+              exercise_id: any;
               exercises: { __typename?: "exercises"; name: string };
             };
           }>;
@@ -1805,17 +1793,20 @@ export type GetWorkoutPlanByWeekQuery = {
               day_name: string;
               day: Weekday;
               date: any;
+              exercise_id: any;
               sets: number;
               reps: string;
               weight?: string | null;
               time?: string | null;
-              equipment: string;
               notes?: string | null;
+              streak_exercise_id: any;
+              streak_exercise_notes?: string | null;
               exercises: {
                 __typename?: "exercises";
                 name: string;
                 instructions: string;
-                required_equipment: string;
+                equipment_text: string;
+                equipment_groups: any;
               };
             };
           }>;
@@ -1854,14 +1845,16 @@ export type GetWorkoutDayQuery = {
               day_name: string;
               day: Weekday;
               date: any;
+              exercise_id: any;
               sets: number;
               reps: string;
               weight?: string | null;
               time?: string | null;
-              equipment: string;
               notes?: string | null;
-              streak_exercise_equipment: string;
+              streak_exercise_id: any;
               streak_exercise_notes?: string | null;
+              is_adjusted?: boolean | null;
+              adjustment_reason?: string | null;
               exercises: {
                 __typename?: "exercises";
                 id: any;
@@ -1870,8 +1863,10 @@ export type GetWorkoutDayQuery = {
                 icon_description: string;
                 instructions: string;
                 video_description: string;
-                required_equipment: string;
-                workout_location: string;
+                equipment_text: string;
+                equipment_groups: any;
+                exercise_location: Array<string | null>;
+                muscle_categories?: Array<string | null> | null;
               };
             };
           }>;
@@ -2001,16 +1996,19 @@ export const GetWorkoutPlanDocument = `
               day_name
               day
               date
+              exercise_id
               sets
               reps
               weight
               time
-              equipment
               notes
+              streak_exercise_id
+              streak_exercise_notes
               exercises {
                 name
                 instructions
-                required_equipment
+                equipment_text
+                equipment_groups
               }
             }
           }
@@ -2042,6 +2040,7 @@ export const GetUserWorkoutPlansDocument = `
               week_number
               day_name
               day
+              exercise_id
               exercises {
                 name
               }
@@ -2153,16 +2152,19 @@ export const GetWorkoutPlanByWeekDocument = `
               day_name
               day
               date
+              exercise_id
               sets
               reps
               weight
               time
-              equipment
               notes
+              streak_exercise_id
+              streak_exercise_notes
               exercises {
                 name
                 instructions
-                required_equipment
+                equipment_text
+                equipment_groups
               }
             }
           }
@@ -2192,14 +2194,16 @@ export const GetWorkoutDayDocument = `
               day_name
               day
               date
+              exercise_id
               sets
               reps
               weight
               time
-              equipment
               notes
-              streak_exercise_equipment
+              streak_exercise_id
               streak_exercise_notes
+              is_adjusted
+              adjustment_reason
               exercises {
                 id
                 name
@@ -2207,8 +2211,10 @@ export const GetWorkoutDayDocument = `
                 icon_description
                 instructions
                 video_description
-                required_equipment
-                workout_location
+                equipment_text
+                equipment_groups
+                exercise_location
+                muscle_categories
               }
             }
           }

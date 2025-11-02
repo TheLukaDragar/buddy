@@ -42,16 +42,19 @@ query GetWorkoutPlan($id: UUID!) {
               day_name
               day
               date
+              exercise_id
               sets
               reps
               weight
               time
-              equipment
               notes
+              streak_exercise_id
+              streak_exercise_notes
               exercises {
                 name
                 instructions
-                required_equipment
+                equipment_text
+                equipment_groups
               }
             }
           }
@@ -81,6 +84,7 @@ query GetUserWorkoutPlans($userId: UUID!) {
               week_number
               day_name
               day
+              exercise_id
               exercises {
                 name
               }
@@ -201,16 +205,19 @@ query GetWorkoutPlanByWeek($planId: UUID!, $weekNumber: Int!) {
               day_name
               day
               date
+              exercise_id
               sets
               reps
               weight
               time
-              equipment
               notes
+              streak_exercise_id
+              streak_exercise_notes
               exercises {
                 name
                 instructions
-                required_equipment
+                equipment_text
+                equipment_groups
               }
             }
           }
@@ -243,14 +250,16 @@ query GetWorkoutDay($planId: UUID!, $weekNumber: Int!, $day: weekday!) {
               day_name
               day
               date
+              exercise_id
               sets
               reps
               weight
               time
-              equipment
               notes
-              streak_exercise_equipment
+              streak_exercise_id
               streak_exercise_notes
+              is_adjusted
+              adjustment_reason
               exercises {
                 id
                 name
@@ -258,8 +267,10 @@ query GetWorkoutDay($planId: UUID!, $weekNumber: Int!, $day: weekday!) {
                 icon_description
                 instructions
                 video_description
-                required_equipment
-                workout_location
+                equipment_text
+                equipment_groups
+                exercise_location
+                muscle_categories
               }
             }
           }

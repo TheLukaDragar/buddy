@@ -1,0 +1,40 @@
+UNIQUE EQUIPMENT LIST
+==============================
+
+ 1. back extension machine
+ 2. barbell
+ 3. bench
+ 4. body weight
+ 5. cable
+ 6. calf raise machine
+ 7. chair
+ 8. chest fly machine
+ 9. decline bench
+10. dips machine
+11. door frame
+12. dumbbell
+13. dumbbells
+14. ez bar
+15. filled bag
+16. hack squat machine
+17. incline bench
+18. incline chest machine
+19. kettlebell
+20. kettlebells
+21. knee extension machine
+22. knee flexion machine
+23. leg press machine
+24. pull up bar
+25. pull up machine
+26. resistance band
+27. seated calf raise machine
+28. shoulder abduction machine
+29. shoulder press machine
+30. sliders
+31. smith machine
+32. suspension trainer
+33. swiss ball
+34. towel
+35. trap bar
+36. weight plate
+37. weight plates

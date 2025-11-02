@@ -82,15 +82,38 @@ export default function WorkoutScreen() {
   console.log('Total sets:', totalSets);
   console.log('Total workout minutes:', totalWorkoutMinutes);
 
-  // Extract unique equipment from all exercises
-  const allEquipmentStrings = workoutEntries.map(entry => entry.node.equipment);
-  const allEquipmentItems = allEquipmentStrings.flatMap(equipStr =>
-    equipStr.split(',').map(item => item.trim()).filter(Boolean)
-  );
+  // Extract unique equipment from all exercises using equipment_groups
+  const allEquipmentItems = workoutEntries.flatMap(entry => {
+    const equipmentGroups = entry.node.exercises?.equipment_groups;
+    
+    // Parse equipment_groups if it's a string (JSON from database)
+    let groups = [];
+    if (typeof equipmentGroups === 'string') {
+      try {
+        const parsed = JSON.parse(equipmentGroups);
+        groups = parsed.groups || [];
+      } catch (e) {
+        console.error('Failed to parse equipment_groups:', e);
+        groups = [];
+      }
+    } else if (equipmentGroups && typeof equipmentGroups === 'object') {
+      groups = equipmentGroups.groups || [];
+    }
+    
+    // Flatten all equipment from all groups
+    return groups.flat();
+  });
+  console.log('All equipment items:', allEquipmentItems);
   const uniqueEquipment = [...new Set(allEquipmentItems)];
-
-  console.log('All equipment strings:', allEquipmentStrings);
   console.log('Unique equipment:', uniqueEquipment);
+  // Convert slugs to readable names (capitalize and replace hyphens with spaces)
+  const uniqueEquipmentReadable = uniqueEquipment.map((slug: string) => 
+    slug.split('-').map((word: string) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
+  );
+
+  console.log('Equipment groups from entries:', workoutEntries.map(e => e.node.exercises?.equipment_groups));
+  console.log('Unique equipment slugs:', uniqueEquipment);
+  console.log('Unique equipment readable:', uniqueEquipmentReadable);
 
   // Extract exercise slugs and create thumbnail URLs (memoized to prevent re-renders)
   const { exerciseSlugs, thumbnailUrls } = useMemo(() => {
@@ -230,11 +253,90 @@ export default function WorkoutScreen() {
     },
   ];
 
+  // Helper function to get equipment icon based on slug
+  const getEquipmentIcon = (slug: string) => {
+    const iconMap: { [key: string]: any } = {
+      'back-extension-machine': require('../assets/equipment_icons/back-extension-machine.png'),
+      'barbell': require('../assets/equipment_icons/barbell.png'),
+      'barbells': require('../assets/equipment_icons/barbell.png'),
+      'bench': require('../assets/equipment_icons/bench.png'),
+      'body-weight': require('../assets/equipment_icons/body-weight.png'),
+      'cable': require('../assets/equipment_icons/cable.png'),
+      'cables': require('../assets/equipment_icons/cable.png'),
+      'calf-raise-machine': require('../assets/equipment_icons/calf-raise-machine.png'),
+      'chair': require('../assets/equipment_icons/chair.png'),
+      'chairs': require('../assets/equipment_icons/chair.png'),
+      'chest-fly-machine': require('../assets/equipment_icons/chest-fly-machine.png'),
+      'decline-bench-press': require('../assets/equipment_icons/decline-bench-press.png'),
+      'decline-bench': require('../assets/equipment_icons/decline-bench.png'),
+      'dips-machine': require('../assets/equipment_icons/dips-machine.png'),
+      'door-frame': require('../assets/equipment_icons/door-frame.png'),
+      'dumbbell': require('../assets/equipment_icons/dumbbell.png'),
+      'dumbbells': require('../assets/equipment_icons/dumbbell.png'),
+      'ez-bar': require('../assets/equipment_icons/ez-bar.png'),
+      'ez-bars': require('../assets/equipment_icons/ez-bar.png'),
+      'filled-bag': require('../assets/equipment_icons/filled-bag.png'),
+      'filled-bags': require('../assets/equipment_icons/filled-bag.png'),
+      'hack-squat-machine': require('../assets/equipment_icons/hack-squat-machine.png'),
+      'incline-bench-press': require('../assets/equipment_icons/incline-bench-press.png'),
+      'incline-bench': require('../assets/equipment_icons/incline-bench.png'),
+      'incline-chest-press-machine': require('../assets/equipment_icons/incline-chest-press-machine.png'),
+      'kettlebell': require('../assets/equipment_icons/kettlebell.png'),
+      'kettlebells': require('../assets/equipment_icons/kettlebell.png'),
+      'knee-extension-machine': require('../assets/equipment_icons/knee-extension-machine.png'),
+      'knee-flexion-machine': require('../assets/equipment_icons/knee-flexion-machine.png'),
+      'leg-press': require('../assets/equipment_icons/leg-press.png'),
+      'pull-up-bar': require('../assets/equipment_icons/pull-up-bar.png'),
+      'pull-up-bars': require('../assets/equipment_icons/pull-up-bar.png'),
+      'pull-up-machine': require('../assets/equipment_icons/pull-up-machine.png'),
+      'resistance-band': require('../assets/equipment_icons/resistance-band.png'),
+      'resistance-bands': require('../assets/equipment_icons/resistance-band.png'),
+      'seated-calf-raise-machine': require('../assets/equipment_icons/seated-calf-raise-machine.png'),
+      'shoulder-abduction-machine': require('../assets/equipment_icons/shoulder-abduction-machine.png'),
+      'shoulder-press-machine': require('../assets/equipment_icons/shoulder-press-machine.png'),
+      'sliders': require('../assets/equipment_icons/sliders.png'),
+      'smith-machine': require('../assets/equipment_icons/smith-machine.png'),
+      'squat-rack': require('../assets/equipment_icons/squat-rack.png'),
+      'squat-racks': require('../assets/equipment_icons/squat-rack.png'),
+      'suspension-trainer': require('../assets/equipment_icons/suspension-trainer.png'),
+      'suspension-trainers': require('../assets/equipment_icons/suspension-trainer.png'),
+      'swiss-ball': require('../assets/equipment_icons/swiss-ball.png'),
+      'swiss-balls': require('../assets/equipment_icons/swiss-ball.png'),
+      'towel': require('../assets/equipment_icons/towel.png'),
+      'towels': require('../assets/equipment_icons/towel.png'),
+      'trap-bar': require('../assets/equipment_icons/trap-bar.png'),
+      'trap-bars': require('../assets/equipment_icons/trap-bar.png'),
+      'weight-plate': require('../assets/equipment_icons/weight-plate.png'),
+      'weight-plates': require('../assets/equipment_icons/weight-plate.png'),
+    };
+    
+    // Try exact match first
+    if (iconMap[slug]) {
+      return iconMap[slug];
+    }
+    
+    // Try with 's' added for plural
+    const pluralSlug = slug + 's';
+    if (iconMap[pluralSlug]) {
+      return iconMap[pluralSlug];
+    }
+    
+    // Try removing 's' for singular (in case slug is already plural)
+    const singularSlug = slug.endsWith('s') ? slug.slice(0, -1) : slug;
+    if (iconMap[singularSlug]) {
+      return iconMap[singularSlug];
+    }
+    
+    // Default fallback
+    return require('../assets/equipment_icons/body-weight.png');
+  };
+
   // Create equipment array from dynamic data
-  const equipment = uniqueEquipment.map((equipmentName, index) => ({
+  const equipment = uniqueEquipmentReadable.map((equipmentName, index) => ({
     id: index + 1,
     name: equipmentName,
-    image: require('../assets/icons/mat.png'), // Default image for now
+    slug: uniqueEquipment[index], // Keep the slug for reference
+    image: getEquipmentIcon(uniqueEquipment[index]), // Match icon based on slug
   }));
 
   // Create exercises summary from dynamic data with thumbnail URLs
@@ -252,7 +354,7 @@ export default function WorkoutScreen() {
       id: index + 1,
       name: cleanName,
       sets: `${entry.node.sets} sets`,
-      muscles: entry.node.equipment, // Using equipment as muscle info for now
+      muscles: entry.node.exercises?.muscle_categories?.join(', ') || '', // Using equipment as muscle info for now
       description: entry.node.exercises.instructions || 'Exercise instructions',
       thumbnailUrl: thumbnailUrl,
       slug: slug,
@@ -467,7 +569,9 @@ export default function WorkoutScreen() {
                       instructions: instructionsParts.filter(s => !s.includes('Key Form Tips')),
                       tips: keyFormTips,
                       videoUrl: realExerciseData.slug ? `https://kmtddcpdqkeqipyetwjs.supabase.co/storage/v1/object/public/workouts/processed/${realExerciseData.slug}/${realExerciseData.slug}_cropped_video.mp4` : undefined,
-                      equipment: realExerciseData.required_equipment?.split(',').map(e => e.trim()) || [],
+                      equipment: realExerciseData.equipment_groups?.groups?.flat().map((slug: string) => 
+                        slug.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
+                      ) || [],
                       category: "How to"
                     };
                     setSelectedExercise(exerciseData);
