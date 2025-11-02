@@ -685,7 +685,7 @@ export default function WorkoutScreen() {
                                       contentFit="contain"
                                     />
                                   </View>
-                                  <Text style={styles.equipmentChipText} numberOfLines={1}>
+                                  <Text style={styles.equipmentChipText}>
                                     {equipmentName}
                                   </Text>
                                 </View>
@@ -1235,12 +1235,13 @@ const styles = StyleSheet.create({
   exerciseRow: {
     alignItems: 'flex-start',
     flexDirection: 'row',
-    gap: 16,
+    gap: 12,
   },
   exerciseImageContainer: {
-    width: 120,
-    height: 120,
+    width: 96,
+    height: 96,
     borderRadius: 12,
+    flexShrink: 0,
   },
   exerciseImage: {
     position: 'absolute',
@@ -1256,17 +1257,19 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   exerciseInfo: {
-    gap: 8,
     flex: 1,
+    minWidth: 0,
     alignItems: 'flex-start',
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    position: 'relative',
   },
   exerciseTextContainer: {
     gap: 6,
     flex: 1,
     flexShrink: 1,
+    minWidth: 0,
     paddingTop: 4,
+    paddingRight: 36,
   },
   exerciseNumber: {
     fontFamily: 'PlusJakartaSans-Bold',
@@ -1276,7 +1279,6 @@ const styles = StyleSheet.create({
     color: nucleus.light.global.grey[80],
     includeFontPadding: false,
     textAlign: 'left',
-    flexWrap: 'wrap',
   },
   exerciseDetails: {
     fontFamily: 'PlusJakartaSans-Regular',
@@ -1287,6 +1289,7 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
     textAlign: 'left',
     flexShrink: 1,
+    minWidth: 0,
   },
   exerciseDetails2: {
     fontFamily: 'PlusJakartaSans-Regular',
@@ -1310,15 +1313,19 @@ const styles = StyleSheet.create({
     display: 'none',
   },
   playButton: {
-    width: 32,
-    height: 32,
+    position: 'absolute',
+    right: 0,
+    top: 4,
+    width: 28,
+    height: 28,
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
+    zIndex: 1,
   },
   playIcon: {
-    width: 32,
-    height: 32,
+    width: 24,
+    height: 24,
     overflow: 'hidden',
   },
   // Equipment display in exercise cards
@@ -1329,6 +1336,10 @@ const styles = StyleSheet.create({
   },
   equipmentInlineContainer: {
     marginTop: 8,
+    flexDirection: 'row',
+    gap: 8,
+    alignSelf: 'flex-start',
+    flexWrap: 'wrap',
   },
   equipmentGroupWrapper: {
     gap: 8,
@@ -1348,6 +1359,8 @@ const styles = StyleSheet.create({
     paddingLeft: 6,
     paddingRight: 12,
     gap: 8,
+    flexShrink: 1,
+    minWidth: 0,
   },
   equipmentChipInline: {
     flexDirection: 'row',
@@ -1359,6 +1372,7 @@ const styles = StyleSheet.create({
     paddingRight: 12,
     gap: 8,
     alignSelf: 'flex-start',
+    flexShrink: 0,
   },
   equipmentChipIcon: {
     width: 32,
@@ -1379,6 +1393,7 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     color: nucleus.light.global.grey[80],
     letterSpacing: 0,
+    flexShrink: 0,
   },
   equipmentOrText: {
     fontFamily: 'PlusJakartaSans-Regular',
