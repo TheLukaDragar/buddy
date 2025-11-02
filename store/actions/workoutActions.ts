@@ -16,10 +16,12 @@ import {
   pauseSet as pauseSetReducer,
   previousSet as previousSetReducer,
   resumeSet as resumeSetReducer,
+  selectWorkoutFromEntries as selectWorkoutFromEntriesReducer,
   selectWorkout as selectWorkoutReducer,
   startExercisePreparation as startExercisePreparationReducer,
   startRest as startRestReducer,
-  triggerRestEnding as triggerRestEndingReducer
+  triggerRestEnding as triggerRestEndingReducer,
+  type WorkoutEntryNode
 } from '../slices/workoutSlice'
 
 // =============================================================================
@@ -105,6 +107,35 @@ export const selectWorkout = createAsyncThunk(
   }
 )
 
+// New action to select workout from database entries
+export const selectWorkoutFromEntries = createAsyncThunk(
+  'workout/selectWorkoutFromEntries',
+  async (
+    { workoutEntries, planId, dayName }: { workoutEntries: WorkoutEntryNode[]; planId: string; dayName: string },
+    { getState, dispatch, rejectWithValue }
+  ) => {
+    const state = getState() as RootState
+    
+    if (state.workout.status !== 'inactive') {
+      return rejectWithValue('Cannot select workout - already active')
+    }
+
+    if (workoutEntries.length === 0) {
+      return rejectWithValue('No workout entries provided')
+    }
+
+    dispatch(selectWorkoutFromEntriesReducer(workoutEntries, planId, dayName))
+
+    return { 
+      success: true,
+      message: `Selected workout: ${dayName}`,
+      workoutName: dayName,
+      planId,
+      entryCount: workoutEntries.length
+    }
+  }
+)
+
 export const startExercisePreparation = createAsyncThunk(
   'workout/startExercisePreparation',
   async (_, { getState, dispatch, rejectWithValue }) => {
@@ -129,7 +160,13 @@ export const confirmReadyAndStartSet = createAsyncThunk(
   async (_, { getState, dispatch, rejectWithValue }) => {
     const state = getState() as RootState
     
-    if (!state.workout.activeWorkout || !state.workout.session) {
+    // Check for active workout - either session (legacy) or workoutEntries (new structure)
+    const hasWorkout = state.workout.activeWorkout && (
+      state.workout.session !== null || 
+      (state.workout.workoutEntries !== null && state.workout.workoutEntries.length > 0)
+    );
+    
+    if (!hasWorkout) {
       return rejectWithValue('No active workout')
     }
 
@@ -468,15 +505,37 @@ export const getExerciseInstructions = createAsyncThunk(
     const instructions = exercise.description || `Exercise: ${exercise.name}`
     const detailedInstructions = `${instructions}\n\nCurrent set: ${currentSet?.targetReps} reps${currentSet?.targetWeight ? ` at ${currentSet.targetWeight}kg` : ''}`
     
+    // Build comprehensive exercise data for AI agent
+    const exerciseData: Record<string, any> = {
+      exerciseName: exercise.name,
+      description: exercise.description,
+      targetReps: currentSet?.targetReps,
+      targetWeight: currentSet?.targetWeight,
+      instructions: exercise.instructions,
+      tips: exercise.tips,
+      muscleGroups: exercise.muscleGroups,
+      equipmentText: exercise.equipmentText,
+      videoUrl: exercise.videoUrl,
+    };
+
+    // Add progression and safety data if available
+    if (exercise.repLimitationsProgressionRules) {
+      exerciseData.repLimitationsProgressionRules = exercise.repLimitationsProgressionRules;
+    }
+    if (exercise.progressionByClientFeedback) {
+      exerciseData.progressionByClientFeedback = exercise.progressionByClientFeedback;
+    }
+    if (exercise.painInjuryProtocol) {
+      exerciseData.painInjuryProtocol = exercise.painInjuryProtocol;
+    }
+    if (exercise.trainerNotes) {
+      exerciseData.trainerNotes = exercise.trainerNotes;
+    }
+    
     return { 
       success: true,
       message: detailedInstructions,
-      data: {
-        exerciseName: exercise.name,
-        description: exercise.description,
-        targetReps: currentSet?.targetReps,
-        targetWeight: currentSet?.targetWeight
-      }
+      data: exerciseData
     }
   }
 )

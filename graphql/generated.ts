@@ -1867,6 +1867,10 @@ export type GetWorkoutDayQuery = {
                 equipment_groups: any;
                 exercise_location: Array<string | null>;
                 muscle_categories?: Array<string | null> | null;
+                rep_limitations_progression_rules: string;
+                progression_by_client_feedback: string;
+                pain_injury_protocol: string;
+                trainer_notes: string;
               };
             };
           }>;
@@ -2215,6 +2219,10 @@ export const GetWorkoutDayDocument = `
                 equipment_groups
                 exercise_location
                 muscle_categories
+                rep_limitations_progression_rules
+                progression_by_client_feedback
+                pain_injury_protocol
+                trainer_notes
               }
             }
           }

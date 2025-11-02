@@ -1,3 +1,4 @@
+import { unwrapResult } from '@reduxjs/toolkit';
 import { BlurView } from 'expo-blur';
 import { Image } from "expo-image";
 import { router, useLocalSearchParams } from 'expo-router';
@@ -10,9 +11,8 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { nucleus } from '../Buddy_variables';
 import ExerciseInfoModal from '../components/ExerciseInfoModal';
 import MusicModal from '../components/MusicModal';
-import { mihasWorkout } from '../data/sampleWorkouts';
 import { Weekday } from '../graphql/generated';
-import { selectWorkout } from '../store/actions/workoutActions';
+import { selectWorkoutFromEntries } from '../store/actions/workoutActions';
 import { useGetWorkoutDayQuery } from '../store/api/enhancedApi';
 import { useAppDispatch } from '../store/hooks';
 
@@ -58,12 +58,13 @@ export default function WorkoutScreen() {
   // Extract workout entries from the query response
   const workoutEntries = workoutData?.workout_plansCollection?.edges?.[0]?.node?.workout_entriesCollection?.edges || [];
 
-  // Debug logging
-  console.log('Workout Data Debug:');
-  console.log('Raw workout data:', workoutData);
-  console.log('Workout entries count:', workoutEntries.length);
-  console.log('All workout entries:', workoutEntries.map(entry => entry.node));
-  console.log('First workout entry:', workoutEntries[0]?.node);
+  // // Debug logging
+  // console.log('Workout Data Debug:');
+  // console.log('Raw workout data:', workoutData);
+  // console.log('Workout entries count:', workoutEntries.length);
+  // console.log('All workout entries:', workoutEntries.map(entry => entry.node));
+  // console.log('First workout entry:', workoutEntries[0]?.node);
+  console.log('Workout entries:', JSON.stringify(workoutEntries, null, 2));
 
   // Create dynamic workout title: "Tuesday's Leg Workout" format
   const dayOfWeek = day ? day.charAt(0).toUpperCase() + day.slice(1) : 'Tuesday';
@@ -833,11 +834,38 @@ export default function WorkoutScreen() {
                 onPress={async () => {
                   console.log('Start workout pressed');
                   try {
-                    // Select the workout first
-                    await dispatch(selectWorkout(mihasWorkout));
-                    console.log('🏋️ Workout selected from workout screen - navigating to active workout');
-                    // Then navigate to active workout
-                    router.replace('/active_workout');
+                    if (!workoutEntries || workoutEntries.length === 0) {
+                      console.error('No workout entries available');
+                      return;
+                    }
+                    
+                    const planId = workoutData?.workout_plansCollection?.edges?.[0]?.node?.id;
+                    if (!planId) {
+                      console.error('No plan ID available');
+                      return;
+                    }
+
+                    // Extract workout entry nodes
+                    const entryNodes = workoutEntries.map(edge => edge.node);
+                    
+                    // Select the workout from database entries and wait for it to complete
+                    const result = await dispatch(selectWorkoutFromEntries({
+                      workoutEntries: entryNodes,
+                      planId: planId as string,
+                      dayName: workoutType || 'Workout'
+                    }));
+                    
+                    // Check if selection was successful
+                    const resultData = unwrapResult(result);
+                    if (resultData.success) {
+                      console.log('🏋️ Workout selected from database:', resultData);
+                      // Small delay to ensure Redux state is propagated
+                      await new Promise(resolve => setTimeout(resolve, 100));
+                      // Then navigate to active workout
+                      router.replace('/active_workout');
+                    } else {
+                      console.error('Failed to select workout:', resultData);
+                    }
                   } catch (error) {
                     console.error('Failed to select workout:', error);
                   }

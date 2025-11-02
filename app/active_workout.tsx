@@ -8,14 +8,14 @@ import { SystemBars } from 'react-native-edge-to-edge';
 import { PanGestureHandler } from 'react-native-gesture-handler';
 import { Button, Text } from 'react-native-paper';
 import ReanimatedAnimated, {
-  Easing,
-  FadeIn,
-  runOnJS,
-  useAnimatedGestureHandler,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  withTiming
+    Easing,
+    FadeIn,
+    runOnJS,
+    useAnimatedGestureHandler,
+    useAnimatedStyle,
+    useSharedValue,
+    withSpring,
+    withTiming
 } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
@@ -23,53 +23,51 @@ import { nucleus } from '../Buddy_variables.js';
 import ChatComponent from '../components/ChatComponent';
 import MusicModal from '../components/MusicModal';
 import { useBuddyTheme } from '../constants/BuddyTheme';
-import { mihasWorkout } from '../data/sampleWorkouts';
 import { contextBridgeService } from '../services/contextBridgeService';
 import { store } from '../store';
 import {
-  getMusicStatus,
-  getPlaylists,
-  getTracks,
-  pauseMusic,
-  playTrack,
-  resumeMusic,
-  selectPlaylist,
-  setVolume,
-  skipNext,
-  skipPrevious,
-  syncPlaylistToSpotify
+    getMusicStatus,
+    getPlaylists,
+    getTracks,
+    pauseMusic,
+    playTrack,
+    resumeMusic,
+    selectPlaylist,
+    setVolume,
+    skipNext,
+    skipPrevious,
+    syncPlaylistToSpotify
 } from '../store/actions/musicActions';
 import {
-  adjustReps,
-  adjustRestTime,
-  adjustWeight,
-  completeExercise,
-  completeSet,
-  completeWorkout,
-  confirmReadyAndStartSet,
-  finishWorkoutEarly,
-  getExerciseInstructions,
-  getWorkoutStatus,
-  jumpToSet,
-  pauseSet,
-  resumeSet,
-  selectWorkout,
-  showAd,
-  startExercisePreparation,
-  startRest
+    adjustReps,
+    adjustRestTime,
+    adjustWeight,
+    completeExercise,
+    completeSet,
+    completeWorkout,
+    confirmReadyAndStartSet,
+    finishWorkoutEarly,
+    getExerciseInstructions,
+    getWorkoutStatus,
+    jumpToSet,
+    pauseSet,
+    resumeSet,
+    showAd,
+    startExercisePreparation,
+    startRest
 } from '../store/actions/workoutActions';
 import { useAppDispatch } from '../store/hooks';
 import { hideMiniPlayer, showMiniPlayer } from '../store/slices/musicSlice';
 import {
-  extendRest,
-  selectActiveWorkout,
-  selectCurrentExercise,
-  selectCurrentSet,
-  selectTimers,
-  selectVoiceAgentStatus,
-  selectWorkoutSession,
-  selectWorkoutStatus,
-  setVoiceAgentStatus
+    extendRest,
+    selectActiveWorkout,
+    selectCurrentExercise,
+    selectCurrentSet,
+    selectTimers,
+    selectVoiceAgentStatus,
+    selectWorkoutSession,
+    selectWorkoutStatus,
+    setVoiceAgentStatus
 } from '../store/slices/workoutSlice';
 
 import type { ConversationEvent, ConversationStatus, Mode, Role } from '@elevenlabs/react-native';
@@ -829,28 +827,16 @@ const WorkoutControls: React.FC<WorkoutControlsProps> = ({ onShowFinishAlert }) 
     try {
       switch (status) {
         case 'inactive':
-          // START - Select workout to begin
-          const selectResult = await dispatch(selectWorkout(mihasWorkout));
-          const selectData = unwrapResult(selectResult);
-          console.log('Select workout result:', selectData);
-          
-          // // Sync playlist to Spotify after workout selection
-          // const state = store.getState();
-          // const musicState = state.music;
-          // const spotifyAuth = state.spotifyAuth;
-          
-          // if (spotifyAuth.accessToken && spotifyAuth.user && musicState.selectedPlaylist) {
-          //   console.log('🎵 [Center Button] Syncing selected playlist to Spotify...');
-          //   try {
-          //     const syncResult = await dispatch(syncPlaylistToSpotify());
-          //     const syncData = unwrapResult(syncResult);
-          //     if (syncData?.synced) {
-          //       console.log(`🎵 [Center Button] Playlist "${syncData.playlist}" synced to Spotify`);
-          //     }
-          //   } catch (error) {
-          //     console.log('🎵 [Center Button] Failed to sync playlist:', error);
-          //   }
-          // }
+          // START - Check if workout is in Redux but status hasn't updated yet
+          // If we have workoutEntries, try to select workout
+          const currentState = store.getState() as any;
+          if (currentState.workout.workoutEntries && currentState.workout.workoutEntries.length > 0 && currentState.workout.planId) {
+            console.log('Workout entries found, but status is inactive. Workout should already be selected.');
+            // Status might be transitioning - just wait and show message
+            console.log('Please wait for workout to be selected, or try again.');
+          } else {
+            console.log('No workout selected. Please start workout from workout screen.');
+          }
           break;
         case 'selected':
           // BEGIN - Start exercise preparation
@@ -915,9 +901,8 @@ const WorkoutControls: React.FC<WorkoutControlsProps> = ({ onShowFinishAlert }) 
     try {
       switch (status) {
         case 'inactive':
-          const selectResult = await dispatch(selectWorkout(mihasWorkout));
-          const selectData = unwrapResult(selectResult);
-          console.log('Select workout result:', selectData);
+          // Workout should already be selected from workout.tsx
+          console.log('Workout should already be selected. Current status:', status);
           
           // Sync playlist to Spotify after workout selection
           const state = store.getState();
@@ -1865,6 +1850,30 @@ export default function ActiveWorkoutScreen() {
 
   // Note: Auto-selection removed to prevent loops when finishing workout early
   // Users should start workouts from the workout selection screen instead
+
+  // Check if workoutEntries exist but status is still inactive (race condition fix)
+  useEffect(() => {
+    const currentState = store.getState() as any;
+    if (
+      status === 'inactive' && 
+      currentState.workout.workoutEntries && 
+      currentState.workout.workoutEntries.length > 0 && 
+      currentState.workout.planId &&
+      !currentState.workout.activeWorkout
+    ) {
+      console.log('🔄 Workout entries found but status is inactive - workout might be loading, waiting...');
+      // Give it a moment, then check again - this handles race condition
+      const timer = setTimeout(() => {
+        const updatedState = store.getState() as any;
+        if (updatedState.workout.status === 'selected' || updatedState.workout.activeWorkout) {
+          console.log('✅ Workout selection completed');
+        } else {
+          console.log('⚠️ Workout still not selected - manual selection may be needed');
+        }
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [status]);
 
   // Trigger ad when workout is completed and agent is not connected
   useEffect(() => {

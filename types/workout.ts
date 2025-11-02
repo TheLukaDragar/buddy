@@ -48,6 +48,14 @@ export interface Exercise {
   instructions?: string[];
   tips?: string[];
   estimatedDuration: number;
+  // Additional exercise data from database
+  repLimitationsProgressionRules?: string;
+  progressionByClientFeedback?: string;
+  painInjuryProtocol?: string;
+  trainerNotes?: string;
+  equipmentText?: string;
+  iconDescription?: string;
+  videoDescription?: string;
 }
 
 export interface ActiveWorkoutState {

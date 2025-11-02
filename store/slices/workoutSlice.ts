@@ -1,12 +1,26 @@
 import type { PayloadAction } from '@reduxjs/toolkit';
 import { createSelector, createSlice } from '@reduxjs/toolkit';
+import type { GetWorkoutDayQuery } from '../../graphql/generated';
 import { ActiveWorkoutState, WorkoutSession } from '../../types/workout';
+
+// Type for workout entries from database
+type WorkoutPlansCollection = NonNullable<GetWorkoutDayQuery['workout_plansCollection']>;
+type WorkoutPlanEdge = NonNullable<WorkoutPlansCollection['edges']>[number];
+type WorkoutPlanNode = NonNullable<WorkoutPlanEdge['node']>;
+type WorkoutEntriesCollection = NonNullable<WorkoutPlanNode['workout_entriesCollection']>;
+type WorkoutEntryEdge = NonNullable<WorkoutEntriesCollection['edges']>[number];
+export type WorkoutEntryNode = NonNullable<WorkoutEntryEdge['node']>;
 
 // Enhanced workout state with Redux pattern
 export interface WorkoutState {
   // Core state
   status: 'inactive' | 'selected' | 'preparing' | 'exercising' | 'set-complete' | 'resting' | 'rest-ending' | 'exercise-transition' | 'workout-completed';
   session: WorkoutSession | null;
+  
+  // Database workout entries (new structure)
+  workoutEntries: WorkoutEntryNode[] | null;
+  planId: string | null;
+  dayName: string | null;
   
   // Active workout tracking
   activeWorkout: ActiveWorkoutState | null;
@@ -49,6 +63,9 @@ export interface WorkoutState {
 const initialState: WorkoutState = {
   status: 'inactive',
   session: null,
+  workoutEntries: null,
+  planId: null,
+  dayName: null,
   activeWorkout: null,
   timers: {
     setTimer: null,
@@ -98,6 +115,123 @@ const workoutSlice = createSlice({
       },
       prepare: (session: WorkoutSession) => ({
         payload: { session, timestamp: Date.now() }
+      })
+    },
+
+    // New action to select workout from database entries
+    selectWorkoutFromEntries: {
+      reducer: (state, action: PayloadAction<{ 
+        workoutEntries: WorkoutEntryNode[]; 
+        planId: string; 
+        dayName: string; 
+        timestamp: number;
+      }>) => {
+        const { workoutEntries, planId, dayName, timestamp } = action.payload;
+        
+        if (workoutEntries.length === 0) {
+          return; // No entries, don't proceed
+        }
+
+        state.workoutEntries = workoutEntries;
+        state.planId = planId;
+        state.dayName = dayName;
+        state.status = 'selected';
+
+        // Calculate total sets across all entries
+        const totalSets = workoutEntries.reduce((sum, entry) => sum + entry.sets, 0);
+        const firstEntry = workoutEntries[0];
+
+        // Parse reps to get target reps for first set (e.g., "8–12" -> 8)
+        const parseReps = (repsStr: string): number => {
+          const match = repsStr.match(/(\d+)/);
+          return match ? parseInt(match[1], 10) : 8;
+        };
+
+        // Parse weight to get target weight (e.g., "40kg" -> 40)
+        const parseWeight = (weightStr: string | null | undefined): number | undefined => {
+          if (!weightStr) return undefined;
+          const match = weightStr.match(/(\d+(?:\.\d+)?)/);
+          return match ? parseFloat(match[1]) : undefined;
+        };
+
+        // Parse time to get target time (e.g., "60s" -> 60)
+        const parseTime = (timeStr: string | null | undefined): number | undefined => {
+          if (!timeStr) return undefined;
+          const match = timeStr.match(/(\d+)/);
+          return match ? parseInt(match[1], 10) : undefined;
+        };
+
+        // Parse rest time from notes (e.g., "Rest 90 sec." -> 90)
+        const parseRestTime = (notes: string | null | undefined): number => {
+          if (!notes) return 90; // Default
+          const match = notes.match(/[Rr]est\s+(\d+)/);
+          return match ? parseInt(match[1], 10) : 90;
+        };
+
+        // Create WorkoutSet from first entry, first set
+        const targetReps = parseReps(firstEntry.reps);
+        const targetWeight = parseWeight(firstEntry.weight);
+        const targetTime = parseTime(firstEntry.time);
+        const restTimeAfter = parseRestTime(firstEntry.notes);
+
+        // Create Exercise structure from first entry for compatibility
+        const firstExercise = {
+          id: firstEntry.exercises.id,
+          name: firstEntry.exercises.name.replace(/\s*\([^)]*\)/g, '').trim(),
+          description: firstEntry.exercises.instructions,
+          type: 'strength' as const,
+          muscleGroups: firstEntry.exercises.muscle_categories?.filter(Boolean) as string[] || [],
+          sets: Array.from({ length: firstEntry.sets }, (_, i) => ({
+            id: `${firstEntry.id}-set-${i + 1}`,
+            setNumber: i + 1,
+            targetReps,
+            targetWeight,
+            targetTime,
+            restTimeAfter,
+            isCompleted: false,
+          })),
+          videoUrl: firstEntry.exercises.slug 
+            ? `https://kmtddcpdqkeqipyetwjs.supabase.co/storage/v1/object/public/workouts/processed/${firstEntry.exercises.slug}/${firstEntry.exercises.slug}_cropped_video.mp4`
+            : undefined,
+          equipment: [],
+          instructions: firstEntry.exercises.instructions.split(/(?=\(\d+(?:st|nd|rd|th)\))/).filter(Boolean),
+          tips: [],
+          estimatedDuration: 0,
+          // Additional exercise data for AI agent
+          repLimitationsProgressionRules: firstEntry.exercises.rep_limitations_progression_rules,
+          progressionByClientFeedback: firstEntry.exercises.progression_by_client_feedback,
+          painInjuryProtocol: firstEntry.exercises.pain_injury_protocol,
+          trainerNotes: firstEntry.exercises.trainer_notes,
+          equipmentText: firstEntry.exercises.equipment_text,
+          iconDescription: firstEntry.exercises.icon_description,
+          videoDescription: firstEntry.exercises.video_description,
+        } as NonNullable<typeof state.activeWorkout>['currentExercise'];
+
+        state.activeWorkout = {
+          sessionId: planId,
+          currentExerciseIndex: 0,
+          currentSetIndex: 0,
+          phase: 'preparing',
+          startTime: new Date(timestamp),
+          currentPhaseStartTime: new Date(timestamp),
+          elapsedTime: 0,
+          isPaused: false,
+          totalPauseTime: 0,
+          completedExercises: 0,
+          completedSets: 0,
+          totalExercises: workoutEntries.length,
+          totalSets,
+          currentExercise: firstExercise!,
+          currentSet: firstExercise!.sets[0],
+          exerciseConfirmed: false,
+          setsCompleted: [],
+          adjustmentsMade: [],
+        };
+
+        // Middleware will handle context message generation
+      },
+      prepare: (workoutEntries: WorkoutEntryNode[], planId: string, dayName: string) => ({
+        payload: { workoutEntries, planId, dayName, timestamp: Date.now() }
       })
     },
 
@@ -293,8 +427,14 @@ const workoutSlice = createSlice({
       state.timers.restTimer = null;
       state.userActivityPingActive = false;
 
+      // Determine if using workout entries or legacy session
+      const usingWorkoutEntries = state.workoutEntries !== null && state.workoutEntries.length > 0;
+      const totalExercises = usingWorkoutEntries 
+        ? state.workoutEntries!.length 
+        : (state.session?.exercises.length || 0);
+
       // Check if workout is complete
-      if (state.activeWorkout!.currentExerciseIndex >= state.session!.exercises.length - 1) {
+      if (state.activeWorkout!.currentExerciseIndex >= totalExercises - 1) {
         // Workout is complete - transition to workout-completed state (final state)
         state.status = 'workout-completed';
         state.activeWorkout!.completedExercises++;
@@ -307,8 +447,76 @@ const workoutSlice = createSlice({
       state.activeWorkout!.currentExerciseIndex++;
       state.activeWorkout!.currentSetIndex = 0;
       state.activeWorkout!.completedExercises++;
-      state.activeWorkout!.currentExercise = state.session!.exercises[state.activeWorkout!.currentExerciseIndex];
-      state.activeWorkout!.currentSet = state.activeWorkout!.currentExercise.sets[0];
+
+      if (usingWorkoutEntries) {
+        // Get next entry from workout entries
+        const nextEntry = state.workoutEntries![state.activeWorkout!.currentExerciseIndex];
+        
+        // Parse values for next exercise
+        const parseReps = (repsStr: string): number => {
+          const match = repsStr.match(/(\d+)/);
+          return match ? parseInt(match[1], 10) : 8;
+        };
+        const parseWeight = (weightStr: string | null | undefined): number | undefined => {
+          if (!weightStr) return undefined;
+          const match = weightStr.match(/(\d+(?:\.\d+)?)/);
+          return match ? parseFloat(match[1]) : undefined;
+        };
+        const parseTime = (timeStr: string | null | undefined): number | undefined => {
+          if (!timeStr) return undefined;
+          const match = timeStr.match(/(\d+)/);
+          return match ? parseInt(match[1], 10) : undefined;
+        };
+        const parseRestTime = (notes: string | null | undefined): number => {
+          if (!notes) return 90;
+          const match = notes.match(/[Rr]est\s+(\d+)/);
+          return match ? parseInt(match[1], 10) : 90;
+        };
+
+        const targetReps = parseReps(nextEntry.reps);
+        const targetWeight = parseWeight(nextEntry.weight);
+        const targetTime = parseTime(nextEntry.time);
+        const restTimeAfter = parseRestTime(nextEntry.notes);
+
+        const nextExercise = {
+          id: nextEntry.exercises.id,
+          name: nextEntry.exercises.name.replace(/\s*\([^)]*\)/g, '').trim(),
+          description: nextEntry.exercises.instructions,
+          type: 'strength' as const,
+          muscleGroups: nextEntry.exercises.muscle_categories?.filter(Boolean) as string[] || [],
+          sets: Array.from({ length: nextEntry.sets }, (_, i) => ({
+            id: `${nextEntry.id}-set-${i + 1}`,
+            setNumber: i + 1,
+            targetReps,
+            targetWeight,
+            targetTime,
+            restTimeAfter,
+            isCompleted: false,
+          })),
+          videoUrl: nextEntry.exercises.slug 
+            ? `https://kmtddcpdqkeqipyetwjs.supabase.co/storage/v1/object/public/workouts/processed/${nextEntry.exercises.slug}/${nextEntry.exercises.slug}_cropped_video.mp4`
+            : undefined,
+          equipment: [],
+          instructions: nextEntry.exercises.instructions.split(/(?=\(\d+(?:st|nd|rd|th)\))/).filter(Boolean),
+          tips: [],
+          estimatedDuration: 0,
+          // Additional exercise data for AI agent
+          repLimitationsProgressionRules: nextEntry.exercises.rep_limitations_progression_rules,
+          progressionByClientFeedback: nextEntry.exercises.progression_by_client_feedback,
+          painInjuryProtocol: nextEntry.exercises.pain_injury_protocol,
+          trainerNotes: nextEntry.exercises.trainer_notes,
+          equipmentText: nextEntry.exercises.equipment_text,
+          iconDescription: nextEntry.exercises.icon_description,
+          videoDescription: nextEntry.exercises.video_description,
+        } as NonNullable<typeof state.activeWorkout>['currentExercise'];
+
+        state.activeWorkout!.currentExercise = nextExercise!;
+        state.activeWorkout!.currentSet = nextExercise!.sets[0];
+      } else {
+        // Legacy session path
+        state.activeWorkout!.currentExercise = state.session!.exercises[state.activeWorkout!.currentExerciseIndex];
+        state.activeWorkout!.currentSet = state.activeWorkout!.currentExercise.sets[0];
+      }
 
       // Transition to exercise-transition state
       state.status = 'exercise-transition';
@@ -323,8 +531,11 @@ const workoutSlice = createSlice({
       state.timers.restTimer = null;
       state.userActivityPingActive = false;
 
+      // Get workout name from either session (legacy) or dayName (new structure)
+      const workoutName = state.session?.name || state.dayName || 'Workout';
+
       const workoutSummary = {
-        sessionName: state.session!.name,
+        sessionName: workoutName,
         totalTime: Date.now() - state.activeWorkout!.startTime.getTime(),
         completedExercises: state.activeWorkout!.completedExercises,
         totalExercises: state.activeWorkout!.totalExercises,
@@ -340,6 +551,9 @@ const workoutSlice = createSlice({
       // Reset to inactive state
       state.status = 'inactive';
       state.session = null;
+      state.workoutEntries = null;
+      state.planId = null;
+      state.dayName = null;
       state.activeWorkout = null;
     },
 
@@ -350,8 +564,11 @@ const workoutSlice = createSlice({
       state.timers.restTimer = null;
       state.userActivityPingActive = false;
 
+      // Get workout name from either session (legacy) or dayName (new structure)
+      const workoutName = state.session?.name || state.dayName || 'Workout';
+
       const workoutSummary = {
-        sessionName: state.session!.name,
+        sessionName: workoutName,
         totalTime: Date.now() - state.activeWorkout!.startTime.getTime(),
         completedExercises: state.activeWorkout!.completedExercises,
         totalExercises: state.activeWorkout!.totalExercises,
@@ -370,6 +587,9 @@ const workoutSlice = createSlice({
       // Reset to inactive state
       state.status = 'inactive';
       state.session = null;
+      state.workoutEntries = null;
+      state.planId = null;
+      state.dayName = null;
       state.activeWorkout = null;
     },
 
@@ -734,6 +954,7 @@ const workoutSlice = createSlice({
 // Export actions
 export const {
   selectWorkout,
+  selectWorkoutFromEntries,
   startExercisePreparation,
   confirmReadyAndStartSet,
   completeSet,

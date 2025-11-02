@@ -617,7 +617,7 @@ startAppListening({
       
       // Get workout summary data
       const workoutSummary = {
-        sessionName: workoutState.session?.name || 'Unknown',
+        sessionName: workoutState.session?.name || workoutState.dayName || 'Unknown',
         totalTime: workoutState.activeWorkout ? Date.now() - workoutState.activeWorkout.startTime.getTime() : 0,
         completedExercises: workoutState.activeWorkout?.completedExercises || 0,
         totalExercises: workoutState.activeWorkout?.totalExercises || 0,
@@ -676,7 +676,7 @@ startAppListening({
     
     // Get workout summary data
     const workoutSummary = {
-      sessionName: state.workout.session?.name || 'Unknown',
+      sessionName: state.workout.session?.name || state.workout.dayName || 'Unknown',
       totalTime: state.workout.activeWorkout ? Date.now() - state.workout.activeWorkout.startTime.getTime() : 0,
       completedExercises: state.workout.activeWorkout?.completedExercises || 0,
       totalExercises: state.workout.activeWorkout?.totalExercises || 0,
@@ -1003,7 +1003,7 @@ startAppListening({
     // Generate context message for early finish instead of reading pendingUpdates
     
     const workoutSummary = {
-      sessionName: state.workout.session?.name || 'Unknown',
+      sessionName: state.workout.session?.name || state.workout.dayName || 'Unknown',
       totalTime: state.workout.activeWorkout ? Date.now() - state.workout.activeWorkout.startTime.getTime() : 0,
       completedExercises: state.workout.activeWorkout?.completedExercises || 0,
       totalExercises: state.workout.activeWorkout?.totalExercises || 0,
