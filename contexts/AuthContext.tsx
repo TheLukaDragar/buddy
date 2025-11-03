@@ -42,7 +42,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             console.error('Failed to sync user profile on session restore:', error);
           }
         }
-      } finally {
+
+        // Only set loading to false after sync completes
+        setLoading(false);
+      } catch (error) {
+        console.error('Error during session initialization:', error);
         setLoading(false);
       }
     }).catch((error) => {
@@ -78,7 +82,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.log('🧹 User signed out, clearing Redux state');
           dispatch(clearUserData());
         }
-      } finally {
+
+        // Only set loading to false after sync completes
+        setLoading(false);
+      } catch (error) {
+        console.error('Error during auth state change:', error);
         setLoading(false);
       }
     });

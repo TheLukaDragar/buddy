@@ -235,7 +235,7 @@ export default function TabLayout() {
               <Animated.View style={[styles.tab3, animatedSideTabsStyle]}>
                 <Pressable 
                   style={styles.tab3Button}
-                  onPress={() => router.push('/fitness-player')}
+                  onPress={() => router.push('/profile')}
                 >
                   <Image
                     source={require("../../assets/icons/user.svg")}

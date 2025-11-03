@@ -9,11 +9,10 @@ import { Avatar, IconButton, Text } from 'react-native-paper';
 import ReanimatedAnimated, { Easing, FadeIn, Layout, SlideInRight, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { nucleus } from '../Buddy_variables';
+import { useAuth } from '../contexts/AuthContext';
 import { useAppDispatch } from '../store/hooks';
 import { generateProfileFromAnswers, setOnboardingAnswers, setOnboardingCompleted } from '../store/slices/userSlice';
-import { enhancedApi } from '../store/api/enhancedApi';
 import { generateAPIUrl } from '../utils';
-import { useAuth } from '../contexts/AuthContext';
 
 // Animated thinking dot component
 const ThinkingDot = ({ delay }: { delay: number }) => {
@@ -529,7 +528,7 @@ export default function OnboardingScreen() {
           <IconButton
             icon={require('../assets/back.png')}
             size={32}
-            onPress={() => router.back()}
+            onPress={() => router.replace('/(tabs)')}
             style={styles.backButton}
           />
           
