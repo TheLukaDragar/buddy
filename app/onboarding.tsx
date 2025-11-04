@@ -193,8 +193,9 @@ export default function OnboardingScreen() {
         }
         
         // 🚨 CRITICAL FIX: If there are tool calls but no text content, hide the loading indicator
+        // Suggestions will still be shown as backup (handled in renderMessages)
         if (hasToolCalls && !hasTextContent) {
-          console.warn('⚠️ Agent called tools without text content - hiding loading indicator');
+          console.warn('⚠️ Agent called tools without text content - hiding loading indicator, showing suggestions as backup');
           setIsWaitingForResponse(false);
         }
 
@@ -312,13 +313,28 @@ export default function OnboardingScreen() {
     const isAlreadySelected = selectedSuggestions.includes(suggestion);
     
     if (isAlreadySelected) {
-      // Simple string replacement - remove the suggestion once
-      const newText = inputText.replace(', '+suggestion, '').trim();
+      // Remove the suggestion from input text
+      // Handle both cases: first suggestion (no comma) and subsequent suggestions (with comma)
+      let newText = inputText;
+      
+      // First, try to remove with comma and space (for middle/end suggestions)
+      if (newText.includes(`, ${suggestion}`)) {
+        newText = newText.replace(`, ${suggestion}`, '');
+      } 
+      // If not found, try to remove just the suggestion (for first suggestion)
+      else if (newText.trim() === suggestion) {
+        newText = '';
+      }
+      // Handle case where suggestion is at the start but followed by comma
+      else if (newText.startsWith(`${suggestion}, `)) {
+        newText = newText.replace(`${suggestion}, `, '');
+      }
+      // Handle case where suggestion is at the start without comma
+      else if (newText.startsWith(suggestion)) {
+        newText = newText.replace(suggestion, '').trim();
+      }
 
-      //handle case where input doesnet have , becauee it is the first suggestio
-     
-
-      setInputText(newText);
+      setInputText(newText.trim());
       setSelectedSuggestions(prev => prev.filter(s => s !== suggestion));
     } else {
       // Add suggestion to input text with comma separation
@@ -451,16 +467,17 @@ export default function OnboardingScreen() {
         }
       }
       
-      // Skip messages with no content to display
-      if (!textContent.trim()) {
+      // For the last assistant message, check if it should show suggestions
+      const shouldShowSuggestions = !isUser && isLastMessage && currentSuggestions.length > 0;
+      
+      // Skip messages with no content to display UNLESS there are suggestions to show as backup
+      const hasContentToShow = textContent.trim().length > 0 || shouldShowSuggestions;
+      if (!hasContentToShow) {
         return null;
       }
       
       // Debug: Log each message being rendered
       //console.log(`Rendering message ${index}: role="${message.role}", isUser=${isUser}, text="${textContent}"`);
-      
-      // For the last assistant message, check if it should show suggestions
-      const shouldShowSuggestions = !isUser && isLastMessage && currentSuggestions.length > 0;
       
       return (
         <View key={message.id} style={{ width: '100%' }}>
@@ -471,23 +488,27 @@ export default function OnboardingScreen() {
             </View>
           )}
           
-          <Animated.View 
-            style={[
-              isUser ? styles.userMessageBubble : styles.messageBubble,
-              {
-                opacity: fadeOpacity,
-                transform: [{ translateY: slideY }],
-              },
-              // Add padding below completion message only
-              hasCompletionTool ? { marginBottom: 24 } : {}
-            ]}
-          >
-            <Text style={isUser ? styles.userMessageText : styles.messageText}>
-              {renderMessageText(textContent)}
-            </Text>
-          </Animated.View>
+          {/* Only show message bubble if there's text content */}
+          {textContent.trim().length > 0 && (
+            <Animated.View 
+              style={[
+                isUser ? styles.userMessageBubble : styles.messageBubble,
+                {
+                  opacity: fadeOpacity,
+                  transform: [{ translateY: slideY }],
+                },
+                // Add padding below completion message only
+                hasCompletionTool ? { marginBottom: 24 } : {}
+              ]}
+            >
+              <Text style={isUser ? styles.userMessageText : styles.messageText}>
+                {renderMessageText(textContent)}
+              </Text>
+            </Animated.View>
+          )}
           
           {/* Show suggestions for the last assistant message only after streaming completes */}
+          {/* Show as backup even if no text content */}
           {shouldShowSuggestions && (
             <ScrollView 
               style={isKeyboardVisible ? styles.suggestionsContainerKeyboard : styles.suggestionsContainerNormal}
