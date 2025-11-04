@@ -5,10 +5,11 @@ import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Dimensions, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SystemBars } from 'react-native-edge-to-edge';
-import Animated, { Extrapolation, interpolate, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
+import Animated, { Extrapolation, interpolate, runOnJS, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import Carousel, { ICarouselInstance } from 'react-native-reanimated-carousel';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { nucleus } from '../Buddy_variables';
+import ExerciseAdjustModal from '../components/ExerciseAdjustModal';
 import ExerciseInfoModal from '../components/ExerciseInfoModal';
 import MusicModal from '../components/MusicModal';
 import { Weekday } from '../graphql/generated';
@@ -32,7 +33,13 @@ export default function WorkoutScreen() {
   const [selectedExercise, setSelectedExercise] = useState<any>(null);
   const [showMusicModal, setShowMusicModal] = useState(false);
   const [failedUrls, setFailedUrls] = useState<Set<string>>(new Set());
+  const [isAdjustMode, setIsAdjustMode] = useState(false);
+  const [showAdjustHint, setShowAdjustHint] = useState(false);
+  const [showAlternativesModal, setShowAlternativesModal] = useState(false);
+  const [selectedExerciseForAdjustment, setSelectedExerciseForAdjustment] = useState<any>(null);
   const scrollY = useSharedValue(0);
+  const adjustHintOpacity = useSharedValue(0);
+  const adjustHintHeight = useSharedValue(0);
   const carouselRef = useRef<ICarouselInstance>(null);
   const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
@@ -60,7 +67,7 @@ export default function WorkoutScreen() {
 
   // // Debug logging
   // console.log('Workout Data Debug:');
-  // console.log('Raw workout data:', workoutData);
+  console.log('Raw workout data:', JSON.stringify(workoutData, null, 2));
   // console.log('Workout entries count:', workoutEntries.length);
   // console.log('All workout entries:', workoutEntries.map(entry => entry.node));
   // console.log('First workout entry:', workoutEntries[0]?.node);
@@ -213,6 +220,40 @@ export default function WorkoutScreen() {
 
     return {
       top,
+    };
+  });
+
+  // Animate adjust mode hint appearance with exit transition
+  useEffect(() => {
+    if (isAdjustMode) {
+      // Show immediately and animate in
+      setShowAdjustHint(true);
+      adjustHintOpacity.value = withTiming(1, { duration: 200 });
+      adjustHintHeight.value = withTiming(1, { duration: 200 });
+    } else {
+      // Animate out first, then remove from DOM
+      adjustHintOpacity.value = withTiming(0, { duration: 200 });
+      adjustHintHeight.value = withTiming(0, { duration: 200 }, () => {
+        // Remove from DOM after animation completes
+        runOnJS(setShowAdjustHint)(false);
+      });
+    }
+  }, [isAdjustMode]);
+
+  const adjustHintAnimatedStyle = useAnimatedStyle(() => {
+    // Height: lineHeight (20) + padding top (12) + padding bottom (12) = 44px, using 50px for safety
+    const heightValue = interpolate(adjustHintHeight.value, [0, 1], [0, 50], Extrapolation.CLAMP);
+    const opacity = adjustHintOpacity.value;
+    
+    return {
+      opacity,
+      height: heightValue,
+      marginTop: interpolate(adjustHintHeight.value, [0, 1], [0, 0], Extrapolation.CLAMP),
+      marginBottom: interpolate(adjustHintHeight.value, [0, 1], [0, 16], Extrapolation.CLAMP),
+      paddingTop: interpolate(adjustHintHeight.value, [0, 1], [0, 12], Extrapolation.CLAMP),
+      paddingBottom: interpolate(adjustHintHeight.value, [0, 1], [0, 12], Extrapolation.CLAMP),
+      pointerEvents: opacity > 0 ? 'auto' : 'none',
+      overflow: 'hidden',
     };
   });
 
@@ -537,26 +578,64 @@ export default function WorkoutScreen() {
 
           {/* Summary Section */}
           <View style={styles.summaryExerciseSection}>
+
+          
+            
             <View style={styles.summaryExerciseHeader}>
               <Text style={styles.summaryExerciseTitle}>Exercises</Text>
-              <TouchableOpacity 
+
+             
+              
+              {/* <TouchableOpacity 
                 style={styles.summaryChevron}
                 onPress={() => {
                   console.log('Summary chevron pressed');
                   router.push('/exercises');
                 }}
-              >
+              > */}
                 {/* <Image
                   source={require('../assets/icons/back.svg')}
                   style={styles.chevronIcon}
                   contentFit="contain"
                 /> */}
-              </TouchableOpacity>
+              {/* </TouchableOpacity> */}
             </View>
             
+            
             <View style={styles.exerciseList}>
+            {showAdjustHint && (
+              <Animated.View style={[styles.adjustModeHint, adjustHintAnimatedStyle]}>
+                <Text style={styles.adjustModeHintText}>
+                  Click the exercise you want to adjust
+                </Text>
+              </Animated.View>
+            )}
               {exercises.map((exercise, index) => {
                 const handleExercisePress = () => {
+                  // If in adjust mode, show alternatives modal
+                  if (isAdjustMode) {
+                    const workoutEntry = workoutEntries.find(entry => {
+                      const cleanDbName = entry.node.exercises?.name?.replace(/\s*\([^)]*\)/g, '').trim() || '';
+                      return cleanDbName === exercise.name || entry.node.exercises?.name === exercise.name;
+                    });
+
+                    if (workoutEntry) {
+                      setSelectedExerciseForAdjustment({
+                        ...exercise,
+                        workoutEntryData: {
+                          sets: workoutEntry.node.sets,
+                          reps: workoutEntry.node.reps,
+                          weight: workoutEntry.node.weight,
+                          notes: workoutEntry.node.notes
+                        },
+                        alternatives: workoutEntry.node.workout_entry_alternativesCollection?.edges || []
+                      });
+                      setShowAlternativesModal(true);
+                    }
+                    return;
+                  }
+
+                  // Normal info mode
                   console.log(`Pressed info for ${exercise.name}`);
                   const workoutEntry = workoutEntries.find(entry => {
                     const cleanDbName = entry.node.exercises?.name?.replace(/\s*\([^)]*\)/g, '').trim() || '';
@@ -809,14 +888,21 @@ export default function WorkoutScreen() {
                     transform: pressed ? [{ scale: 0.98 }] : [{ scale: 1 }],
                   }
                 ]}
-                onPress={() => console.log('Adjust pressed')}
+                onPress={() => setIsAdjustMode(!isAdjustMode)}
               >
                 <View style={[
                   styles.adjustButtonBg, 
                   styles.buttonBg,
+                  isAdjustMode && { backgroundColor: nucleus.light.global.blue[70] }
                 ]} />
                 <View style={styles.buttonContent}>
-                  <Text style={[styles.adjustButtonLabel, styles.buttonLabel]}>Adjust</Text>
+                  <Text style={[
+                    styles.adjustButtonLabel, 
+                    styles.buttonLabel,
+                    isAdjustMode && { color: nucleus.light.global.blue[10] }
+                  ]}>
+                    {isAdjustMode ? 'Cancel' : 'Adjust'}
+                  </Text>
                 </View>
               </Pressable>
 
@@ -910,6 +996,33 @@ export default function WorkoutScreen() {
         onClose={() => setShowExerciseInfo(false)}
         exercise={selectedExercise}
       />
+
+      {/* Alternatives Modal */}
+      {showAlternativesModal && selectedExerciseForAdjustment && (
+        <ExerciseAdjustModal
+          visible={showAlternativesModal}
+          onClose={() => {
+            setShowAlternativesModal(false);
+            setIsAdjustMode(false);
+          }}
+          onSelectAlternative={(altExercise) => {
+            console.log('Selected alternative:', altExercise);
+            // TODO: Update workout entry with selected alternative
+            // setShowAlternativesModal(false);
+            // setIsAdjustMode(false);
+          }}
+          exercise={{
+            name: selectedExerciseForAdjustment.name,
+            slug: selectedExerciseForAdjustment.slug,
+            instructions: [],
+            tips: [],
+            equipment: [],
+            category: "Adjust Exercise",
+          }}
+          workoutEntry={selectedExerciseForAdjustment.workoutEntryData}
+          alternatives={selectedExerciseForAdjustment.alternatives}
+        />
+      )}
     </>
   );
 }
@@ -1198,6 +1311,23 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: 24,
     alignSelf: 'stretch',
+  },
+  adjustModeHint: {
+    backgroundColor: nucleus.light.global.brand[40],
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    alignSelf: 'stretch',
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  adjustModeHintText: {
+    fontFamily: 'PlusJakartaSans-SemiBold',
+    fontSize: 14,
+    lineHeight: 20,
+    color: nucleus.light.global.brand[90],
+    textAlign: 'center',
+    includeFontPadding: false,
   },
   summaryExerciseHeader: {
     flexDirection: 'row',

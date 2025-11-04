@@ -6,13 +6,12 @@ import { Button, Text } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useBuddyTheme } from "@/constants/BuddyTheme";
+import { SystemBars } from "react-native-edge-to-edge";
 import { nucleus } from "../Buddy_variables.js";
 import { useAuth } from "../contexts/AuthContext";
 import type { RootState } from "../store";
-import { enhancedApi } from "../store/api/enhancedApi";
 import { useGetWorkoutPlanRequestsQuery } from "../store/api/enhancedApi";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
-import { SystemBars } from "react-native-edge-to-edge";
 
 
 interface ProgressStepProps {
@@ -102,7 +101,7 @@ export default function WorkoutPlanProgress() {
   // Monitor workout plan requests with real-time updates
   const { data: requestsData, isLoading } = useGetWorkoutPlanRequestsQuery(
     { userId: user?.id || '' },
-    { skip: !user?.id, pollingInterval: 2000 } // Poll every 2 seconds for updates
+    { skip: !user?.id, pollingInterval: 2000, refetchOnReconnect: true, refetchOnFocus: true, refetchOnMountOrArgChange: true } // Poll every 2 seconds for updates
   );
 
   const requests = requestsData?.workout_plan_requestsCollection?.edges?.map(edge => edge.node) || [];

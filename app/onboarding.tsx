@@ -107,7 +107,7 @@ export default function OnboardingScreen() {
   
   // Question tracking for pagination - use a simple counter instead
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [totalQuestions, setTotalQuestions] = useState(17);
+  const [totalQuestions, setTotalQuestions] = useState(18);
   
   // AI SDK Chat Hook for onboarding with proper streaming
   const { messages, sendMessage, status } = useChat({
@@ -128,15 +128,26 @@ export default function OnboardingScreen() {
         let suggestions: string[] = [];
         let isComplete = false;
         let multipleSelection = false;
+        let hasTextContent = false;
+        let hasToolCalls = false;
 
       if (message.message.parts) {
         console.log('Total parts in message:', message.message.parts.length);
         console.log('All parts:', JSON.stringify(message.message.parts, null, 2));
+        
+        // Check if there's any text content in the message
+        const textContent = message.message.parts
+          .filter(part => part.type === 'text')
+          .map(part => (part as any).text)
+          .join('');
+        hasTextContent = textContent.trim().length > 0;
+        
         for (const part of message.message.parts) {
           console.log('Processing finished part:', part);
 
           // In AI SDK v5, tool parts have type 'tool-{toolName}' and data is directly on the part
           if (part.type.startsWith('tool-')) {
+              hasToolCalls = true;
               const toolPart = part as any;
 
               // Extract tool name from type (e.g., 'tool-follow_up_suggestions' -> 'follow_up_suggestions')
@@ -179,6 +190,12 @@ export default function OnboardingScreen() {
               }
             }
           }
+        }
+        
+        // 🚨 CRITICAL FIX: If there are tool calls but no text content, hide the loading indicator
+        if (hasToolCalls && !hasTextContent) {
+          console.warn('⚠️ Agent called tools without text content - hiding loading indicator');
+          setIsWaitingForResponse(false);
         }
 
         // Update suggestions and completion state only after streaming finishes
@@ -270,12 +287,11 @@ export default function OnboardingScreen() {
 
   // Hide thinking indicator when assistant starts responding with text
   useEffect(() => {
-    console.log('📨 Messages changed, total messages:', messages.length);
-    console.log('🤔 isWaitingForResponse:', isWaitingForResponse);
+    // Only check if we're currently waiting for a response
+    if (!isWaitingForResponse) return;
 
     // Check if there's an assistant message being streamed
     const lastMessage = messages[messages.length - 1];
-    console.log('📝 Last message:', lastMessage ? { role: lastMessage.role, id: lastMessage.id } : 'none');
 
     if (lastMessage && lastMessage.role === 'assistant') {
       // Check if the message has actual text content
@@ -284,15 +300,13 @@ export default function OnboardingScreen() {
         .map(part => (part as any).text)
         .join('');
 
-      console.log('📝 Message text content length:', textContent.length);
-
       if (textContent.trim().length > 0) {
         // Assistant has text, hide thinking indicator
         console.log('✅ Assistant text detected, hiding thinking indicator');
         setIsWaitingForResponse(false);
       }
     }
-  }, [messages]);
+  }, [messages, isWaitingForResponse]);
 
   const handleSuggestionTap = (suggestion: string) => {
     const isAlreadySelected = selectedSuggestions.includes(suggestion);

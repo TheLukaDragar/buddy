@@ -9122,6 +9122,8 @@ Add a "Day Name" column before "Day". Populate it with the session type based on
   "dayName": "Push",
   "day": "Monday", 
   "exercise": "Bench Press",
+  "similar_alternative_exercises": ["Incline Bench Press (Barbell)", "Smith Machine Bench Press"],
+  "similar_alternative_exercises_notes": ["Targets upper chest more. Use if bench is occupied.", "Fixed bar path for safety. Good for training to failure without spotter."],
   "sets": 4,
   "reps": "8–12",
   "weight": "",
@@ -9131,6 +9133,36 @@ Add a "Day Name" column before "Day". Populate it with the session type based on
   "streakExerciseNotes": "Tempo 2-1-1"
 }
 
+\`\`\`
+
+🔄 11b. ALTERNATIVE EXERCISES
+
+✅ ALWAYS provide 2-3 similar alternative exercises for each main exercise.
+
+Purpose: Direct substitutes when equipment is occupied or for variety.
+
+Requirements:
+- Must target the same muscle groups
+- Must have similar movement patterns
+- Must match difficulty level
+- Use same sets/reps/weight as main exercise
+
+Format:
+\`\`\`json
+"similar_alternative_exercises": ["Exercise 1", "Exercise 2"],
+"similar_alternative_exercises_notes": ["Brief note 1.", "Brief note 2."]
+\`\`\`
+
+Note Guidelines (keep short and focused):
+- State key difference from main exercise
+- Mention when to use (e.g., "Use if bench occupied", "Good without spotter")
+- 1-2 sentences max per alternative
+
+Example:
+\`\`\`json
+"exercise": "Bench Press",
+"similar_alternative_exercises": ["Incline Bench Press (Barbell)", "Smith Machine Bench Press"],
+"similar_alternative_exercises_notes": ["Targets upper chest more. Use if bench is occupied.", "Fixed bar path for safety. Good for training to failure without spotter."]
 \`\`\`
 
 🧗‍♂️ 12. STREAK DAYS (HOME SUBSTITUTIONS)
@@ -9290,6 +9322,8 @@ const WorkoutEntry = z.object({
     dayName: z.string(), // Required: Push, Pull, Legs, Full-Body, etc.
     day: z.enum(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]), // Required: Monday, Tuesday, etc.
     exercise: z.string(), // Required: Exercise name from the exercise pool
+    similar_alternative_exercises: z.array(z.string()), // Required: 2-3 alternative exercises
+    similar_alternative_exercises_notes: z.array(z.string()), // Required: Brief notes for each alternative
     sets: z.number(), // Required: Always 4 per prompt rules
     reps: z.string(), // Required: Always filled with ranges like "8-12"
     weight: z.string(), // Always empty string per prompt rules - make it required but empty
@@ -9441,6 +9475,13 @@ export const generateWorkoutPlanTask = task({
 
         exerciseNameToSlug[entry.exercise] = exerciseSlug;
         exerciseNameToSlug[entry.streakExercise] = streakSlug;
+
+        // Also add alternative exercises to the pool
+        for (const altExercise of entry.similar_alternative_exercises) {
+          const altSlug = slugify(altExercise);
+          uniqueExerciseSlugs.add(altSlug);
+          exerciseNameToSlug[altExercise] = altSlug;
+        }
       }
 
       console.log('Found', uniqueExerciseSlugs.size, 'unique exercise slugs');
@@ -9497,6 +9538,11 @@ export const generateWorkoutPlanTask = task({
 
       // Step 5: Insert workout entries for all 8 weeks
       const allEntries = [];
+      const entryAlternativesMap: Map<number, Array<{
+        alternative_exercise_id: string;
+        note: string;
+        position: number;
+      }>> = new Map();
       
       // Calculate start date for the workout plan (next Monday from today)
       const today = new Date();
@@ -9504,6 +9550,7 @@ export const generateWorkoutPlanTask = task({
       const daysUntilMonday = (8 - today.getDay()) % 7;
       nextMonday.setDate(today.getDate() + daysUntilMonday);
       
+      let entryIndex = 0;
       for (let week = 1; week <= 8; week++) {
         for (const entry of workoutPlanWithData.entries) {
           // Calculate the proper date for this week and day
@@ -9513,7 +9560,7 @@ export const generateWorkoutPlanTask = task({
           weekStartDate.setDate(weekStartDate.getDate() + dayIndex); // Add days within week
           
           const workoutDate = weekStartDate.toISOString().split('T')[0]; // YYYY-MM-DD format
-          
+
           allEntries.push({
             workout_plan_id: planData.id,
             week_number: week,
@@ -9530,14 +9577,59 @@ export const generateWorkoutPlanTask = task({
             streak_exercise_notes: entry.streakExerciseNotes,
             is_adjusted: false
           });
+
+          // Store alternative exercises for this entry using the array index
+          const alternatives = entry.similar_alternative_exercises.map((altExercise, altIndex) => ({
+            alternative_exercise_id: exerciseIds[slugify(altExercise)],
+            note: entry.similar_alternative_exercises_notes[altIndex],
+            position: altIndex + 1
+          }));
+
+          if (alternatives.length > 0) {
+            entryAlternativesMap.set(entryIndex, alternatives);
+          }
+
+          entryIndex++;
         }
       }
 
-      const { error: entriesError } = await supabase
+      // Insert workout entries and get their IDs back
+      const { data: insertedEntries, error: entriesError } = await supabase
         .from('workout_entries')
-        .insert(allEntries);
+        .insert(allEntries)
+        .select('id');
 
       if (entriesError) throw entriesError;
+
+      // Build the alternatives array using the correct workout_entry_id
+      const alternativesToInsert: Array<{
+        workout_entry_id: string;
+        alternative_exercise_id: string;
+        note: string;
+        position: number;
+      }> = [];
+      insertedEntries.forEach((insertedEntry, index) => {
+        const alternatives = entryAlternativesMap.get(index);
+        if (alternatives) {
+          alternatives.forEach(alt => {
+            alternativesToInsert.push({
+              workout_entry_id: insertedEntry.id,
+              alternative_exercise_id: alt.alternative_exercise_id,
+              note: alt.note,
+              position: alt.position
+            });
+          });
+        }
+      });
+
+      // Insert alternative exercises into junction table
+      if (alternativesToInsert.length > 0) {
+        const { error: alternativesError } = await supabase
+          .from('workout_entry_alternatives')
+          .insert(alternativesToInsert);
+
+        if (alternativesError) throw alternativesError;
+      }
 
       // Step 6: Update status to completed - this will trigger real-time notification
       await supabase

@@ -63,12 +63,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(session);
         setUser(session?.user ?? null);
 
-        // Clear API cache when user changes to prevent stale cached data
-        if (previousUserId !== currentUserId) {
-          console.log('🧹 User changed, clearing API cache to prevent stale data');
+        // Clear API cache ONLY when switching between different authenticated users
+        // Don't clear on initial load (previousUserId = null) to prevent race conditions
+        if (previousUserId && currentUserId && previousUserId !== currentUserId) {
+          console.log('🧹 User switched accounts, clearing API cache to prevent stale data');
           dispatch(enhancedApi.util.resetApiState());
-          previousUserIdRef.current = currentUserId;
         }
+
+        // Always update the ref to track current user
+        previousUserIdRef.current = currentUserId;
 
         // Sync user profile from database when user signs in OR clear on sign out
         if (session?.user) {

@@ -201,6 +201,8 @@ export type Mutation = {
   deleteFromuser_profilesCollection: User_ProfilesDeleteResponse;
   /** Deletes zero or more records from the `workout_entries` collection */
   deleteFromworkout_entriesCollection: Workout_EntriesDeleteResponse;
+  /** Deletes zero or more records from the `workout_entry_alternatives` collection */
+  deleteFromworkout_entry_alternativesCollection: Workout_Entry_AlternativesDeleteResponse;
   /** Deletes zero or more records from the `workout_plan_requests` collection */
   deleteFromworkout_plan_requestsCollection: Workout_Plan_RequestsDeleteResponse;
   /** Deletes zero or more records from the `workout_plans` collection */
@@ -215,6 +217,8 @@ export type Mutation = {
   insertIntouser_profilesCollection?: Maybe<User_ProfilesInsertResponse>;
   /** Adds one or more `workout_entries` records to the collection */
   insertIntoworkout_entriesCollection?: Maybe<Workout_EntriesInsertResponse>;
+  /** Adds one or more `workout_entry_alternatives` records to the collection */
+  insertIntoworkout_entry_alternativesCollection?: Maybe<Workout_Entry_AlternativesInsertResponse>;
   /** Adds one or more `workout_plan_requests` records to the collection */
   insertIntoworkout_plan_requestsCollection?: Maybe<Workout_Plan_RequestsInsertResponse>;
   /** Adds one or more `workout_plans` records to the collection */
@@ -229,6 +233,8 @@ export type Mutation = {
   updateuser_profilesCollection: User_ProfilesUpdateResponse;
   /** Updates zero or more records in the `workout_entries` collection */
   updateworkout_entriesCollection: Workout_EntriesUpdateResponse;
+  /** Updates zero or more records in the `workout_entry_alternatives` collection */
+  updateworkout_entry_alternativesCollection: Workout_Entry_AlternativesUpdateResponse;
   /** Updates zero or more records in the `workout_plan_requests` collection */
   updateworkout_plan_requestsCollection: Workout_Plan_RequestsUpdateResponse;
   /** Updates zero or more records in the `workout_plans` collection */
@@ -266,6 +272,12 @@ export type MutationDeleteFromworkout_EntriesCollectionArgs = {
 };
 
 /** The root type for creating and mutating data */
+export type MutationDeleteFromworkout_Entry_AlternativesCollectionArgs = {
+  atMost?: Scalars["Int"]["input"];
+  filter?: InputMaybe<Workout_Entry_AlternativesFilter>;
+};
+
+/** The root type for creating and mutating data */
 export type MutationDeleteFromworkout_Plan_RequestsCollectionArgs = {
   atMost?: Scalars["Int"]["input"];
   filter?: InputMaybe<Workout_Plan_RequestsFilter>;
@@ -300,6 +312,11 @@ export type MutationInsertIntouser_ProfilesCollectionArgs = {
 /** The root type for creating and mutating data */
 export type MutationInsertIntoworkout_EntriesCollectionArgs = {
   objects: Array<Workout_EntriesInsertInput>;
+};
+
+/** The root type for creating and mutating data */
+export type MutationInsertIntoworkout_Entry_AlternativesCollectionArgs = {
+  objects: Array<Workout_Entry_AlternativesInsertInput>;
 };
 
 /** The root type for creating and mutating data */
@@ -345,6 +362,13 @@ export type MutationUpdateworkout_EntriesCollectionArgs = {
   atMost?: Scalars["Int"]["input"];
   filter?: InputMaybe<Workout_EntriesFilter>;
   set: Workout_EntriesUpdateInput;
+};
+
+/** The root type for creating and mutating data */
+export type MutationUpdateworkout_Entry_AlternativesCollectionArgs = {
+  atMost?: Scalars["Int"]["input"];
+  filter?: InputMaybe<Workout_Entry_AlternativesFilter>;
+  set: Workout_Entry_AlternativesUpdateInput;
 };
 
 /** The root type for creating and mutating data */
@@ -407,6 +431,8 @@ export type Query = {
   user_profilesCollection?: Maybe<User_ProfilesConnection>;
   /** A pagable collection of type `workout_entries` */
   workout_entriesCollection?: Maybe<Workout_EntriesConnection>;
+  /** A pagable collection of type `workout_entry_alternatives` */
+  workout_entry_alternativesCollection?: Maybe<Workout_Entry_AlternativesConnection>;
   /** A pagable collection of type `workout_plan_requests` */
   workout_plan_requestsCollection?: Maybe<Workout_Plan_RequestsConnection>;
   /** A pagable collection of type `workout_plans` */
@@ -471,6 +497,17 @@ export type QueryWorkout_EntriesCollectionArgs = {
   last?: InputMaybe<Scalars["Int"]["input"]>;
   offset?: InputMaybe<Scalars["Int"]["input"]>;
   orderBy?: InputMaybe<Array<Workout_EntriesOrderBy>>;
+};
+
+/** The root type for querying data */
+export type QueryWorkout_Entry_AlternativesCollectionArgs = {
+  after?: InputMaybe<Scalars["Cursor"]["input"]>;
+  before?: InputMaybe<Scalars["Cursor"]["input"]>;
+  filter?: InputMaybe<Workout_Entry_AlternativesFilter>;
+  first?: InputMaybe<Scalars["Int"]["input"]>;
+  last?: InputMaybe<Scalars["Int"]["input"]>;
+  offset?: InputMaybe<Scalars["Int"]["input"]>;
+  orderBy?: InputMaybe<Array<Workout_Entry_AlternativesOrderBy>>;
 };
 
 /** The root type for querying data */
@@ -581,6 +618,7 @@ export type Exercises = Node & {
   updated_at?: Maybe<Scalars["Datetime"]["output"]>;
   video_description: Scalars["String"]["output"];
   workout_entriesCollection?: Maybe<Workout_EntriesConnection>;
+  workout_entry_alternativesCollection?: Maybe<Workout_Entry_AlternativesConnection>;
 };
 
 export type ExercisesWorkout_EntriesCollectionArgs = {
@@ -591,6 +629,16 @@ export type ExercisesWorkout_EntriesCollectionArgs = {
   last?: InputMaybe<Scalars["Int"]["input"]>;
   offset?: InputMaybe<Scalars["Int"]["input"]>;
   orderBy?: InputMaybe<Array<Workout_EntriesOrderBy>>;
+};
+
+export type ExercisesWorkout_Entry_AlternativesCollectionArgs = {
+  after?: InputMaybe<Scalars["Cursor"]["input"]>;
+  before?: InputMaybe<Scalars["Cursor"]["input"]>;
+  filter?: InputMaybe<Workout_Entry_AlternativesFilter>;
+  first?: InputMaybe<Scalars["Int"]["input"]>;
+  last?: InputMaybe<Scalars["Int"]["input"]>;
+  offset?: InputMaybe<Scalars["Int"]["input"]>;
+  orderBy?: InputMaybe<Array<Workout_Entry_AlternativesOrderBy>>;
 };
 
 export type ExercisesConnection = {
@@ -1034,8 +1082,19 @@ export type Workout_Entries = Node & {
   updated_at?: Maybe<Scalars["Datetime"]["output"]>;
   week_number: Scalars["Int"]["output"];
   weight?: Maybe<Scalars["String"]["output"]>;
+  workout_entry_alternativesCollection?: Maybe<Workout_Entry_AlternativesConnection>;
   workout_plan_id: Scalars["UUID"]["output"];
   workout_plans?: Maybe<Workout_Plans>;
+};
+
+export type Workout_EntriesWorkout_Entry_AlternativesCollectionArgs = {
+  after?: InputMaybe<Scalars["Cursor"]["input"]>;
+  before?: InputMaybe<Scalars["Cursor"]["input"]>;
+  filter?: InputMaybe<Workout_Entry_AlternativesFilter>;
+  first?: InputMaybe<Scalars["Int"]["input"]>;
+  last?: InputMaybe<Scalars["Int"]["input"]>;
+  offset?: InputMaybe<Scalars["Int"]["input"]>;
+  orderBy?: InputMaybe<Array<Workout_Entry_AlternativesOrderBy>>;
 };
 
 export type Workout_EntriesConnection = {
@@ -1163,6 +1222,99 @@ export type Workout_EntriesUpdateResponse = {
   affectedCount: Scalars["Int"]["output"];
   /** Array of records impacted by the mutation */
   records: Array<Workout_Entries>;
+};
+
+export type Workout_Entry_Alternatives = Node & {
+  __typename?: "workout_entry_alternatives";
+  alternative_exercise_id: Scalars["UUID"]["output"];
+  created_at?: Maybe<Scalars["Datetime"]["output"]>;
+  exercises: Exercises;
+  id: Scalars["UUID"]["output"];
+  /** Globally Unique Record Identifier */
+  nodeId: Scalars["ID"]["output"];
+  note: Scalars["String"]["output"];
+  position: Scalars["Int"]["output"];
+  workout_entries?: Maybe<Workout_Entries>;
+  workout_entry_id: Scalars["UUID"]["output"];
+};
+
+export type Workout_Entry_AlternativesConnection = {
+  __typename?: "workout_entry_alternativesConnection";
+  edges: Array<Workout_Entry_AlternativesEdge>;
+  pageInfo: PageInfo;
+};
+
+export type Workout_Entry_AlternativesDeleteResponse = {
+  __typename?: "workout_entry_alternativesDeleteResponse";
+  /** Count of the records impacted by the mutation */
+  affectedCount: Scalars["Int"]["output"];
+  /** Array of records impacted by the mutation */
+  records: Array<Workout_Entry_Alternatives>;
+};
+
+export type Workout_Entry_AlternativesEdge = {
+  __typename?: "workout_entry_alternativesEdge";
+  cursor: Scalars["String"]["output"];
+  node: Workout_Entry_Alternatives;
+};
+
+export type Workout_Entry_AlternativesFilter = {
+  alternative_exercise_id?: InputMaybe<UuidFilter>;
+  /** Returns true only if all its inner filters are true, otherwise returns false */
+  and?: InputMaybe<Array<Workout_Entry_AlternativesFilter>>;
+  created_at?: InputMaybe<DatetimeFilter>;
+  id?: InputMaybe<UuidFilter>;
+  nodeId?: InputMaybe<IdFilter>;
+  /** Negates a filter */
+  not?: InputMaybe<Workout_Entry_AlternativesFilter>;
+  note?: InputMaybe<StringFilter>;
+  /** Returns true if at least one of its inner filters is true, otherwise returns false */
+  or?: InputMaybe<Array<Workout_Entry_AlternativesFilter>>;
+  position?: InputMaybe<IntFilter>;
+  workout_entry_id?: InputMaybe<UuidFilter>;
+};
+
+export type Workout_Entry_AlternativesInsertInput = {
+  alternative_exercise_id?: InputMaybe<Scalars["UUID"]["input"]>;
+  created_at?: InputMaybe<Scalars["Datetime"]["input"]>;
+  id?: InputMaybe<Scalars["UUID"]["input"]>;
+  note?: InputMaybe<Scalars["String"]["input"]>;
+  position?: InputMaybe<Scalars["Int"]["input"]>;
+  workout_entry_id?: InputMaybe<Scalars["UUID"]["input"]>;
+};
+
+export type Workout_Entry_AlternativesInsertResponse = {
+  __typename?: "workout_entry_alternativesInsertResponse";
+  /** Count of the records impacted by the mutation */
+  affectedCount: Scalars["Int"]["output"];
+  /** Array of records impacted by the mutation */
+  records: Array<Workout_Entry_Alternatives>;
+};
+
+export type Workout_Entry_AlternativesOrderBy = {
+  alternative_exercise_id?: InputMaybe<OrderByDirection>;
+  created_at?: InputMaybe<OrderByDirection>;
+  id?: InputMaybe<OrderByDirection>;
+  note?: InputMaybe<OrderByDirection>;
+  position?: InputMaybe<OrderByDirection>;
+  workout_entry_id?: InputMaybe<OrderByDirection>;
+};
+
+export type Workout_Entry_AlternativesUpdateInput = {
+  alternative_exercise_id?: InputMaybe<Scalars["UUID"]["input"]>;
+  created_at?: InputMaybe<Scalars["Datetime"]["input"]>;
+  id?: InputMaybe<Scalars["UUID"]["input"]>;
+  note?: InputMaybe<Scalars["String"]["input"]>;
+  position?: InputMaybe<Scalars["Int"]["input"]>;
+  workout_entry_id?: InputMaybe<Scalars["UUID"]["input"]>;
+};
+
+export type Workout_Entry_AlternativesUpdateResponse = {
+  __typename?: "workout_entry_alternativesUpdateResponse";
+  /** Count of the records impacted by the mutation */
+  affectedCount: Scalars["Int"]["output"];
+  /** Array of records impacted by the mutation */
+  records: Array<Workout_Entry_Alternatives>;
 };
 
 export type Workout_Plan_Requests = Node & {
@@ -1613,6 +1765,27 @@ export type GetWorkoutPlanQuery = {
                 equipment_text: string;
                 equipment_groups: any;
               };
+              workout_entry_alternativesCollection?: {
+                __typename?: "workout_entry_alternativesConnection";
+                edges: Array<{
+                  __typename?: "workout_entry_alternativesEdge";
+                  node: {
+                    __typename?: "workout_entry_alternatives";
+                    id: any;
+                    alternative_exercise_id: any;
+                    note: string;
+                    position: number;
+                    exercises: {
+                      __typename?: "exercises";
+                      id: any;
+                      name: string;
+                      instructions: string;
+                      equipment_text: string;
+                      equipment_groups: any;
+                    };
+                  };
+                }>;
+              } | null;
             };
           }>;
         } | null;
@@ -1872,6 +2045,36 @@ export type GetWorkoutDayQuery = {
                 pain_injury_protocol: string;
                 trainer_notes: string;
               };
+              workout_entry_alternativesCollection?: {
+                __typename?: "workout_entry_alternativesConnection";
+                edges: Array<{
+                  __typename?: "workout_entry_alternativesEdge";
+                  node: {
+                    __typename?: "workout_entry_alternatives";
+                    id: any;
+                    alternative_exercise_id: any;
+                    note: string;
+                    position: number;
+                    exercises: {
+                      __typename?: "exercises";
+                      id: any;
+                      name: string;
+                      slug: string;
+                      icon_description: string;
+                      instructions: string;
+                      video_description: string;
+                      equipment_text: string;
+                      equipment_groups: any;
+                      exercise_location: Array<string | null>;
+                      muscle_categories?: Array<string | null> | null;
+                      rep_limitations_progression_rules: string;
+                      progression_by_client_feedback: string;
+                      pain_injury_protocol: string;
+                      trainer_notes: string;
+                    };
+                  };
+                }>;
+              } | null;
             };
           }>;
         } | null;
@@ -2013,6 +2216,23 @@ export const GetWorkoutPlanDocument = `
                 instructions
                 equipment_text
                 equipment_groups
+              }
+              workout_entry_alternativesCollection(orderBy: [{position: AscNullsLast}]) {
+                edges {
+                  node {
+                    id
+                    alternative_exercise_id
+                    note
+                    position
+                    exercises {
+                      id
+                      name
+                      instructions
+                      equipment_text
+                      equipment_groups
+                    }
+                  }
+                }
               }
             }
           }
@@ -2223,6 +2443,32 @@ export const GetWorkoutDayDocument = `
                 progression_by_client_feedback
                 pain_injury_protocol
                 trainer_notes
+              }
+              workout_entry_alternativesCollection(orderBy: [{position: AscNullsLast}]) {
+                edges {
+                  node {
+                    id
+                    alternative_exercise_id
+                    note
+                    position
+                    exercises {
+                      id
+                      name
+                      slug
+                      icon_description
+                      instructions
+                      video_description
+                      equipment_text
+                      equipment_groups
+                      exercise_location
+                      muscle_categories
+                      rep_limitations_progression_rules
+                      progression_by_client_feedback
+                      pain_injury_protocol
+                      trainer_notes
+                    }
+                  }
+                }
               }
             }
           }

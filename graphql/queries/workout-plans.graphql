@@ -56,6 +56,23 @@ query GetWorkoutPlan($id: UUID!) {
                 equipment_text
                 equipment_groups
               }
+              workout_entry_alternativesCollection(orderBy: [{ position: AscNullsLast }]) {
+                edges {
+                  node {
+                    id
+                    alternative_exercise_id
+                    note
+                    position
+                    exercises {
+                      id
+                      name
+                      instructions
+                      equipment_text
+                      equipment_groups
+                    }
+                  }
+                }
+              }
             }
           }
         }
@@ -275,6 +292,32 @@ query GetWorkoutDay($planId: UUID!, $weekNumber: Int!, $day: weekday!) {
                 progression_by_client_feedback
                 pain_injury_protocol
                 trainer_notes
+              }
+              workout_entry_alternativesCollection(orderBy: [{ position: AscNullsLast }]) {
+                edges {
+                  node {
+                    id
+                    alternative_exercise_id
+                    note
+                    position
+                    exercises {
+                      id
+                      name
+                      slug
+                      icon_description
+                      instructions
+                      video_description
+                      equipment_text
+                      equipment_groups
+                      exercise_location
+                      muscle_categories
+                      rep_limitations_progression_rules
+                      progression_by_client_feedback
+                      pain_injury_protocol
+                      trainer_notes
+                    }
+                  }
+                }
               }
             }
           }
