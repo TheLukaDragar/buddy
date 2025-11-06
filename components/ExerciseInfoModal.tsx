@@ -354,73 +354,84 @@ const ExerciseInfoModal = React.memo<ExerciseInfoModalProps>(function ExerciseIn
             </View>
 
 
+            {/* Hero Video Section with Overlay Back Button - Fixed at top */}
+            <View style={styles.videoContainer}>
+              <ExerciseVideo
+                videoUrl={exerciseData.videoUrl}
+                exerciseName={exerciseData.name}
+                slug={exerciseData.slug}
+              />
+
+              {/* Overlay Back Button */}
+              <Pressable
+                style={styles.overlayCloseButton}
+                onPress={() => {
+                  translateY.value = withTiming(SHEET_HEIGHT, {
+                    duration: 250,
+                    easing: Easing.in(Easing.quad),
+                  }, (finished) => {
+                    if (finished) {
+                      runOnJS(onClose)();
+                    }
+                  });
+                }}
+              >
+                <Image
+                  source={require('../assets/icons/cross.svg')}
+                  style={styles.overlayCloseIcon}
+                  contentFit="contain"
+                />
+              </Pressable>
+            </View>
+
+            {/* Content Container */}
             <ScrollView 
               style={styles.scrollView}
               showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.scrollContent}
             >
-              {/* Hero Video Section with Overlay Back Button */}
-              <View style={styles.videoContainer}>
-                <ExerciseVideo
-                  videoUrl={exerciseData.videoUrl}
-                  exerciseName={exerciseData.name}
-                  slug={exerciseData.slug}
-                />
-
-                {/* Overlay Back Button */}
-                <Pressable
-                  style={styles.overlayCloseButton}
-                  onPress={() => {
-                    translateY.value = withTiming(SHEET_HEIGHT, {
-                      duration: 250,
-                      easing: Easing.in(Easing.quad),
-                    }, (finished) => {
-                      if (finished) {
-                        runOnJS(onClose)();
-                      }
-                    });
-                  }}
-                >
-                  <Image
-                    source={require('../assets/icons/cross.svg')}
-                    style={styles.overlayCloseIcon}
-                    contentFit="contain"
-                  />
-                </Pressable>
+              {/* Title Section */}
+              <View style={styles.titleSection}>
+                <Text style={styles.categoryText}>{exerciseData.category}</Text>
+                <Text style={styles.titleText}>{exerciseData.name}</Text>
               </View>
 
-              {/* Content Container */}
-              <View style={styles.contentContainer}>
-                {/* Title Section */}
-                <View style={styles.titleSection}>
-                  <Text style={styles.categoryText}>{exerciseData.category}</Text>
-                  <Text style={styles.titleText}>{exerciseData.name}</Text>
-                </View>
-
-                {/* Instructions Section */}
-                <View style={styles.instructionsSection}>
-                  {exerciseData.instructions.map((instruction, index) => (
-                    <Text key={index} style={styles.instructionText}>
+              {/* Instructions Section - Scrollable with fixed height */}
+              <ScrollView 
+                style={styles.instructionsScrollView}
+                contentContainerStyle={styles.instructionsScrollContent}
+                showsVerticalScrollIndicator={true}
+                nestedScrollEnabled={true}
+              >
+                {(exerciseData.instructions || []).map((instruction, index) => (
+                  <View key={index} style={styles.instructionItem}>
+                    <View style={styles.instructionBullet} />
+                    <Text style={styles.instructionText}>
                       {instruction}
                     </Text>
-                  ))}
-                  
-                  {/* Tips */}
-                  <View style={styles.tipsContainer}>
-                    {exerciseData.tips.map((tip, index) => (
-                      <Text key={index} style={styles.tipText}>
-                        ✅ {tip}
-                      </Text>
-                    ))}
                   </View>
+                ))}
+                
+                {/* Tips */}
+                <View style={styles.tipsContainer}>
+                  {(exerciseData.tips || []).map((tip, index) => (
+                    <Text key={index} style={styles.tipText}>
+                      ✅ {tip}
+                    </Text>
+                  ))}
                 </View>
+              </ScrollView>
 
-                {/* Equipment Section - Unified UI with smart layout */}
-                <View style={styles.equipmentSection}>
-                  <Text style={styles.equipmentTitle}>Equipment</Text>
-                  
-                  {exerciseData.equipmentGroups && exerciseData.equipmentGroups.length > 0 ? (
-                    <View style={styles.equipmentContainer}>
-                      {exerciseData.equipmentGroups.map((group, groupIndex) => (
+              {/* Equipment Section - Unified UI with smart layout */}
+              <View style={styles.equipmentSection}>
+                <Text style={styles.equipmentTitle}>Equipment</Text>
+                
+                {exerciseData.equipmentGroups && exerciseData.equipmentGroups.length > 0 ? (
+                  <View style={styles.equipmentContainer}>
+                    {exerciseData.equipmentGroups.map((group, groupIndex) => {
+                      if (!group || !Array.isArray(group) || group.length === 0) return null;
+                      
+                      return (
                         <View key={groupIndex} style={styles.equipmentGroupWrapper}>
                           {/* Each group is a row of alternatives (OR) */}
                           <View style={styles.equipmentAlternativesRow}>
@@ -461,25 +472,25 @@ const ExerciseInfoModal = React.memo<ExerciseInfoModalProps>(function ExerciseIn
                             </View>
                           )}
                         </View>
-                      ))}
-                    </View>
-                  ) : (
-                    <View style={styles.equipmentContainer}>
-                      <View style={styles.equipmentChip}>
-                        <View style={styles.equipmentChipIconContainer}>
-                          <Image
-                            source={require('../assets/equipment_icons/body-weight.png')}
-                            style={styles.equipmentChipImage}
-                            contentFit="contain"
-                          />
-                        </View>
-                        <Text style={styles.equipmentChipText}>
-                          {exerciseData.equipment[0] || "Body Weight"}
-                        </Text>
+                      );
+                    })}
+                  </View>
+                ) : (
+                  <View style={styles.equipmentContainer}>
+                    <View style={styles.equipmentChip}>
+                      <View style={styles.equipmentChipIconContainer}>
+                        <Image
+                          source={require('../assets/equipment_icons/body-weight.png')}
+                          style={styles.equipmentChipImage}
+                          contentFit="contain"
+                        />
                       </View>
+                      <Text style={styles.equipmentChipText}>
+                        {exerciseData.equipment[0] || "Body Weight"}
+                      </Text>
                     </View>
-                  )}
-                </View>
+                  </View>
+                )}
               </View>
             </ScrollView>
           </SafeAreaView>
@@ -553,6 +564,17 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
+  scrollContent: {
+    padding: 24,
+    paddingTop: 16,
+  },
+  instructionsScrollView: {
+    maxHeight: 300, // Fixed height for scrollable instructions
+    marginVertical: 16,
+  },
+  instructionsScrollContent: {
+    paddingBottom: 8,
+  },
   heroContainer: {
     height: 393,
     width: '100%',
@@ -615,9 +637,23 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   instructionsSection: {
-    gap: 8,
+    gap: 16,
+  },
+  instructionItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  instructionBullet: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: nucleus.light.global.blue["60"],
+    marginTop: 9, // Align with text baseline (24/2 - 6/2 = 9)
+    flexShrink: 0,
   },
   instructionText: {
+    flex: 1,
     fontFamily: 'PlusJakartaSans-Regular',
     fontSize: 16,
     lineHeight: 24, // 1.5 * 16

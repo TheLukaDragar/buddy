@@ -2,6 +2,7 @@ import { Image } from "expo-image";
 import React, { useMemo } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { AutoSkeletonView } from "react-native-auto-skeleton";
+import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { nucleus } from "../Buddy_variables";
 import { useGetExerciseByIdQuery } from "../store/api/enhancedApi";
 
@@ -17,9 +18,11 @@ interface ExerciseCardProps {
   };
   onPress: (exercise: any) => void; // Pass exercise data to parent
   getEquipmentIcon: (slug: string) => any;
+  isAdjustMode?: boolean; // Show remove button in adjust mode
+  onRemove?: () => void; // Callback when remove button is pressed
 }
 
-export default function ExerciseCard({ workoutEntry, onPress, getEquipmentIcon }: ExerciseCardProps) {
+export default function ExerciseCard({ workoutEntry, onPress, getEquipmentIcon, isAdjustMode = false, onRemove }: ExerciseCardProps) {
   // Fetch exercise data separately - avoids nested relationship caching issues!
   const { data: exerciseData, isLoading } = useGetExerciseByIdQuery(
     { id: workoutEntry.exercise_id },
@@ -69,21 +72,22 @@ export default function ExerciseCard({ workoutEntry, onPress, getEquipmentIcon }
   };
 
   return (
-    <TouchableOpacity
-      key={`${workoutEntry.id}-${workoutEntry.exercise_id}`} // Key includes exercise_id to force re-render when it changes
-      style={styles.exerciseCard}
-      onPress={handlePress}
-      activeOpacity={0.7}
-      disabled={!exercise} // Disable if exercise data not loaded
-    >
-      <AutoSkeletonView 
-        isLoading={isLoading || !exercise}
-        shimmerSpeed={1.5}
-        animationType="gradient"
-        defaultRadius={12}
+    <View style={styles.cardWrapper}>
+      <TouchableOpacity
+        key={`${workoutEntry.id}-${workoutEntry.exercise_id}`} // Key includes exercise_id to force re-render when it changes
+        style={styles.exerciseCard}
+        onPress={handlePress}
+        activeOpacity={0.7}
+        disabled={!exercise} // Disable if exercise data not loaded
       >
-        <View style={styles.cardContent}>
-          <View style={styles.exerciseRow}>
+        <AutoSkeletonView 
+          isLoading={isLoading || !exercise}
+          shimmerSpeed={1.5}
+          animationType="gradient"
+          defaultRadius={12}
+        >
+          <View style={styles.cardContent}>
+            <View style={styles.exerciseRow}>
             <View style={styles.exerciseImageContainer}>
               {thumbnailUrl ? (
                 <Image
@@ -201,10 +205,36 @@ export default function ExerciseCard({ workoutEntry, onPress, getEquipmentIcon }
         </View>
       </AutoSkeletonView>
     </TouchableOpacity>
+    
+    {/* Remove button - shown in adjust mode, positioned outside card */}
+    {isAdjustMode && (
+      <Animated.View
+        entering={FadeIn.duration(200)}
+        exiting={FadeOut.duration(150)}
+        style={styles.removeButton}
+      >
+        <TouchableOpacity
+          onPress={(e) => {
+            e.stopPropagation();
+            onRemove?.();
+          }}
+          activeOpacity={0.7}
+        >
+          <View style={styles.removeButtonCircle}>
+            <Text style={styles.removeButtonMinus}>−</Text>
+          </View>
+        </TouchableOpacity>
+      </Animated.View>
+    )}
+  </View>
   );
 }
 
 const styles = StyleSheet.create({
+  cardWrapper: {
+    position: 'relative',
+    alignSelf: 'stretch',
+  },
   exerciseCard: {
     backgroundColor: nucleus.light.global.white,
     borderRadius: 12,
@@ -214,6 +244,35 @@ const styles = StyleSheet.create({
   },
   cardContent: {
     gap: 12,
+  },
+  removeButton: {
+    position: 'absolute',
+    top: -12,
+    right: -12,
+    zIndex: 10,
+  },
+  removeButtonCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: nucleus.light.global.grey[70],
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: nucleus.light.global.white,
+    shadowColor: 'rgba(0, 0, 0, 0.15)',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  removeButtonMinus: {
+    color: nucleus.light.global.white,
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 18,
+    fontWeight: '700',
+    lineHeight: 18,
+    includeFontPadding: false,
   },
   exerciseRow: {
     alignItems: 'flex-start',

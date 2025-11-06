@@ -436,6 +436,21 @@ export const enhancedApi = generatedApi.enhanceEndpoints({
       },
     },
 
+    // Enhance GetAllExercises query with cache tags
+    GetAllExercises: {
+      providesTags: (result) => {
+        const tags: any[] = [
+          { type: 'Exercise' as const, id: 'LIST' }
+        ];
+        if (result?.exercisesCollection?.edges) {
+          result.exercisesCollection.edges.forEach((edge: any) => {
+            tags.push({ type: 'Exercise' as const, id: edge.node.id });
+          });
+        }
+        return tags;
+      },
+    },
+
     // Enhance UpdateWorkoutEntry mutation with optimistic updates and proper cache invalidation
     UpdateWorkoutEntry: {
       invalidatesTags: (result, error, arg) => {
@@ -475,6 +490,76 @@ export const enhancedApi = generatedApi.enhanceEndpoints({
           // If the mutation fails, undo the optimistic update
           patchResult.undo();
           console.error('❌ Failed to update workout entry, reverted changes:', err);
+        }
+      }
+    },
+
+    // Enhance DeleteWorkoutEntry mutation with cache invalidation
+    DeleteWorkoutEntry: {
+      invalidatesTags: (result, error, arg) => {
+        const tags: any[] = [
+          { type: 'WorkoutDay' as const, id: 'LIST' },
+          { type: 'WorkoutDay' as const }, // Invalidate all WorkoutDay entries
+          { type: 'WorkoutEntry' as const, id: arg.id },
+          { type: 'WorkoutEntry' as const } // Invalidate all WorkoutEntry entries
+        ];
+        
+        console.log('DeleteWorkoutEntry invalidatesTags:', tags);
+        return tags;
+      },
+      async onQueryStarted(arg, { dispatch, queryFulfilled }) {
+        console.log('DeleteWorkoutEntry onQueryStarted:', arg);
+        
+        try {
+          await queryFulfilled;
+          console.log('✅ Workout entry deleted successfully');
+        } catch (err) {
+          console.error('❌ Failed to delete workout entry:', err);
+        }
+      }
+    },
+
+    // Enhance AddWorkoutEntry mutation with cache invalidation
+    AddWorkoutEntry: {
+      invalidatesTags: (result, error, arg) => {
+        const tags: any[] = [
+          { type: 'WorkoutDay' as const, id: 'LIST' },
+          { type: 'WorkoutDay' as const }, // Invalidate all WorkoutDay entries
+          { type: 'WorkoutEntry' as const } // Invalidate all WorkoutEntry entries
+        ];
+        
+        // Invalidate the specific WorkoutDay cache tag
+        if (arg.workoutPlanId && arg.weekNumber !== undefined && arg.day) {
+          tags.push({ type: 'WorkoutDay' as const, id: `${arg.workoutPlanId}-${arg.weekNumber}-${arg.day}` });
+          console.log('Invalidating specific WorkoutDay cache tag:', `${arg.workoutPlanId}-${arg.weekNumber}-${arg.day}`);
+        }
+        
+        console.log('AddWorkoutEntry invalidatesTags:', tags);
+        return tags;
+      },
+      async onQueryStarted(arg, { dispatch, queryFulfilled }) {
+        console.log('AddWorkoutEntry onQueryStarted:', arg);
+        
+        try {
+          // Wait for the mutation to complete
+          await queryFulfilled;
+          console.log('✅ Workout entry added successfully');
+          
+          // Force refetch GetWorkoutDay to ensure fresh data
+          if (arg.workoutPlanId && arg.weekNumber !== undefined && arg.day) {
+            dispatch(
+              enhancedApi.endpoints.GetWorkoutDay.initiate(
+                {
+                  planId: arg.workoutPlanId,
+                  weekNumber: arg.weekNumber,
+                  day: arg.day as any,
+                },
+                { forceRefetch: true }
+              )
+            );
+          }
+        } catch (err) {
+          console.error('❌ Failed to add workout entry:', err);
         }
       }
     },
@@ -638,8 +723,12 @@ export const {
   useLazyGetWorkoutDayQuery,
   useGetExerciseByIdQuery,
   useLazyGetExerciseByIdQuery,
+  useGetAllExercisesQuery,
+  useLazyGetAllExercisesQuery,
   useUpdateWorkoutEntryMutation,
   useSwapExerciseWithAlternativeMutation,
+  useAddWorkoutEntryMutation,
+  useDeleteWorkoutEntryMutation,
 } = enhancedApi
 
 // Export the enhanced API as default

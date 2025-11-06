@@ -1,3 +1,4 @@
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { unwrapResult } from '@reduxjs/toolkit';
 import { BlurView } from 'expo-blur';
 import { Image } from "expo-image";
@@ -5,17 +6,18 @@ import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Dimensions, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SystemBars } from 'react-native-edge-to-edge';
-import Animated, { Extrapolation, interpolate, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { Easing, Extrapolation, FadeIn, FadeOut, interpolate, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import Carousel, { ICarouselInstance } from 'react-native-reanimated-carousel';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { nucleus } from '../Buddy_variables';
+import AddExerciseModal from '../components/AddExerciseModal';
 import ExerciseAdjustModal from '../components/ExerciseAdjustModal';
 import ExerciseCard from '../components/ExerciseCard';
 import ExerciseInfoModal from '../components/ExerciseInfoModal';
 import MusicModal from '../components/MusicModal';
 import { Weekday } from '../graphql/generated';
 import { selectWorkoutFromEntries } from '../store/actions/workoutActions';
-import { useGetWorkoutDayQuery } from '../store/api/enhancedApi';
+import { useAddWorkoutEntryMutation, useDeleteWorkoutEntryMutation, useGetWorkoutDayQuery } from '../store/api/enhancedApi';
 import { useAppDispatch } from '../store/hooks';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -38,6 +40,26 @@ export default function WorkoutScreen() {
   const [showAdjustHint, setShowAdjustHint] = useState(false);
   const [showAlternativesModal, setShowAlternativesModal] = useState(false);
   const [selectedWorkoutEntryId, setSelectedWorkoutEntryId] = useState<string | null>(null);
+  const [showAddExerciseModal, setShowAddExerciseModal] = useState(false);
+  const [addWorkoutEntry, { isLoading: isAddingExercise }] = useAddWorkoutEntryMutation();
+  const [deleteWorkoutEntry] = useDeleteWorkoutEntryMutation();
+  const [newlyAddedExerciseId, setNewlyAddedExerciseId] = useState<string | null>(null);
+  const [deletedExerciseId, setDeletedExerciseId] = useState<string | null>(null);
+  const [deletedExerciseEntry, setDeletedExerciseEntry] = useState<any>(null);
+  const [deletedExercise, setDeletedExercise] = useState<{
+    id: string;
+    exercise_id: string;
+    sets: number;
+    reps: string;
+    weight: string | null;
+    time: string | null;
+    notes: string | null;
+    streak_exercise_id: string;
+    streak_exercise_notes: string | null;
+  } | null>(null);
+  const undoTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scrollViewRef = useRef<Animated.ScrollView>(null);
+  const exerciseRefs = useRef<{ [key: string]: View | null }>({});
   const scrollY = useSharedValue(0);
   const adjustHintOpacity = useSharedValue(0);
   const adjustHintHeight = useSharedValue(0);
@@ -69,6 +91,15 @@ export default function WorkoutScreen() {
     refetch();
   }, []); // Empty dependency array means this runs only once on mount
 
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (undoTimeoutRef.current) {
+        clearTimeout(undoTimeoutRef.current);
+      }
+    };
+  }, []);
+
   // Log when data changes
   useEffect(() => {
     console.log('Workout data updated:', {
@@ -92,7 +123,68 @@ export default function WorkoutScreen() {
   }, [workoutData, isLoading, isFetching]);
 
   // Extract workout entries from the query response
-  const workoutEntries = workoutData?.workout_plansCollection?.edges?.[0]?.node?.workout_entriesCollection?.edges || [];
+  const rawWorkoutEntries = workoutData?.workout_plansCollection?.edges?.[0]?.node?.workout_entriesCollection?.edges || [];
+  
+  // Keep deleted exercises in the list temporarily for fade-out animation
+  const [entriesWithDeleted, setEntriesWithDeleted] = useState<typeof rawWorkoutEntries>([]);
+  
+  useEffect(() => {
+    // When entries change, update our local state
+    // If there's a deleted exercise ID, we need to keep it in the list temporarily
+    if (deletedExerciseId && deletedExerciseEntry) {
+      // Check if the deleted entry is no longer in rawWorkoutEntries (removed by RTK Query)
+      if (!rawWorkoutEntries.find(e => e.node.id === deletedExerciseId)) {
+        // Entry was removed from RTK Query cache, but keep it locally for animation
+        const newEntries = rawWorkoutEntries.filter(e => e.node.id !== deletedExerciseId);
+        setEntriesWithDeleted([...newEntries, deletedExerciseEntry]);
+        
+        // Remove after animation completes (400ms)
+        setTimeout(() => {
+          setEntriesWithDeleted(rawWorkoutEntries);
+          setDeletedExerciseId(null);
+          setDeletedExerciseEntry(null);
+        }, 400);
+        return;
+      }
+    }
+    
+    // Normal update: sync with RTK Query data
+    setEntriesWithDeleted(rawWorkoutEntries);
+  }, [rawWorkoutEntries, deletedExerciseId, deletedExerciseEntry]);
+  
+  // Use entriesWithDeleted for rendering to allow exit animations
+  const workoutEntries = entriesWithDeleted.length > 0 ? entriesWithDeleted : rawWorkoutEntries;
+
+  // Scroll to newly added exercise after data refetches
+  useEffect(() => {
+    if (newlyAddedExerciseId && workoutEntries.length > 0) {
+      // Wait for layout to settle, then scroll to the exercise
+      setTimeout(() => {
+        const exerciseRef = exerciseRefs.current[newlyAddedExerciseId];
+        if (exerciseRef && scrollViewRef.current) {
+          exerciseRef.measureLayout(
+            scrollViewRef.current as any,
+            (x, y) => {
+              scrollViewRef.current?.scrollTo({
+                y: y - 100, // Offset to show some space above
+                animated: true,
+              });
+              setNewlyAddedExerciseId(null); // Reset after scrolling
+            },
+            () => {
+              // Fallback: scroll to end if measureLayout fails
+              scrollViewRef.current?.scrollToEnd({ animated: true });
+              setNewlyAddedExerciseId(null);
+            }
+          );
+        } else {
+          // Fallback: scroll to end if ref not found
+          scrollViewRef.current?.scrollToEnd({ animated: true });
+          setNewlyAddedExerciseId(null);
+        }
+      }, 300);
+    }
+  }, [newlyAddedExerciseId, workoutEntries.length]);
 
   // // Debug logging
   // console.log('Workout Data Debug:');
@@ -258,6 +350,16 @@ export default function WorkoutScreen() {
       adjustHintOpacity.value = withTiming(1, { duration: 200 });
     } else {
       adjustHintOpacity.value = withTiming(0, { duration: 200 });
+              // Clear deleted exercise when exiting adjust mode
+              if (deletedExercise) {
+                if (undoTimeoutRef.current) {
+                  clearTimeout(undoTimeoutRef.current);
+                  undoTimeoutRef.current = null;
+                }
+                setDeletedExercise(null);
+                setDeletedExerciseId(null);
+                setDeletedExerciseEntry(null);
+              }
     }
   }, [isAdjustMode]);
 
@@ -510,6 +612,7 @@ export default function WorkoutScreen() {
         </Animated.View>
 
         <Animated.ScrollView 
+          ref={scrollViewRef}
           contentContainerStyle={[styles.scrollContent, { paddingTop: 0 }]}
           showsVerticalScrollIndicator={false}
           onScroll={scrollHandler}
@@ -517,78 +620,139 @@ export default function WorkoutScreen() {
         >
          <View style={styles.contentContainer}>
          <View style={styles.summaryContainer}>
-          <Text style={styles.weekNumber}>Week {weekNumber}</Text>
-          <Text style={styles.workoutTitle}>{dynamicWorkoutTitle}</Text>
-          <Text style={styles.workoutDescription}>
-          Based on your last workout Buddy recommends this over that so it will go easy on your knees and  right ankle. 
-          </Text>
+          {!isLoading && (
+            <Animated.View 
+              entering={FadeIn.duration(400).delay(100).easing(Easing.out(Easing.quad))}
+              style={{ alignSelf: 'stretch' }}
+            >
+              <Text style={styles.weekNumber}>Week {weekNumber}</Text>
+            </Animated.View>
+          )}
+          {!isLoading && (
+            <Animated.View 
+              entering={FadeIn.duration(400).delay(150).easing(Easing.out(Easing.quad))}
+              style={{ alignSelf: 'stretch' }}
+            >
+              <Text style={styles.workoutTitle}>{dynamicWorkoutTitle}</Text>
+            </Animated.View>
+          )}
+          {!isLoading && (
+            <Animated.View 
+              entering={FadeIn.duration(400).delay(200).easing(Easing.out(Easing.quad))}
+              style={{ alignSelf: 'stretch' }}
+            >
+              <Text style={styles.workoutDescription}>
+                Based on your last workout Buddy recommends this over that so it will go easy on your knees and  right ankle. 
+              </Text>
+            </Animated.View>
+          )}
 
-          <View style={styles.elementwith_icon}>
-            <Image source={require('../assets/icons/clock.svg')} style={styles.icon} />
+          {!isLoading && (
+            <Animated.View 
+              entering={FadeIn.duration(400).delay(250).easing(Easing.out(Easing.quad))}
+            >
+              <View style={styles.elementwith_icon}>
+                <Image source={require('../assets/icons/clock.svg')} style={styles.icon} />
+                <Text style={styles.elementText}>
+                  {totalWorkoutMinutes} min
+                </Text>
+              </View>
+            </Animated.View>
+          )}
 
-            <Text style={styles.elementText}>{totalWorkoutMinutes} min</Text>
-          </View>
+          {!isLoading && (
+            <Animated.View 
+              entering={FadeIn.duration(400).delay(300).easing(Easing.out(Easing.quad))}
+            >
+              <View style={styles.elementwith_icon}>
+                <Image source={require('../assets/icons/equipment.svg')} style={styles.icon} />
+                <Text style={styles.elementText}>
+                  {workoutEntries.length} exercises
+                </Text>
+              </View>
+            </Animated.View>
+          )}
 
-          <View style={styles.elementwith_icon}>
-            <Image source={require('../assets/icons/equipment.svg')} style={styles.icon} />
-
-            <Text style={styles.elementText}>{workoutEntries.length} exercises</Text>
-          </View>
-
-          <View style={styles.elementwith_icon}>
-            <Image source={require('../assets/icons/music.svg')} style={styles.icon} />
-
-            <Text style={styles.elementText}>Rhythmic</Text>
-          </View>
+          {!isLoading && (
+            <Animated.View 
+              entering={FadeIn.duration(400).delay(350).easing(Easing.out(Easing.quad))}
+            >
+              <View style={styles.elementwith_icon}>
+                <Image source={require('../assets/icons/music.svg')} style={styles.icon} />
+                <Text style={styles.elementText}>
+                  Rhythmic
+                </Text>
+              </View>
+            </Animated.View>
+          )}
           
          </View>        
 
          <View style={styles.userMood}>
-            <View style={styles.moodContainer}>
+          {!isLoading && (
+            <Animated.View 
+              entering={FadeIn.duration(400).delay(400).easing(Easing.out(Easing.quad))}
+            >
+              <View style={styles.moodContainer}>
                 <Text style={styles.moodTitle}>
-                    How are you feeling today?
+                  How are you feeling today?
                 </Text>
                 <Text style={styles.moodSubtitle}>
-                Your mood helps me adjust the workout intensity and coaching style. 
-          </Text>
-          </View>
-          <View style={styles.moodIconsContainer}>
-            {moods.map((mood) => {
-              const isSelected = selectedMood === mood.id;
-              return (
-                <View key={mood.id} style={styles.moodIconItem}>
-                  <View style={[
-                    styles.moodIconWrapper,
-                    isSelected && {
-                      borderRadius: 40,
-                      borderWidth: 2,
-                      borderColor: mood.borderColor,
-                    }
-                  ]}>
-                    <TouchableOpacity 
-                      style={[
-                        styles.moodIconCircle,
-                        isSelected && {
-                          backgroundColor: mood.backgroundColor,
-                        }
-                      ]}
-                      onPress={() => setSelectedMood(mood.id)}
+                  Your mood helps me adjust the workout intensity and coaching style. 
+                </Text>
+              </View>
+            </Animated.View>
+          )}
+          {!isLoading && (
+            <Animated.View 
+              entering={FadeIn.duration(400).delay(450).easing(Easing.out(Easing.quad))}
+              style={{ alignSelf: 'stretch' }}
+            >
+              <View style={styles.moodIconsContainer}>
+                {moods.map((mood, index) => {
+                  const isSelected = selectedMood === mood.id;
+                  return (
+                    <Animated.View
+                      key={mood.id}
+                      entering={FadeIn.duration(400).delay(500 + index * 50).easing(Easing.out(Easing.quad))}
+                      style={{ flex: 1 }}
                     >
-                      <Image 
-                        source={isSelected ? mood.iconSelected : mood.icon} 
-                        contentFit="contain" 
-                        style={styles.moodIconDeactive} 
-                      />
-                    </TouchableOpacity>
-                  </View>
-                  <Text style={styles.moodIconText}>
-                    {mood.label}
-                  </Text>
-                </View>
-              );
-            })}
-             </View>
-             </View>
+                      <View style={styles.moodIconItem}>
+                        <View style={[
+                          styles.moodIconWrapper,
+                          isSelected && {
+                            borderRadius: 40,
+                            borderWidth: 2,
+                            borderColor: mood.borderColor,
+                          }
+                        ]}>
+                          <TouchableOpacity 
+                            style={[
+                              styles.moodIconCircle,
+                              isSelected && {
+                                backgroundColor: mood.backgroundColor,
+                              }
+                            ]}
+                            onPress={() => setSelectedMood(mood.id)}
+                          >
+                            <Image 
+                              source={isSelected ? mood.iconSelected : mood.icon} 
+                              contentFit="contain" 
+                              style={styles.moodIconDeactive} 
+                            />
+                          </TouchableOpacity>
+                        </View>
+                        <Text style={styles.moodIconText}>
+                          {mood.label}
+                        </Text>
+                      </View>
+                    </Animated.View>
+                  );
+                })}
+              </View>
+            </Animated.View>
+          )}
+         </View>
 
         
 
@@ -598,7 +762,13 @@ export default function WorkoutScreen() {
           
             
             <View style={styles.summaryExerciseHeader}>
-              <Text style={styles.summaryExerciseTitle}>Exercises</Text>
+              {!isLoading && (
+                <Animated.View 
+                  entering={FadeIn.duration(400).delay(400).easing(Easing.out(Easing.quad))}
+                >
+                  <Text style={styles.summaryExerciseTitle}>Exercises</Text>
+                </Animated.View>
+              )}
 
              
               
@@ -631,7 +801,18 @@ export default function WorkoutScreen() {
                   // Normal info mode - use fresh exercise data from ExerciseCard
                   if (exerciseData) {
                     const cleanName = exerciseData.name.replace(/\s*\([^)]*\)/g, '').trim();
-                    const instructionsParts = exerciseData.instructions ? exerciseData.instructions.split(/(?=\(\d+(?:st|nd|rd|th)\))/).filter(Boolean).map((s: string) => s.trim()) : [];
+                    
+                    // Parse instructions: split by numbered markers and remove them
+                    let instructionsParts: string[] = [];
+                    if (exerciseData.instructions) {
+                      // Split by numbered markers like (1st), (2nd), (3rd), etc.
+                      const parts = exerciseData.instructions.split(/(?=\(\d+(?:st|nd|rd|th)\))/).filter(Boolean);
+                      instructionsParts = parts.map((s: string) => {
+                        // Remove the numbered marker (1st), (2nd), etc. and trim
+                        return s.replace(/^\(\d+(?:st|nd|rd|th)\)\s*/i, '').trim();
+                      }).filter(Boolean);
+                    }
+                    
                     const keyFormTipsSection = instructionsParts.find((s: string) => s.includes('Key Form Tips'));
                     const keyFormTips = keyFormTipsSection ?
                       keyFormTipsSection.replace(/.*Key Form Tips:\s*/, '').split(/[;,]/).map((tip: string) => tip.trim()).filter(Boolean) :
@@ -670,20 +851,76 @@ export default function WorkoutScreen() {
                 };
 
                 return (
-                  <ExerciseCard
+                  <Animated.View
                     key={entry.node.id}
-                    workoutEntry={{
-                      id: entry.node.id,
-                      exercise_id: entry.node.exercise_id,
-                      sets: entry.node.sets,
-                      reps: entry.node.reps,
-                      weight: entry.node.weight,
-                      time: entry.node.time,
-                      notes: entry.node.notes,
-                    }}
-                    onPress={handleExercisePress}
-                    getEquipmentIcon={getEquipmentIcon}
-                  />
+                    style={styles.exerciseCardWrapper}
+                    entering={FadeIn.duration(300)}
+                    exiting={FadeOut.duration(400)}
+                  >
+                    <View
+                      ref={(ref) => {
+                        if (ref) {
+                          exerciseRefs.current[entry.node.id] = ref;
+                        }
+                      }}
+                      style={{ width: '100%' }}
+                    >
+                      <ExerciseCard
+                      workoutEntry={{
+                        id: entry.node.id,
+                        exercise_id: entry.node.exercise_id,
+                        sets: entry.node.sets,
+                        reps: entry.node.reps,
+                        weight: entry.node.weight,
+                        time: entry.node.time,
+                        notes: entry.node.notes,
+                      }}
+                      onPress={handleExercisePress}
+                      getEquipmentIcon={getEquipmentIcon}
+                      isAdjustMode={isAdjustMode}
+                      onRemove={async () => {
+                        const entryToDelete = entry.node;
+                        
+                        // Track deleted exercise ID and entry for fade-out animation
+                        setDeletedExerciseId(entryToDelete.id);
+                        setDeletedExerciseEntry(entry); // Store the full entry object
+                        
+                        // Store exercise data for undo
+                        setDeletedExercise({
+                          id: entryToDelete.id,
+                          exercise_id: entryToDelete.exercise_id,
+                          sets: entryToDelete.sets,
+                          reps: entryToDelete.reps,
+                          weight: entryToDelete.weight ?? null,
+                          time: entryToDelete.time ?? null,
+                          notes: entryToDelete.notes ?? null,
+                          streak_exercise_id: entryToDelete.streak_exercise_id,
+                          streak_exercise_notes: entryToDelete.streak_exercise_notes ?? null,
+                        });
+                        
+                        try {
+                          await deleteWorkoutEntry({ id: entryToDelete.id }).unwrap();
+                          console.log('✅ Exercise removed successfully');
+                          
+                          // Auto-dismiss undo after 5 seconds
+                          if (undoTimeoutRef.current) {
+                            clearTimeout(undoTimeoutRef.current);
+                          }
+                          undoTimeoutRef.current = setTimeout(() => {
+                            setDeletedExercise(null);
+                            setDeletedExerciseId(null);
+                            setDeletedExerciseEntry(null);
+                          }, 5000);
+                        } catch (error) {
+                          console.error('❌ Failed to remove exercise:', error);
+                          setDeletedExercise(null);
+                          setDeletedExerciseId(null);
+                          setDeletedExerciseEntry(null);
+                        }
+                      }}
+                    />
+                    </View>
+                  </Animated.View>
                 );
               })}
             </View>
@@ -729,19 +966,81 @@ export default function WorkoutScreen() {
 
 
         {/* Adjust Mode Hint - Animated hint above floating buttons */}
-        <Animated.View
-          style={[
-            styles.adjustHintWrapper,
-            { bottom: 84 + insets.bottom }, // 72px button height + 8px bottom + 4px gap
-            adjustHintAnimatedStyle
-          ]}
-        >
-          <View style={styles.adjustHintContainer}>
-            <Text style={styles.adjustModeHintText}>
-              Click the exercise you want to adjust
-            </Text>
-          </View>
-        </Animated.View>
+        {isAdjustMode && (
+          <Animated.View
+            style={[
+              styles.adjustHintWrapper,
+              { bottom: 84 + insets.bottom }, // 72px button height + 8px bottom + 4px gap
+              adjustHintAnimatedStyle
+            ]}
+          >
+            {deletedExercise ? (
+              <TouchableOpacity
+                onPress={async () => {
+                  if (!deletedExercise || !planId || !weekNumber || !day || !dayName || !date) {
+                    return;
+                  }
+                  
+                  // Clear timeout
+                  if (undoTimeoutRef.current) {
+                    clearTimeout(undoTimeoutRef.current);
+                    undoTimeoutRef.current = null;
+                  }
+                  
+                  try {
+                    // Restore the exercise using AddWorkoutEntry
+                    const result = await addWorkoutEntry({
+                      workoutPlanId: planId,
+                      weekNumber: parseInt(weekNumber),
+                      dayName: dayName,
+                      day: day as Weekday,
+                      date: date,
+                      exerciseId: deletedExercise.exercise_id,
+                      sets: deletedExercise.sets,
+                      reps: deletedExercise.reps,
+                      streakExerciseId: deletedExercise.streak_exercise_id,
+                      weight: deletedExercise.weight,
+                      time: deletedExercise.time,
+                      notes: deletedExercise.notes,
+                    }).unwrap();
+                    
+                    console.log('✅ Exercise restored successfully');
+                    
+                    // Get the restored exercise ID from the result
+                    const restoredEntryId = result?.insertIntoworkout_entriesCollection?.records?.[0]?.id;
+                    if (restoredEntryId) {
+                      setNewlyAddedExerciseId(restoredEntryId);
+                    }
+                    
+                    setDeletedExercise(null);
+                    setDeletedExerciseId(null);
+                    setDeletedExerciseEntry(null);
+                  } catch (error) {
+                    console.error('❌ Failed to restore exercise:', error);
+                    setDeletedExercise(null);
+                    setDeletedExerciseId(null);
+                    setDeletedExerciseEntry(null);
+                  }
+                }}
+                style={[styles.adjustHintContainer, styles.undoHintContent]}
+                activeOpacity={0.7}
+              >
+                <MaterialIcons 
+                  name="undo" 
+                  size={20} 
+                  color={nucleus.light.global.brand[90]} 
+                />
+                <Text style={styles.adjustModeHintText}>Undo</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.adjustHintContainer}>
+                <Text style={styles.adjustModeHintText}>
+                  Click the exercise you want to adjust
+                </Text>
+              </View>
+            )}
+          </Animated.View>
+        )}
 
         {/* Floating Button Container */}
         <View style={[styles.floatingButtonWrapper, { bottom:8+  insets.bottom }]}>
@@ -786,6 +1085,11 @@ export default function WorkoutScreen() {
                   }
                 ]}
                 onPress={async () => {
+                  if (isAdjustMode) {
+                    setShowAddExerciseModal(true);
+                    return;
+                  }
+                  
                   console.log('Start workout pressed');
                   try {
                     if (!workoutEntries || workoutEntries.length === 0) {
@@ -826,7 +1130,14 @@ export default function WorkoutScreen() {
                 }}
               >
                 <View style={styles.startButtonContent}>
-                  <Text style={[styles.startButtonLabel, styles.buttonLabel]}>Start workout</Text>
+                  <Animated.Text 
+                    key={isAdjustMode ? 'add-exercise' : 'start-workout'}
+                    entering={FadeIn.duration(200)}
+                    exiting={FadeOut.duration(150)}
+                    style={[styles.startButtonLabel, styles.buttonLabel]}
+                  >
+                    {isAdjustMode ? 'Add Exercise' : 'Start workout'}
+                  </Animated.Text>
                 </View>
               </Pressable>
 
@@ -871,8 +1182,8 @@ export default function WorkoutScreen() {
           visible={showAlternativesModal}
           onClose={() => {
             setShowAlternativesModal(false);
-            setIsAdjustMode(false);
             setSelectedWorkoutEntryId(null);
+            // Keep adjust mode active - don't disable it
           }}
           onAdjustmentComplete={() => {
             console.log('✅ Workout adjusted successfully');
@@ -881,6 +1192,61 @@ export default function WorkoutScreen() {
           workoutEntryId={selectedWorkoutEntryId}
         />
       )}
+
+      {/* Add Exercise Modal */}
+      <AddExerciseModal
+        visible={showAddExerciseModal}
+        onClose={() => setShowAddExerciseModal(false)}
+        onSelectExercise={async (exercise: { id: string; name?: string }) => {
+          console.log('Exercise selected:', exercise);
+          
+          if (!planId || !weekNumber || !day || !dayName || !date) {
+            console.error('Missing workout context:', { planId, weekNumber, day, dayName, date });
+            return;
+          }
+          
+          // Extract rep range from exercise name (format: "Exercise Name (X–Y reps)" or "Exercise Name (X-Y reps)")
+          let reps = "10-12"; // Default fallback
+          if (exercise.name) {
+            // Match patterns like "(6–10 reps)", "(8-12 reps)", "(10–15 reps)", etc.
+            const repMatch = exercise.name.match(/\((\d+)[–-](\d+)\s*reps?\)/i);
+            if (repMatch) {
+              reps = `${repMatch[1]}-${repMatch[2]}`;
+            }
+          }
+          
+          try {
+            const result = await addWorkoutEntry({
+              workoutPlanId: planId,
+              weekNumber: parseInt(weekNumber),
+              dayName: dayName,
+              day: day as Weekday,
+              date: date,
+              exerciseId: exercise.id,
+              sets: 3, // Default: 3 sets
+              reps: reps, // Extracted from exercise name
+              streakExerciseId: exercise.id, // Same as exercise_id for manually added exercises
+              weight: null,
+              time: null,
+              notes: null,
+            }).unwrap();
+            
+            console.log('✅ Exercise added successfully');
+            
+            // Get the newly added exercise ID from the result
+            const newEntryId = result?.insertIntoworkout_entriesCollection?.records?.[0]?.id;
+            if (newEntryId) {
+              setNewlyAddedExerciseId(newEntryId);
+            }
+            
+            setShowAddExerciseModal(false);
+          } catch (error) {
+            console.error('❌ Failed to add exercise:', error);
+            // TODO: Show error toast/alert to user
+          }
+        }}
+      />
+      
     </>
   );
 }
@@ -1189,6 +1555,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     includeFontPadding: false,
   },
+  undoHintContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
   adjustHintWrapper: {
 
     position: 'absolute',
@@ -1240,6 +1612,10 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: 16,
     alignSelf: 'stretch',
+  },
+  exerciseCardWrapper: {
+    alignSelf: 'stretch',
+    width: '100%',
   },
   exerciseCard: {
     backgroundColor: nucleus.light.global.white,

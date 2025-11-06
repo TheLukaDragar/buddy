@@ -446,6 +446,109 @@ mutation UpdateWorkoutEntry(
   }
 }
 
+# Mutation to add a new workout entry
+mutation AddWorkoutEntry(
+  $workoutPlanId: UUID!
+  $weekNumber: Int!
+  $dayName: String!
+  $day: weekday!
+  $date: Date!
+  $exerciseId: UUID!
+  $sets: Int!
+  $reps: String!
+  $streakExerciseId: UUID!
+  $weight: String
+  $time: String
+  $notes: String
+) {
+  insertIntoworkout_entriesCollection(
+    objects: [{
+      workout_plan_id: $workoutPlanId
+      week_number: $weekNumber
+      day_name: $dayName
+      day: $day
+      date: $date
+      exercise_id: $exerciseId
+      sets: $sets
+      reps: $reps
+      streak_exercise_id: $streakExerciseId
+      weight: $weight
+      time: $time
+      notes: $notes
+      is_adjusted: false
+    }]
+  ) {
+    records {
+      id
+      week_number
+      day_name
+      day
+      date
+      exercise_id
+      sets
+      reps
+      weight
+      time
+      notes
+      streak_exercise_id
+      streak_exercise_notes
+      is_adjusted
+      adjustment_reason
+      exercises {
+        id
+        name
+        slug
+        icon_description
+        instructions
+        video_description
+        equipment_text
+        equipment_groups
+        exercise_location
+        muscle_categories
+        rep_limitations_progression_rules
+        progression_by_client_feedback
+        pain_injury_protocol
+        trainer_notes
+      }
+      workout_entry_alternativesCollection(orderBy: [{ position: AscNullsLast }]) {
+        edges {
+          node {
+            id
+            alternative_exercise_id
+            note
+            position
+            exercises {
+              id
+              name
+              slug
+              equipment_groups
+            }
+          }
+        }
+      }
+    }
+    affectedCount
+  }
+}
+
+# Mutation to delete a workout entry
+mutation DeleteWorkoutEntry($id: UUID!) {
+  deleteFromworkout_entriesCollection(filter: { id: { eq: $id } }, atMost: 1) {
+    records {
+      id
+      exercise_id
+      sets
+      reps
+      weight
+      time
+      notes
+      streak_exercise_id
+      streak_exercise_notes
+    }
+    affectedCount
+  }
+}
+
 # Query to get a single workout entry WITHOUT nested exercises (avoids stale data)
 # Use GetExerciseById separately to fetch exercise data
 query GetWorkoutEntryBasic($id: UUID!) {
@@ -574,6 +677,31 @@ query GetExerciseById($id: UUID!) {
         progression_by_client_feedback
         pain_injury_protocol
         trainer_notes
+      }
+    }
+  }
+}
+
+# Query to get all exercises with pagination support
+query GetAllExercises($first: Int, $after: Cursor) {
+  exercisesCollection(
+    first: $first
+    after: $after
+    orderBy: [{ name: AscNullsLast }]
+  ) {
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+    edges {
+      cursor
+      node {
+        id
+        name
+        slug
+        muscle_categories
+        equipment_groups
+        exercise_location
       }
     }
   }
