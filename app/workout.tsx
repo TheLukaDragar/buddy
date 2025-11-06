@@ -44,8 +44,6 @@ export default function WorkoutScreen() {
   const [addWorkoutEntry, { isLoading: isAddingExercise }] = useAddWorkoutEntryMutation();
   const [deleteWorkoutEntry] = useDeleteWorkoutEntryMutation();
   const [newlyAddedExerciseId, setNewlyAddedExerciseId] = useState<string | null>(null);
-  const [deletedExerciseId, setDeletedExerciseId] = useState<string | null>(null);
-  const [deletedExerciseEntry, setDeletedExerciseEntry] = useState<any>(null);
   const [deletedExercise, setDeletedExercise] = useState<{
     id: string;
     exercise_id: string;
@@ -123,37 +121,7 @@ export default function WorkoutScreen() {
   }, [workoutData, isLoading, isFetching]);
 
   // Extract workout entries from the query response
-  const rawWorkoutEntries = workoutData?.workout_plansCollection?.edges?.[0]?.node?.workout_entriesCollection?.edges || [];
-  
-  // Keep deleted exercises in the list temporarily for fade-out animation
-  const [entriesWithDeleted, setEntriesWithDeleted] = useState<typeof rawWorkoutEntries>([]);
-  
-  useEffect(() => {
-    // When entries change, update our local state
-    // If there's a deleted exercise ID, we need to keep it in the list temporarily
-    if (deletedExerciseId && deletedExerciseEntry) {
-      // Check if the deleted entry is no longer in rawWorkoutEntries (removed by RTK Query)
-      if (!rawWorkoutEntries.find(e => e.node.id === deletedExerciseId)) {
-        // Entry was removed from RTK Query cache, but keep it locally for animation
-        const newEntries = rawWorkoutEntries.filter(e => e.node.id !== deletedExerciseId);
-        setEntriesWithDeleted([...newEntries, deletedExerciseEntry]);
-        
-        // Remove after animation completes (400ms)
-        setTimeout(() => {
-          setEntriesWithDeleted(rawWorkoutEntries);
-          setDeletedExerciseId(null);
-          setDeletedExerciseEntry(null);
-        }, 400);
-        return;
-      }
-    }
-    
-    // Normal update: sync with RTK Query data
-    setEntriesWithDeleted(rawWorkoutEntries);
-  }, [rawWorkoutEntries, deletedExerciseId, deletedExerciseEntry]);
-  
-  // Use entriesWithDeleted for rendering to allow exit animations
-  const workoutEntries = entriesWithDeleted.length > 0 ? entriesWithDeleted : rawWorkoutEntries;
+  const workoutEntries = workoutData?.workout_plansCollection?.edges?.[0]?.node?.workout_entriesCollection?.edges || [];
 
   // Scroll to newly added exercise after data refetches
   useEffect(() => {
@@ -357,8 +325,6 @@ export default function WorkoutScreen() {
                   undoTimeoutRef.current = null;
                 }
                 setDeletedExercise(null);
-                setDeletedExerciseId(null);
-                setDeletedExerciseEntry(null);
               }
     }
   }, [isAdjustMode]);
@@ -855,7 +821,6 @@ export default function WorkoutScreen() {
                     key={entry.node.id}
                     style={styles.exerciseCardWrapper}
                     entering={FadeIn.duration(300)}
-                    exiting={FadeOut.duration(400)}
                   >
                     <View
                       ref={(ref) => {
@@ -881,10 +846,6 @@ export default function WorkoutScreen() {
                       onRemove={async () => {
                         const entryToDelete = entry.node;
                         
-                        // Track deleted exercise ID and entry for fade-out animation
-                        setDeletedExerciseId(entryToDelete.id);
-                        setDeletedExerciseEntry(entry); // Store the full entry object
-                        
                         // Store exercise data for undo
                         setDeletedExercise({
                           id: entryToDelete.id,
@@ -908,14 +869,10 @@ export default function WorkoutScreen() {
                           }
                           undoTimeoutRef.current = setTimeout(() => {
                             setDeletedExercise(null);
-                            setDeletedExerciseId(null);
-                            setDeletedExerciseEntry(null);
                           }, 5000);
                         } catch (error) {
                           console.error('❌ Failed to remove exercise:', error);
                           setDeletedExercise(null);
-                          setDeletedExerciseId(null);
-                          setDeletedExerciseEntry(null);
                         }
                       }}
                     />
@@ -1013,13 +970,9 @@ export default function WorkoutScreen() {
                     }
                     
                     setDeletedExercise(null);
-                    setDeletedExerciseId(null);
-                    setDeletedExerciseEntry(null);
                   } catch (error) {
                     console.error('❌ Failed to restore exercise:', error);
                     setDeletedExercise(null);
-                    setDeletedExerciseId(null);
-                    setDeletedExerciseEntry(null);
                   }
                 }}
                 style={[styles.adjustHintContainer, styles.undoHintContent]}
@@ -1068,7 +1021,7 @@ export default function WorkoutScreen() {
                     styles.buttonLabel,
                     isAdjustMode && { color: nucleus.light.global.blue[10] }
                   ]}>
-                    {isAdjustMode ? 'Cancel' : 'Adjust'}
+                    {isAdjustMode ? 'Done' : 'Adjust'}
                   </Text>
                 </View>
               </Pressable>
