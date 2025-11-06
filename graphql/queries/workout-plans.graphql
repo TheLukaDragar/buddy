@@ -326,3 +326,255 @@ query GetWorkoutDay($planId: UUID!, $weekNumber: Int!, $day: weekday!) {
     }
   }
 }
+
+# Mutation to swap exercise with alternative
+mutation SwapExerciseWithAlternative(
+  $workoutEntryId: UUID!
+  $newExerciseId: UUID!
+  $alternativeNote: String
+  $planId: UUID
+  $weekNumber: Int
+  $day: weekday
+) {
+  # Update the workout entry with new exercise
+  updateworkout_entriesCollection(
+    filter: { id: { eq: $workoutEntryId } }
+    set: { 
+      exercise_id: $newExerciseId,
+      is_adjusted: true,
+      adjustment_reason: "Swapped to alternative exercise"
+    }
+  ) {
+    records {
+      id
+      exercise_id
+      is_adjusted
+      adjustment_reason
+      exercises {
+        id
+        name
+        slug
+        icon_description
+        instructions
+        video_description
+        equipment_text
+        equipment_groups
+        exercise_location
+        muscle_categories
+        rep_limitations_progression_rules
+        progression_by_client_feedback
+        pain_injury_protocol
+        trainer_notes
+      }
+    }
+  }
+}
+
+# Mutation to update workout entry parameters
+mutation UpdateWorkoutEntry(
+  $id: UUID!
+  $sets: Int
+  $reps: String
+  $weight: String
+  $time: String
+  $notes: String
+  $isAdjusted: Boolean
+  $adjustmentReason: String
+) {
+  updateworkout_entriesCollection(
+    filter: { id: { eq: $id } }
+    set: {
+      sets: $sets
+      reps: $reps
+      weight: $weight
+      time: $time
+      notes: $notes
+      is_adjusted: $isAdjusted
+      adjustment_reason: $adjustmentReason
+    }
+  ) {
+    records {
+      id
+      week_number
+      day_name
+      day
+      date
+      exercise_id
+      sets
+      reps
+      weight
+      time
+      notes
+      streak_exercise_id
+      streak_exercise_notes
+      is_adjusted
+      adjustment_reason
+      exercises {
+                id
+                name
+                slug
+                icon_description
+                instructions
+                video_description
+                equipment_text
+                equipment_groups
+                exercise_location
+                muscle_categories
+                rep_limitations_progression_rules
+                progression_by_client_feedback
+                pain_injury_protocol
+                trainer_notes
+      }
+      workout_entry_alternativesCollection(orderBy: [{ position: AscNullsLast }]) {
+        edges {
+          node {
+            id
+            alternative_exercise_id
+            note
+            position
+            exercises {
+              id
+              name
+              slug
+              equipment_groups
+            }
+          }
+        }
+      }
+    }
+    affectedCount
+  }
+}
+
+# Query to get a single workout entry WITHOUT nested exercises (avoids stale data)
+# Use GetExerciseById separately to fetch exercise data
+query GetWorkoutEntryBasic($id: UUID!) {
+  workout_entriesCollection(filter: { id: { eq: $id } }) {
+    edges {
+      node {
+        id
+        week_number
+        day_name
+        day
+        date
+        exercise_id
+        sets
+        reps
+        weight
+        time
+        notes
+        streak_exercise_id
+        streak_exercise_notes
+        is_adjusted
+        adjustment_reason
+        workout_plans {
+          id
+        }
+        workout_entry_alternativesCollection(orderBy: [{ position: AscNullsLast }]) {
+          edges {
+            node {
+              id
+              alternative_exercise_id
+              note
+              position
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+# Query to get a single workout entry with all details
+query GetWorkoutEntry($id: UUID!) {
+  workout_entriesCollection(filter: { id: { eq: $id } }) {
+    edges {
+      node {
+        id
+        week_number
+        day_name
+        day
+        date
+        exercise_id
+        sets
+        reps
+        weight
+        time
+        notes
+        streak_exercise_id
+        streak_exercise_notes
+        is_adjusted
+        adjustment_reason
+        workout_plans {
+          id
+        }
+        exercises {
+          id
+          name
+          slug
+          icon_description
+          instructions
+          video_description
+          equipment_text
+          equipment_groups
+          exercise_location
+          muscle_categories
+          rep_limitations_progression_rules
+          progression_by_client_feedback
+          pain_injury_protocol
+          trainer_notes
+        }
+        workout_entry_alternativesCollection(orderBy: [{ position: AscNullsLast }]) {
+          edges {
+            node {
+              id
+              alternative_exercise_id
+              note
+              position
+              exercises {
+                id
+                name
+                slug
+                icon_description
+                instructions
+                video_description
+                equipment_text
+                equipment_groups
+                exercise_location
+                muscle_categories
+                rep_limitations_progression_rules
+                progression_by_client_feedback
+                pain_injury_protocol
+                trainer_notes
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+# Query to get exercise by ID (avoids nested relationship caching issues)
+query GetExerciseById($id: UUID!) {
+  exercisesCollection(filter: { id: { eq: $id } }) {
+    edges {
+      node {
+        id
+        name
+        slug
+        icon_description
+        instructions
+        video_description
+        equipment_text
+        equipment_groups
+        exercise_location
+        muscle_categories
+        rep_limitations_progression_rules
+        progression_by_client_feedback
+        pain_injury_protocol
+        trainer_notes
+      }
+    }
+  }
+}

@@ -267,15 +267,7 @@ export default function ExploreScreen() {
     
     entries.forEach((edge: any) => {
       const entry = edge.node;
-      console.log('Processing entry:', {
-        week: entry.week_number,
-        dayName: entry.day_name,
-        day: entry.day,
-        date: entry.date,
-        sets: entry.sets,
-        reps: entry.reps,
-        exerciseName: entry.exercises?.name
-      });
+      // console.log('Processing entry1:', JSON.stringify(edge));
       
       // Simpler grouping key since we only have 1 week
       const dayKey = `${entry.day_name}-${entry.date}`;

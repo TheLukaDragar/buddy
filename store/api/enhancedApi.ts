@@ -391,117 +391,225 @@ export const enhancedApi = generatedApi.enhanceEndpoints({
         result?.workout_plansCollection?.edges?.[0]
           ? [{ type: 'WorkoutPlan' as const, id: `${arg.planId}-week-${arg.weekNumber}` }]
           : [{ type: 'WorkoutPlan' as const, id: `${arg.planId}-week-${arg.weekNumber}` }],
-      async onCacheEntryAdded(
-        arg,
-        { updateCachedData, cacheDataLoaded, cacheEntryRemoved }
-      ) {
+    },
+
+    // Enhance GetWorkoutDay query with cache tags
+    GetWorkoutDay: {
+      providesTags: (result, error, arg) => {
+        const tags = [
+          { type: 'WorkoutDay' as const, id: `${arg.planId}-${arg.weekNumber}-${arg.day}` },
+          { type: 'WorkoutDay' as const } // Add generic tag as well
+        ];
+        console.log('GetWorkoutDay providesTags:', tags);
+        return tags;
+      },
+    },
+
+    // Add cache tags for individual workout entries
+    GetWorkoutEntry: {
+      providesTags: (result, error, arg) => {
+        const tags = [
+          { type: 'WorkoutEntry' as const, id: arg.id }
+        ];
+        console.log('GetWorkoutEntry providesTags:', tags);
+        return tags;
+      },
+    },
+
+    // Add cache tags for GetWorkoutEntryBasic (no nested exercises)
+    GetWorkoutEntryBasic: {
+      providesTags: (result, error, arg) => {
+        const tags = [
+          { type: 'WorkoutEntry' as const, id: arg.id }
+        ];
+        return tags;
+      },
+    },
+
+    // Enhance GetExerciseById query with cache tags
+    GetExerciseById: {
+      providesTags: (result, error, arg) => {
+        const tags: any[] = [
+          { type: 'Exercise' as const, id: arg.id }
+        ];
+        return tags;
+      },
+    },
+
+    // Enhance UpdateWorkoutEntry mutation with optimistic updates and proper cache invalidation
+    UpdateWorkoutEntry: {
+      invalidatesTags: (result, error, arg) => {
+        const tags = [
+          { type: 'WorkoutDay' as const, id: 'LIST' },
+          { type: 'WorkoutEntry' as const, id: arg.id },
+          { type: 'WorkoutDay' as const } // Invalidate all WorkoutDay entries
+        ];
+        console.log('UpdateWorkoutEntry invalidatesTags:', tags);
+        return tags;
+      },
+      async onQueryStarted({ id, sets, reps, weight, time, notes, isAdjusted, adjustmentReason }, { dispatch, queryFulfilled, getState }) {
+        console.log('UpdateWorkoutEntry onQueryStarted:', { id, sets, reps, weight, time, notes, isAdjusted, adjustmentReason });
+        
+        // Create patch for optimistic update on individual workout entry
+        const patchResult = dispatch(
+          enhancedApi.util.updateQueryData('GetWorkoutEntry', { id }, (draft) => {
+            if (draft?.workout_entriesCollection?.edges?.[0]?.node) {
+              const entry = draft.workout_entriesCollection.edges[0].node;
+              if (sets !== undefined) entry.sets = sets as number;
+              if (reps !== undefined) entry.reps = reps as string;
+              if (weight !== undefined) entry.weight = weight as string;
+              if (time !== undefined) entry.time = time as string;
+              if (notes !== undefined) entry.notes = notes as string;
+              if (isAdjusted !== undefined) entry.is_adjusted = isAdjusted as boolean;
+              if (adjustmentReason !== undefined) entry.adjustment_reason = adjustmentReason as string;
+              console.log('Optimistic update applied to GetWorkoutEntry cache for UpdateWorkoutEntry');
+            }
+          })
+        );
+
         try {
-          await cacheDataLoaded
-
-          console.log(`🚀 Setting up real-time subscription for workout plan week ${arg.weekNumber}:`, arg.planId)
-
-          // Subscribe to both workout_plans (for plan-level changes) and workout_entries (for exercise changes)
-          const planSubscription = realtimeClient.subscribe({
-            endpoint: 'workout_plans',
-            onUpdate: (payload) => {
-              console.log(`📡 Week ${arg.weekNumber} plan update:`, payload)
-
-              updateCachedData((draft) => {
-                if (!draft?.workout_plansCollection?.edges?.[0]) {
-                  console.warn(`No workout plan data in cache for week ${arg.weekNumber}`)
-                  return
-                }
-
-                const { eventType, new: newRecord } = payload
-
-                if (eventType === 'UPDATE' && newRecord && newRecord.id === arg.planId) {
-                  // Update plan-level fields (status, summary, etc.) while preserving workout entries
-                  const currentPlan = draft.workout_plansCollection.edges[0].node
-                  draft.workout_plansCollection.edges[0].node = {
-                    ...currentPlan,
-                    ...newRecord,
-                    // Preserve the workout_entriesCollection from the current cache
-                    workout_entriesCollection: currentPlan.workout_entriesCollection
-                  }
-                  console.log(`📝 Updated plan data for week ${arg.weekNumber}:`, newRecord.id)
-                }
-              })
-            },
-            onError: (error) => {
-              console.error(`❌ Week ${arg.weekNumber} plan subscription error:`, error)
-            }
-          })
-
-          const entriesSubscription = realtimeClient.subscribe({
-            endpoint: 'workout_entries',
-            onUpdate: (payload) => {
-              console.log(`📡 Week ${arg.weekNumber} entries update:`, payload)
-
-              updateCachedData((draft) => {
-                if (!draft?.workout_plansCollection?.edges?.[0]?.node?.workout_entriesCollection?.edges) {
-                  console.warn(`No workout entries in cache for week ${arg.weekNumber}`)
-                  return
-                }
-
-                const { eventType, new: newRecord, old: oldRecord } = payload
-
-                // Only update if this entry belongs to the current plan and week
-                const belongsToThisWeek = (record: any) => 
-                  record?.workout_plan_id === arg.planId && record?.week_number === arg.weekNumber
-
-                switch (eventType) {
-                  case 'INSERT':
-                    if (newRecord && belongsToThisWeek(newRecord)) {
-                      const newEntry = { node: newRecord }
-                      draft.workout_plansCollection.edges[0].node.workout_entriesCollection.edges.push(newEntry)
-                      console.log(`✅ Added new workout entry to week ${arg.weekNumber}:`, newRecord.id)
-                    }
-                    break
-
-                  case 'UPDATE':
-                    if (newRecord && belongsToThisWeek(newRecord)) {
-                      const entryIndex = draft.workout_plansCollection.edges[0].node.workout_entriesCollection.edges.findIndex(
-                        (edge: any) => edge.node.id === newRecord.id
-                      )
-                      if (entryIndex !== -1) {
-                        draft.workout_plansCollection.edges[0].node.workout_entriesCollection.edges[entryIndex].node = newRecord
-                        console.log(`📝 Updated workout entry in week ${arg.weekNumber}:`, newRecord.id)
-                      }
-                    }
-                    break
-
-                  case 'DELETE':
-                    if (oldRecord && belongsToThisWeek(oldRecord)) {
-                      const entryIndex = draft.workout_plansCollection.edges[0].node.workout_entriesCollection.edges.findIndex(
-                        (edge: any) => edge.node.id === oldRecord.id
-                      )
-                      if (entryIndex !== -1) {
-                        draft.workout_plansCollection.edges[0].node.workout_entriesCollection.edges.splice(entryIndex, 1)
-                        console.log(`🗑️ Removed workout entry from week ${arg.weekNumber}:`, oldRecord.id)
-                      }
-                    }
-                    break
-
-                  default:
-                    console.log(`Unknown workout entries event type for week ${arg.weekNumber}:`, eventType)
-                }
-              })
-            },
-            onError: (error) => {
-              console.error(`❌ Week ${arg.weekNumber} entries subscription error:`, error)
-            }
-          })
-
-          await cacheEntryRemoved
-          planSubscription.unsubscribe()
-          entriesSubscription.unsubscribe()
-          console.log(`🔌 Week ${arg.weekNumber} subscriptions cleaned up`)
-
-        } catch (error) {
-          console.error(`❌ Error in week ${arg.weekNumber} subscription:`, error)
+          // Wait for the mutation to complete
+          await queryFulfilled;
+          console.log('✅ Workout entry updated successfully');
+        } catch (err) {
+          // If the mutation fails, undo the optimistic update
+          patchResult.undo();
+          console.error('❌ Failed to update workout entry, reverted changes:', err);
         }
       }
     },
+
+    // Enhance SwapExerciseWithAlternative mutation with optimistic updates
+    SwapExerciseWithAlternative: {
+      invalidatesTags: (result, error, arg) => {
+        const tags: any[] = [
+          { type: 'WorkoutDay' as const, id: 'LIST' },
+          { type: 'WorkoutEntry' as const, id: arg.workoutEntryId },
+          { type: 'WorkoutDay' as const }, // Invalidate all WorkoutDay entries
+          { type: 'WorkoutEntry' as const } // Invalidate all WorkoutEntry entries
+        ];
+        
+        // If we have the planId, weekNumber, and day, invalidate the specific WorkoutDay cache tag
+        if (arg.planId && arg.weekNumber !== undefined && arg.day) {
+          tags.push({ type: 'WorkoutDay' as const, id: `${arg.planId}-${arg.weekNumber}-${arg.day}` });
+          console.log('Invalidating specific WorkoutDay cache tag:', `${arg.planId}-${arg.weekNumber}-${arg.day}`);
+        } else {
+          console.log('Missing plan information, not invalidating specific WorkoutDay cache tag');
+        }
+        
+        console.log('SwapExerciseWithAlternative invalidatesTags:', tags);
+        return tags;
+      },
+      async onQueryStarted({ workoutEntryId, newExerciseId, alternativeNote, planId, weekNumber, day }, { dispatch, queryFulfilled, getState }) {
+        console.log('SwapExerciseWithAlternative onQueryStarted:', { workoutEntryId, newExerciseId, planId, weekNumber, day });
+        
+        // Create patch for optimistic update on individual workout entry
+        const patchResult = dispatch(
+          enhancedApi.util.updateQueryData('GetWorkoutEntry', { id: workoutEntryId }, (draft) => {
+            if (draft?.workout_entriesCollection?.edges?.[0]?.node) {
+              const entry = draft.workout_entriesCollection.edges[0].node;
+              // Update the exercise_id optimistically
+              entry.exercise_id = newExerciseId;
+              entry.is_adjusted = true;
+              entry.adjustment_reason = "Swapped to alternative exercise";
+              
+              console.log('Optimistic update applied to GetWorkoutEntry cache');
+            }
+          })
+        );
+
+        // Also update the GetWorkoutDay cache if we have plan information
+        let patchResultDay: any = null;
+        if (planId && weekNumber !== undefined && day) {
+          patchResultDay = dispatch(
+            enhancedApi.util.updateQueryData('GetWorkoutDay', { 
+              planId, 
+              weekNumber: weekNumber as number, 
+              day: day as any 
+            }, (draft) => {
+              if (draft?.workout_plansCollection?.edges?.[0]?.node?.workout_entriesCollection?.edges) {
+                const entries = draft.workout_plansCollection.edges[0].node.workout_entriesCollection.edges;
+                const entryIndex = entries.findIndex((edge: any) => edge.node.id === workoutEntryId);
+                
+                if (entryIndex !== -1) {
+                  // Update the exercise_id optimistically
+                  entries[entryIndex].node.exercise_id = newExerciseId;
+                  entries[entryIndex].node.is_adjusted = true;
+                  entries[entryIndex].node.adjustment_reason = "Swapped to alternative exercise";
+                  
+                  console.log('Optimistic update applied to GetWorkoutDay cache');
+                }
+              }
+            })
+          );
+        }
+
+        try {
+          // Wait for the mutation to complete
+          const { data } = await queryFulfilled;
+          console.log('✅ Exercise swapped successfully', data);
+          
+          // If we have the full exercise data from the mutation result, update the caches with it
+          if (data?.updateworkout_entriesCollection?.records?.[0]) {
+            const updatedRecord = data.updateworkout_entriesCollection.records[0];
+            
+            // Update the GetWorkoutEntry cache with the full data
+            dispatch(
+              enhancedApi.util.updateQueryData('GetWorkoutEntry', { id: workoutEntryId }, (draft) => {
+                if (draft?.workout_entriesCollection?.edges?.[0]?.node) {
+                  const entry = draft.workout_entriesCollection.edges[0].node;
+                  // Update all fields with the new data
+                  entry.exercise_id = updatedRecord.exercise_id;
+                  entry.is_adjusted = updatedRecord.is_adjusted;
+                  entry.adjustment_reason = updatedRecord.adjustment_reason;
+                  // Update the nested exercises object if available
+                  if (updatedRecord.exercises) {
+                    entry.exercises = updatedRecord.exercises;
+                  }
+                  console.log('Updated GetWorkoutEntry cache with full data');
+                }
+              })
+            );
+            
+            // Also update the GetWorkoutDay cache with the full data if we have plan information
+            if (planId && weekNumber !== undefined && day && updatedRecord.exercises) {
+              dispatch(
+                enhancedApi.util.updateQueryData('GetWorkoutDay', { 
+                  planId, 
+                  weekNumber: weekNumber as number, 
+                  day: day as any 
+                }, (draft) => {
+                  if (draft?.workout_plansCollection?.edges?.[0]?.node?.workout_entriesCollection?.edges) {
+                    const entries = draft.workout_plansCollection.edges[0].node.workout_entriesCollection.edges;
+                    const entryIndex = entries.findIndex((edge: any) => edge.node.id === workoutEntryId);
+                    
+                    if (entryIndex !== -1) {
+                      // Update all fields with the new data
+                      const entry = entries[entryIndex].node;
+                      entry.exercise_id = updatedRecord.exercise_id;
+                      entry.is_adjusted = updatedRecord.is_adjusted;
+                      entry.adjustment_reason = updatedRecord.adjustment_reason;
+                      // Update the nested exercises object
+                      entry.exercises = updatedRecord.exercises;
+                      
+                      console.log('Updated GetWorkoutDay cache with full data');
+                    }
+                  }
+                })
+              );
+            }
+          }
+        } catch (err) {
+          // If the mutation fails, undo the optimistic updates
+          patchResult.undo();
+          if (patchResultDay) {
+            patchResultDay.undo();
+          }
+          console.error('❌ Failed to swap exercise, reverted changes:', err);
+        }
+      }
+    },
+
   },
 })
 
@@ -522,8 +630,16 @@ export const {
   useLazyGetUserWorkoutPlansQuery,
   useGetWorkoutPlanByWeekQuery,
   useLazyGetWorkoutPlanByWeekQuery,
+  useGetWorkoutEntryQuery,
+  useLazyGetWorkoutEntryQuery,
+  useGetWorkoutEntryBasicQuery,
+  useLazyGetWorkoutEntryBasicQuery,
   useGetWorkoutDayQuery,
   useLazyGetWorkoutDayQuery,
+  useGetExerciseByIdQuery,
+  useLazyGetExerciseByIdQuery,
+  useUpdateWorkoutEntryMutation,
+  useSwapExerciseWithAlternativeMutation,
 } = enhancedApi
 
 // Export the enhanced API as default

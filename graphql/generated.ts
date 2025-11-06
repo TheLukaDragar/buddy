@@ -2083,6 +2083,277 @@ export type GetWorkoutDayQuery = {
   } | null;
 };
 
+export type SwapExerciseWithAlternativeMutationVariables = Exact<{
+  workoutEntryId: Scalars["UUID"]["input"];
+  newExerciseId: Scalars["UUID"]["input"];
+  alternativeNote?: InputMaybe<Scalars["String"]["input"]>;
+  planId?: InputMaybe<Scalars["UUID"]["input"]>;
+  weekNumber?: InputMaybe<Scalars["Int"]["input"]>;
+  day?: InputMaybe<Weekday>;
+}>;
+
+export type SwapExerciseWithAlternativeMutation = {
+  __typename?: "Mutation";
+  updateworkout_entriesCollection: {
+    __typename?: "workout_entriesUpdateResponse";
+    records: Array<{
+      __typename?: "workout_entries";
+      id: any;
+      exercise_id: any;
+      is_adjusted?: boolean | null;
+      adjustment_reason?: string | null;
+      exercises: {
+        __typename?: "exercises";
+        id: any;
+        name: string;
+        slug: string;
+        icon_description: string;
+        instructions: string;
+        video_description: string;
+        equipment_text: string;
+        equipment_groups: any;
+        exercise_location: Array<string | null>;
+        muscle_categories?: Array<string | null> | null;
+        rep_limitations_progression_rules: string;
+        progression_by_client_feedback: string;
+        pain_injury_protocol: string;
+        trainer_notes: string;
+      };
+    }>;
+  };
+};
+
+export type UpdateWorkoutEntryMutationVariables = Exact<{
+  id: Scalars["UUID"]["input"];
+  sets?: InputMaybe<Scalars["Int"]["input"]>;
+  reps?: InputMaybe<Scalars["String"]["input"]>;
+  weight?: InputMaybe<Scalars["String"]["input"]>;
+  time?: InputMaybe<Scalars["String"]["input"]>;
+  notes?: InputMaybe<Scalars["String"]["input"]>;
+  isAdjusted?: InputMaybe<Scalars["Boolean"]["input"]>;
+  adjustmentReason?: InputMaybe<Scalars["String"]["input"]>;
+}>;
+
+export type UpdateWorkoutEntryMutation = {
+  __typename?: "Mutation";
+  updateworkout_entriesCollection: {
+    __typename?: "workout_entriesUpdateResponse";
+    affectedCount: number;
+    records: Array<{
+      __typename?: "workout_entries";
+      id: any;
+      week_number: number;
+      day_name: string;
+      day: Weekday;
+      date: any;
+      exercise_id: any;
+      sets: number;
+      reps: string;
+      weight?: string | null;
+      time?: string | null;
+      notes?: string | null;
+      streak_exercise_id: any;
+      streak_exercise_notes?: string | null;
+      is_adjusted?: boolean | null;
+      adjustment_reason?: string | null;
+      exercises: {
+        __typename?: "exercises";
+        id: any;
+        name: string;
+        slug: string;
+        icon_description: string;
+        instructions: string;
+        video_description: string;
+        equipment_text: string;
+        equipment_groups: any;
+        exercise_location: Array<string | null>;
+        muscle_categories?: Array<string | null> | null;
+        rep_limitations_progression_rules: string;
+        progression_by_client_feedback: string;
+        pain_injury_protocol: string;
+        trainer_notes: string;
+      };
+      workout_entry_alternativesCollection?: {
+        __typename?: "workout_entry_alternativesConnection";
+        edges: Array<{
+          __typename?: "workout_entry_alternativesEdge";
+          node: {
+            __typename?: "workout_entry_alternatives";
+            id: any;
+            alternative_exercise_id: any;
+            note: string;
+            position: number;
+            exercises: {
+              __typename?: "exercises";
+              id: any;
+              name: string;
+              slug: string;
+              equipment_groups: any;
+            };
+          };
+        }>;
+      } | null;
+    }>;
+  };
+};
+
+export type GetWorkoutEntryBasicQueryVariables = Exact<{
+  id: Scalars["UUID"]["input"];
+}>;
+
+export type GetWorkoutEntryBasicQuery = {
+  __typename?: "Query";
+  workout_entriesCollection?: {
+    __typename?: "workout_entriesConnection";
+    edges: Array<{
+      __typename?: "workout_entriesEdge";
+      node: {
+        __typename?: "workout_entries";
+        id: any;
+        week_number: number;
+        day_name: string;
+        day: Weekday;
+        date: any;
+        exercise_id: any;
+        sets: number;
+        reps: string;
+        weight?: string | null;
+        time?: string | null;
+        notes?: string | null;
+        streak_exercise_id: any;
+        streak_exercise_notes?: string | null;
+        is_adjusted?: boolean | null;
+        adjustment_reason?: string | null;
+        workout_plans?: { __typename?: "workout_plans"; id: any } | null;
+        workout_entry_alternativesCollection?: {
+          __typename?: "workout_entry_alternativesConnection";
+          edges: Array<{
+            __typename?: "workout_entry_alternativesEdge";
+            node: {
+              __typename?: "workout_entry_alternatives";
+              id: any;
+              alternative_exercise_id: any;
+              note: string;
+              position: number;
+            };
+          }>;
+        } | null;
+      };
+    }>;
+  } | null;
+};
+
+export type GetWorkoutEntryQueryVariables = Exact<{
+  id: Scalars["UUID"]["input"];
+}>;
+
+export type GetWorkoutEntryQuery = {
+  __typename?: "Query";
+  workout_entriesCollection?: {
+    __typename?: "workout_entriesConnection";
+    edges: Array<{
+      __typename?: "workout_entriesEdge";
+      node: {
+        __typename?: "workout_entries";
+        id: any;
+        week_number: number;
+        day_name: string;
+        day: Weekday;
+        date: any;
+        exercise_id: any;
+        sets: number;
+        reps: string;
+        weight?: string | null;
+        time?: string | null;
+        notes?: string | null;
+        streak_exercise_id: any;
+        streak_exercise_notes?: string | null;
+        is_adjusted?: boolean | null;
+        adjustment_reason?: string | null;
+        workout_plans?: { __typename?: "workout_plans"; id: any } | null;
+        exercises: {
+          __typename?: "exercises";
+          id: any;
+          name: string;
+          slug: string;
+          icon_description: string;
+          instructions: string;
+          video_description: string;
+          equipment_text: string;
+          equipment_groups: any;
+          exercise_location: Array<string | null>;
+          muscle_categories?: Array<string | null> | null;
+          rep_limitations_progression_rules: string;
+          progression_by_client_feedback: string;
+          pain_injury_protocol: string;
+          trainer_notes: string;
+        };
+        workout_entry_alternativesCollection?: {
+          __typename?: "workout_entry_alternativesConnection";
+          edges: Array<{
+            __typename?: "workout_entry_alternativesEdge";
+            node: {
+              __typename?: "workout_entry_alternatives";
+              id: any;
+              alternative_exercise_id: any;
+              note: string;
+              position: number;
+              exercises: {
+                __typename?: "exercises";
+                id: any;
+                name: string;
+                slug: string;
+                icon_description: string;
+                instructions: string;
+                video_description: string;
+                equipment_text: string;
+                equipment_groups: any;
+                exercise_location: Array<string | null>;
+                muscle_categories?: Array<string | null> | null;
+                rep_limitations_progression_rules: string;
+                progression_by_client_feedback: string;
+                pain_injury_protocol: string;
+                trainer_notes: string;
+              };
+            };
+          }>;
+        } | null;
+      };
+    }>;
+  } | null;
+};
+
+export type GetExerciseByIdQueryVariables = Exact<{
+  id: Scalars["UUID"]["input"];
+}>;
+
+export type GetExerciseByIdQuery = {
+  __typename?: "Query";
+  exercisesCollection?: {
+    __typename?: "exercisesConnection";
+    edges: Array<{
+      __typename?: "exercisesEdge";
+      node: {
+        __typename?: "exercises";
+        id: any;
+        name: string;
+        slug: string;
+        icon_description: string;
+        instructions: string;
+        video_description: string;
+        equipment_text: string;
+        equipment_groups: any;
+        exercise_location: Array<string | null>;
+        muscle_categories?: Array<string | null> | null;
+        rep_limitations_progression_rules: string;
+        progression_by_client_feedback: string;
+        pain_injury_protocol: string;
+        trainer_notes: string;
+      };
+    }>;
+  } | null;
+};
+
 export const GetTodosDocument = `
     query GetTodos {
   todosCollection {
@@ -2478,6 +2749,228 @@ export const GetWorkoutDayDocument = `
   }
 }
     `;
+export const SwapExerciseWithAlternativeDocument = `
+    mutation SwapExerciseWithAlternative($workoutEntryId: UUID!, $newExerciseId: UUID!, $alternativeNote: String, $planId: UUID, $weekNumber: Int, $day: weekday) {
+  updateworkout_entriesCollection(
+    filter: {id: {eq: $workoutEntryId}}
+    set: {exercise_id: $newExerciseId, is_adjusted: true, adjustment_reason: "Swapped to alternative exercise"}
+  ) {
+    records {
+      id
+      exercise_id
+      is_adjusted
+      adjustment_reason
+      exercises {
+        id
+        name
+        slug
+        icon_description
+        instructions
+        video_description
+        equipment_text
+        equipment_groups
+        exercise_location
+        muscle_categories
+        rep_limitations_progression_rules
+        progression_by_client_feedback
+        pain_injury_protocol
+        trainer_notes
+      }
+    }
+  }
+}
+    `;
+export const UpdateWorkoutEntryDocument = `
+    mutation UpdateWorkoutEntry($id: UUID!, $sets: Int, $reps: String, $weight: String, $time: String, $notes: String, $isAdjusted: Boolean, $adjustmentReason: String) {
+  updateworkout_entriesCollection(
+    filter: {id: {eq: $id}}
+    set: {sets: $sets, reps: $reps, weight: $weight, time: $time, notes: $notes, is_adjusted: $isAdjusted, adjustment_reason: $adjustmentReason}
+  ) {
+    records {
+      id
+      week_number
+      day_name
+      day
+      date
+      exercise_id
+      sets
+      reps
+      weight
+      time
+      notes
+      streak_exercise_id
+      streak_exercise_notes
+      is_adjusted
+      adjustment_reason
+      exercises {
+        id
+        name
+        slug
+        icon_description
+        instructions
+        video_description
+        equipment_text
+        equipment_groups
+        exercise_location
+        muscle_categories
+        rep_limitations_progression_rules
+        progression_by_client_feedback
+        pain_injury_protocol
+        trainer_notes
+      }
+      workout_entry_alternativesCollection(orderBy: [{position: AscNullsLast}]) {
+        edges {
+          node {
+            id
+            alternative_exercise_id
+            note
+            position
+            exercises {
+              id
+              name
+              slug
+              equipment_groups
+            }
+          }
+        }
+      }
+    }
+    affectedCount
+  }
+}
+    `;
+export const GetWorkoutEntryBasicDocument = `
+    query GetWorkoutEntryBasic($id: UUID!) {
+  workout_entriesCollection(filter: {id: {eq: $id}}) {
+    edges {
+      node {
+        id
+        week_number
+        day_name
+        day
+        date
+        exercise_id
+        sets
+        reps
+        weight
+        time
+        notes
+        streak_exercise_id
+        streak_exercise_notes
+        is_adjusted
+        adjustment_reason
+        workout_plans {
+          id
+        }
+        workout_entry_alternativesCollection(orderBy: [{position: AscNullsLast}]) {
+          edges {
+            node {
+              id
+              alternative_exercise_id
+              note
+              position
+            }
+          }
+        }
+      }
+    }
+  }
+}
+    `;
+export const GetWorkoutEntryDocument = `
+    query GetWorkoutEntry($id: UUID!) {
+  workout_entriesCollection(filter: {id: {eq: $id}}) {
+    edges {
+      node {
+        id
+        week_number
+        day_name
+        day
+        date
+        exercise_id
+        sets
+        reps
+        weight
+        time
+        notes
+        streak_exercise_id
+        streak_exercise_notes
+        is_adjusted
+        adjustment_reason
+        workout_plans {
+          id
+        }
+        exercises {
+          id
+          name
+          slug
+          icon_description
+          instructions
+          video_description
+          equipment_text
+          equipment_groups
+          exercise_location
+          muscle_categories
+          rep_limitations_progression_rules
+          progression_by_client_feedback
+          pain_injury_protocol
+          trainer_notes
+        }
+        workout_entry_alternativesCollection(orderBy: [{position: AscNullsLast}]) {
+          edges {
+            node {
+              id
+              alternative_exercise_id
+              note
+              position
+              exercises {
+                id
+                name
+                slug
+                icon_description
+                instructions
+                video_description
+                equipment_text
+                equipment_groups
+                exercise_location
+                muscle_categories
+                rep_limitations_progression_rules
+                progression_by_client_feedback
+                pain_injury_protocol
+                trainer_notes
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+    `;
+export const GetExerciseByIdDocument = `
+    query GetExerciseById($id: UUID!) {
+  exercisesCollection(filter: {id: {eq: $id}}) {
+    edges {
+      node {
+        id
+        name
+        slug
+        icon_description
+        instructions
+        video_description
+        equipment_text
+        equipment_groups
+        exercise_location
+        muscle_categories
+        rep_limitations_progression_rules
+        progression_by_client_feedback
+        pain_injury_protocol
+        trainer_notes
+      }
+    }
+  }
+}
+    `;
 
 const injectedRtkApi = api.injectEndpoints({
   endpoints: (build) => ({
@@ -2582,6 +3075,45 @@ const injectedRtkApi = api.injectEndpoints({
         query: (variables) => ({ document: GetWorkoutDayDocument, variables }),
       },
     ),
+    SwapExerciseWithAlternative: build.mutation<
+      SwapExerciseWithAlternativeMutation,
+      SwapExerciseWithAlternativeMutationVariables
+    >({
+      query: (variables) => ({
+        document: SwapExerciseWithAlternativeDocument,
+        variables,
+      }),
+    }),
+    UpdateWorkoutEntry: build.mutation<
+      UpdateWorkoutEntryMutation,
+      UpdateWorkoutEntryMutationVariables
+    >({
+      query: (variables) => ({
+        document: UpdateWorkoutEntryDocument,
+        variables,
+      }),
+    }),
+    GetWorkoutEntryBasic: build.query<
+      GetWorkoutEntryBasicQuery,
+      GetWorkoutEntryBasicQueryVariables
+    >({
+      query: (variables) => ({
+        document: GetWorkoutEntryBasicDocument,
+        variables,
+      }),
+    }),
+    GetWorkoutEntry: build.query<
+      GetWorkoutEntryQuery,
+      GetWorkoutEntryQueryVariables
+    >({
+      query: (variables) => ({ document: GetWorkoutEntryDocument, variables }),
+    }),
+    GetExerciseById: build.query<
+      GetExerciseByIdQuery,
+      GetExerciseByIdQueryVariables
+    >({
+      query: (variables) => ({ document: GetExerciseByIdDocument, variables }),
+    }),
   }),
 });
 
@@ -2610,4 +3142,12 @@ export const {
   useLazyGetWorkoutPlanByWeekQuery,
   useGetWorkoutDayQuery,
   useLazyGetWorkoutDayQuery,
+  useSwapExerciseWithAlternativeMutation,
+  useUpdateWorkoutEntryMutation,
+  useGetWorkoutEntryBasicQuery,
+  useLazyGetWorkoutEntryBasicQuery,
+  useGetWorkoutEntryQuery,
+  useLazyGetWorkoutEntryQuery,
+  useGetExerciseByIdQuery,
+  useLazyGetExerciseByIdQuery,
 } = injectedRtkApi;

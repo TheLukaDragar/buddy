@@ -5,11 +5,12 @@ import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Dimensions, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SystemBars } from 'react-native-edge-to-edge';
-import Animated, { Extrapolation, interpolate, runOnJS, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { Extrapolation, interpolate, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import Carousel, { ICarouselInstance } from 'react-native-reanimated-carousel';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { nucleus } from '../Buddy_variables';
 import ExerciseAdjustModal from '../components/ExerciseAdjustModal';
+import ExerciseCard from '../components/ExerciseCard';
 import ExerciseInfoModal from '../components/ExerciseInfoModal';
 import MusicModal from '../components/MusicModal';
 import { Weekday } from '../graphql/generated';
@@ -36,7 +37,7 @@ export default function WorkoutScreen() {
   const [isAdjustMode, setIsAdjustMode] = useState(false);
   const [showAdjustHint, setShowAdjustHint] = useState(false);
   const [showAlternativesModal, setShowAlternativesModal] = useState(false);
-  const [selectedExerciseForAdjustment, setSelectedExerciseForAdjustment] = useState<any>(null);
+  const [selectedWorkoutEntryId, setSelectedWorkoutEntryId] = useState<string | null>(null);
   const scrollY = useSharedValue(0);
   const adjustHintOpacity = useSharedValue(0);
   const adjustHintHeight = useSharedValue(0);
@@ -54,24 +55,52 @@ export default function WorkoutScreen() {
   }>();
 
   // Fetch workout data for the specific day
-  const { data: workoutData, isLoading, error } = useGetWorkoutDayQuery({
+  const { data: workoutData, isLoading, error, isFetching, refetch } = useGetWorkoutDayQuery({
     planId: planId || '',
     weekNumber: parseInt(weekNumber || '1'),
     day: (day as Weekday) || Weekday.Monday,
   }, {
-    skip: !planId || !weekNumber || !day
+    skip: false, // Always fetch the data
+    refetchOnMountOrArgChange: true // Refetch when component mounts or args change
   });
+  
+  // Force refetch on component mount to ensure fresh data
+  useEffect(() => {
+    refetch();
+  }, []); // Empty dependency array means this runs only once on mount
+
+  // Log when data changes
+  useEffect(() => {
+    console.log('Workout data updated:', {
+      isLoading,
+      isFetching,
+      hasData: !!workoutData,
+      entryCount: workoutData?.workout_plansCollection?.edges?.[0]?.node?.workout_entriesCollection?.edges?.length
+    });
+    
+    // Log detailed exercise information
+    if (workoutData?.workout_plansCollection?.edges?.[0]?.node?.workout_entriesCollection?.edges) {
+      const entries = workoutData.workout_plansCollection.edges[0].node.workout_entriesCollection.edges;
+      console.log('Workout entries details:', entries.map((entry: any) => ({
+        id: entry.node.id,
+        exercise_id: entry.node.exercise_id,
+        exercise_name: entry.node.exercises?.name,
+        is_adjusted: entry.node.is_adjusted,
+        adjustment_reason: entry.node.adjustment_reason
+      })));
+    }
+  }, [workoutData, isLoading, isFetching]);
 
   // Extract workout entries from the query response
   const workoutEntries = workoutData?.workout_plansCollection?.edges?.[0]?.node?.workout_entriesCollection?.edges || [];
 
   // // Debug logging
   // console.log('Workout Data Debug:');
-  console.log('Raw workout data:', JSON.stringify(workoutData, null, 2));
-  // console.log('Workout entries count:', workoutEntries.length);
-  // console.log('All workout entries:', workoutEntries.map(entry => entry.node));
-  // console.log('First workout entry:', workoutEntries[0]?.node);
-  console.log('Workout entries:', JSON.stringify(workoutEntries, null, 2));
+  // console.log('Raw workout data:', JSON.stringify(workoutData, null, 2));
+  // // console.log('Workout entries count:', workoutEntries.length);
+  // // console.log('All workout entries:', workoutEntries.map(entry => entry.node));
+  // // console.log('First workout entry:', workoutEntries[0]?.node);
+  // console.log('Workout entries:', JSON.stringify(workoutEntries, null, 2));
 
   // Create dynamic workout title: "Tuesday's Leg Workout" format
   const dayOfWeek = day ? day.charAt(0).toUpperCase() + day.slice(1) : 'Tuesday';
@@ -223,37 +252,24 @@ export default function WorkoutScreen() {
     };
   });
 
-  // Animate adjust mode hint appearance with exit transition
+  // Animate adjust mode hint appearance
   useEffect(() => {
     if (isAdjustMode) {
-      // Show immediately and animate in
-      setShowAdjustHint(true);
       adjustHintOpacity.value = withTiming(1, { duration: 200 });
-      adjustHintHeight.value = withTiming(1, { duration: 200 });
     } else {
-      // Animate out first, then remove from DOM
       adjustHintOpacity.value = withTiming(0, { duration: 200 });
-      adjustHintHeight.value = withTiming(0, { duration: 200 }, () => {
-        // Remove from DOM after animation completes
-        runOnJS(setShowAdjustHint)(false);
-      });
     }
   }, [isAdjustMode]);
 
   const adjustHintAnimatedStyle = useAnimatedStyle(() => {
-    // Height: lineHeight (20) + padding top (12) + padding bottom (12) = 44px, using 50px for safety
-    const heightValue = interpolate(adjustHintHeight.value, [0, 1], [0, 50], Extrapolation.CLAMP);
     const opacity = adjustHintOpacity.value;
+    const translateY = interpolate(opacity, [0, 1], [5, 0], Extrapolation.CLAMP);
+    const scale = interpolate(opacity, [0, 1], [0.98, 1], Extrapolation.CLAMP);
     
     return {
       opacity,
-      height: heightValue,
-      marginTop: interpolate(adjustHintHeight.value, [0, 1], [0, 0], Extrapolation.CLAMP),
-      marginBottom: interpolate(adjustHintHeight.value, [0, 1], [0, 16], Extrapolation.CLAMP),
-      paddingTop: interpolate(adjustHintHeight.value, [0, 1], [0, 12], Extrapolation.CLAMP),
-      paddingBottom: interpolate(adjustHintHeight.value, [0, 1], [0, 12], Extrapolation.CLAMP),
-      pointerEvents: opacity > 0 ? 'auto' : 'none',
-      overflow: 'hidden',
+      transform: [{ translateY }, { scale }],
+      pointerEvents: opacity > 0.5 ? 'auto' : 'none',
     };
   });
 
@@ -603,63 +619,26 @@ export default function WorkoutScreen() {
             
             
             <View style={styles.exerciseList}>
-            {showAdjustHint && (
-              <Animated.View style={[styles.adjustModeHint, adjustHintAnimatedStyle]}>
-                <Text style={styles.adjustModeHintText}>
-                  Click the exercise you want to adjust
-                </Text>
-              </Animated.View>
-            )}
-              {exercises.map((exercise, index) => {
-                const handleExercisePress = () => {
+              {workoutEntries.map((entry) => {
+                const handleExercisePress = (exerciseData: any) => {
                   // If in adjust mode, show alternatives modal
                   if (isAdjustMode) {
-                    const workoutEntry = workoutEntries.find(entry => {
-                      const cleanDbName = entry.node.exercises?.name?.replace(/\s*\([^)]*\)/g, '').trim() || '';
-                      return cleanDbName === exercise.name || entry.node.exercises?.name === exercise.name;
-                    });
-
-                    if (workoutEntry) {
-                      setSelectedExerciseForAdjustment({
-                        ...exercise,
-                        workoutEntryData: {
-                          sets: workoutEntry.node.sets,
-                          reps: workoutEntry.node.reps,
-                          weight: workoutEntry.node.weight,
-                          notes: workoutEntry.node.notes
-                        },
-                        alternatives: workoutEntry.node.workout_entry_alternativesCollection?.edges || []
-                      });
-                      setShowAlternativesModal(true);
-                    }
+                    setSelectedWorkoutEntryId(entry.node.id);
+                    setShowAlternativesModal(true);
                     return;
                   }
 
-                  // Normal info mode
-                  console.log(`Pressed info for ${exercise.name}`);
-                  const workoutEntry = workoutEntries.find(entry => {
-                    const cleanDbName = entry.node.exercises?.name?.replace(/\s*\([^)]*\)/g, '').trim() || '';
-                    return cleanDbName === exercise.name || entry.node.exercises?.name === exercise.name;
-                  });
-
-                  const alternativeEntry = !workoutEntry ? workoutEntries.find(entry => {
-                    const cleanDbName = entry.node.exercises?.name?.replace(/\s*\([^)]*\)/g, '').trim() || '';
-                    return cleanDbName.toLowerCase().includes(exercise.name.toLowerCase()) ||
-                           exercise.name.toLowerCase().includes(cleanDbName.toLowerCase());
-                  }) : null;
-
-                  const realExerciseData = workoutEntry?.node.exercises || alternativeEntry?.node.exercises;
-
-                  if (realExerciseData) {
-                    const cleanName = realExerciseData.name.replace(/\s*\([^)]*\)/g, '').trim();
-                    const instructionsParts = realExerciseData.instructions ? realExerciseData.instructions.split(/(?=\(\d+(?:st|nd|rd|th)\))/).filter(Boolean).map(s => s.trim()) : [];
-                    const keyFormTipsSection = instructionsParts.find(s => s.includes('Key Form Tips'));
+                  // Normal info mode - use fresh exercise data from ExerciseCard
+                  if (exerciseData) {
+                    const cleanName = exerciseData.name.replace(/\s*\([^)]*\)/g, '').trim();
+                    const instructionsParts = exerciseData.instructions ? exerciseData.instructions.split(/(?=\(\d+(?:st|nd|rd|th)\))/).filter(Boolean).map((s: string) => s.trim()) : [];
+                    const keyFormTipsSection = instructionsParts.find((s: string) => s.includes('Key Form Tips'));
                     const keyFormTips = keyFormTipsSection ?
-                      keyFormTipsSection.replace(/.*Key Form Tips:\s*/, '').split(/[;,]/).map(tip => tip.trim()).filter(Boolean) :
+                      keyFormTipsSection.replace(/.*Key Form Tips:\s*/, '').split(/[;,]/).map((tip: string) => tip.trim()).filter(Boolean) :
                       ["Follow the form shown in the video", "Start with lighter weights if needed", "Focus on controlled movements"];
 
-                    // Parse equipment groups the same way as in exercises array
-                    const equipmentGroups = realExerciseData.equipment_groups;
+                    // Parse equipment groups
+                    const equipmentGroups = exerciseData.equipment_groups;
                     let parsedGroups: string[][] = [];
                     if (typeof equipmentGroups === 'string') {
                       try {
@@ -672,165 +651,39 @@ export default function WorkoutScreen() {
                       parsedGroups = equipmentGroups.groups || [];
                     }
 
-                    console.log('Modal Exercise Data - Equipment Groups:', parsedGroups);
-
-                    const exerciseData = {
+                    const modalExerciseData = {
                       name: cleanName,
-                      slug: realExerciseData.slug,
-                      id: realExerciseData.id,
-                      instructions: instructionsParts.filter(s => !s.includes('Key Form Tips')),
+                      slug: exerciseData.slug,
+                      id: exerciseData.id,
+                      instructions: instructionsParts.filter((s: string) => !s.includes('Key Form Tips')),
                       tips: keyFormTips,
-                      videoUrl: realExerciseData.slug ? `https://kmtddcpdqkeqipyetwjs.supabase.co/storage/v1/object/public/workouts/processed/${realExerciseData.slug}/${realExerciseData.slug}_cropped_video.mp4` : undefined,
+                      videoUrl: exerciseData.slug ? `https://kmtddcpdqkeqipyetwjs.supabase.co/storage/v1/object/public/workouts/processed/${exerciseData.slug}/${exerciseData.slug}_cropped_video.mp4` : undefined,
                       equipment: parsedGroups.flat().map((slug: string) => 
                         slug.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
                       ),
                       equipmentGroups: parsedGroups,
                       category: "How to"
                     };
-                    setSelectedExercise(exerciseData);
-                    setShowExerciseInfo(true);
-                  } else {
-                    setSelectedExercise({
-                      name: exercise.name,
-                      slug: undefined,
-                      id: undefined,
-                      instructions: ['Exercise instructions not available'],
-                      videoUrl: undefined,
-                      equipment: ['No equipment specified'],
-                      equipmentGroups: [],
-                      category: "How to"
-                    });
+                    setSelectedExercise(modalExerciseData);
                     setShowExerciseInfo(true);
                   }
                 };
 
-                // Check if there's only one equipment chip total
-                const totalEquipmentItems = exercise.equipmentGroups?.reduce((sum, group) => sum + group.length, 0) || 0;
-                const hasOnlyOneEquipment = totalEquipmentItems === 1 && exercise.equipmentGroups?.length === 1;
-
                 return (
-                <TouchableOpacity
-                  key={exercise.id}
-                  style={styles.exerciseCard}
-                  onPress={handleExercisePress}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.exerciseRow}>
-                    <View style={styles.exerciseImageContainer}>
-                      {exercise.thumbnailUrl ? (
-                        <Image
-                          source={{ uri: exercise.thumbnailUrl }}
-                          style={styles.exerciseImage}
-                          contentFit="cover"
-                          cachePolicy="memory-disk"
-                          onError={() => {
-                            console.log('Failed to load exercise thumbnail:', exercise.thumbnailUrl);
-                          }}
-                          placeholder={require('../assets/exercises/squats.png')}
-                          placeholderContentFit="cover"
-                        />
-                      ) : (
-                        <Image
-                          source={require('../assets/exercises/squats.png')}
-                          style={styles.exerciseImage}
-                          contentFit="cover"
-                        />
-                      )}
-                    </View>
-                    <View style={styles.exerciseInfo}>
-                      <View style={styles.exerciseTextContainer}>
-                        <Text style={styles.exerciseNumber} numberOfLines={3} ellipsizeMode="tail">
-                          {exercise.name}
-                        </Text>
-                        <Text style={styles.exerciseDetails} numberOfLines={1} ellipsizeMode="tail">
-                          {exercise.sets}  •  {exercise.muscles}
-                        </Text>
-                        
-                        {/* If only one equipment, show it here inline */}
-                        {hasOnlyOneEquipment && exercise.equipmentGroups && exercise.equipmentGroups[0] && (
-                          <View style={styles.equipmentInlineContainer}>
-                            {exercise.equipmentGroups[0].map((equipmentSlug) => {
-                              const equipmentName = equipmentSlug
-                                .split('-')
-                                .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-                                .join(' ');
-                              
-                              return (
-                                <View key={equipmentSlug} style={styles.equipmentChipInline}>
-                                  <View style={styles.equipmentChipIcon}>
-                                    <Image
-                                      source={getEquipmentIcon(equipmentSlug)}
-                                      style={styles.equipmentChipImage}
-                                      contentFit="contain"
-                                    />
-                                  </View>
-                                  <Text style={styles.equipmentChipText}>
-                                    {equipmentName}
-                                  </Text>
-                                </View>
-                              );
-                            })}
-                          </View>
-                        )}
-                      </View>
-                      <View style={styles.playButton}>
-                        <Image
-                          source={require('../assets/icons/info.svg')}
-                          style={styles.playIcon}
-                          contentFit="contain"
-                        />
-                      </View>
-                    </View>
-                  </View>
-                  
-                  {/* Equipment Groups Display - Show at bottom only if multiple items */}
-                  {!hasOnlyOneEquipment && exercise.equipmentGroups && exercise.equipmentGroups.length > 0 && (
-                    <View style={styles.exerciseEquipmentContainer}>
-                      {exercise.equipmentGroups.map((group, groupIndex) => (
-                        <View key={groupIndex} style={styles.equipmentGroupWrapper}>
-                          {/* Each group is a row of alternatives (OR) */}
-                          <View style={styles.equipmentAlternativesRow}>
-                            {group.map((equipmentSlug, itemIndex) => {
-                              const equipmentName = equipmentSlug
-                                .split('-')
-                                .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-                                .join(' ');
-                              
-                              return (
-                                <React.Fragment key={`${groupIndex}-${itemIndex}`}>
-                                  <View style={styles.equipmentChip}>
-                                    <View style={styles.equipmentChipIcon}>
-                                      <Image
-                                        source={getEquipmentIcon(equipmentSlug)}
-                                        style={styles.equipmentChipImage}
-                                        contentFit="contain"
-                                      />
-                                    </View>
-                                    <Text style={styles.equipmentChipText} numberOfLines={1}>
-                                      {equipmentName}
-                                    </Text>
-                                  </View>
-                                  {/* "or" text between alternatives in the same group */}
-                                  {itemIndex < group.length - 1 && (
-                                    <Text style={styles.equipmentOrText}>or</Text>
-                                  )}
-                                </React.Fragment>
-                              );
-                            })}
-                          </View>
-                          {/* "and" indicator between required groups (AND) */}
-                          {groupIndex < exercise.equipmentGroups.length - 1 && (
-                            <View style={styles.equipmentAndSeparator}>
-                              <View style={styles.equipmentAndLine} />
-                              <Text style={styles.equipmentAndText}>and</Text>
-                              <View style={styles.equipmentAndLine} />
-                            </View>
-                          )}
-                        </View>
-                      ))}
-                    </View>
-                  )}
-                </TouchableOpacity>
+                  <ExerciseCard
+                    key={entry.node.id}
+                    workoutEntry={{
+                      id: entry.node.id,
+                      exercise_id: entry.node.exercise_id,
+                      sets: entry.node.sets,
+                      reps: entry.node.reps,
+                      weight: entry.node.weight,
+                      time: entry.node.time,
+                      notes: entry.node.notes,
+                    }}
+                    onPress={handleExercisePress}
+                    getEquipmentIcon={getEquipmentIcon}
+                  />
                 );
               })}
             </View>
@@ -873,7 +726,22 @@ export default function WorkoutScreen() {
           </View>
         </Animated.ScrollView>
 
-        
+
+
+        {/* Adjust Mode Hint - Animated hint above floating buttons */}
+        <Animated.View
+          style={[
+            styles.adjustHintWrapper,
+            { bottom: 84 + insets.bottom }, // 72px button height + 8px bottom + 4px gap
+            adjustHintAnimatedStyle
+          ]}
+        >
+          <View style={styles.adjustHintContainer}>
+            <Text style={styles.adjustModeHintText}>
+              Click the exercise you want to adjust
+            </Text>
+          </View>
+        </Animated.View>
 
         {/* Floating Button Container */}
         <View style={[styles.floatingButtonWrapper, { bottom:8+  insets.bottom }]}>
@@ -998,29 +866,19 @@ export default function WorkoutScreen() {
       />
 
       {/* Alternatives Modal */}
-      {showAlternativesModal && selectedExerciseForAdjustment && (
+      {showAlternativesModal && selectedWorkoutEntryId && (
         <ExerciseAdjustModal
           visible={showAlternativesModal}
           onClose={() => {
             setShowAlternativesModal(false);
             setIsAdjustMode(false);
+            setSelectedWorkoutEntryId(null);
           }}
-          onSelectAlternative={(altExercise) => {
-            console.log('Selected alternative:', altExercise);
-            // TODO: Update workout entry with selected alternative
-            // setShowAlternativesModal(false);
-            // setIsAdjustMode(false);
+          onAdjustmentComplete={() => {
+            console.log('✅ Workout adjusted successfully');
+            // Optional: Show success toast
           }}
-          exercise={{
-            name: selectedExerciseForAdjustment.name,
-            slug: selectedExerciseForAdjustment.slug,
-            instructions: [],
-            tips: [],
-            equipment: [],
-            category: "Adjust Exercise",
-          }}
-          workoutEntry={selectedExerciseForAdjustment.workoutEntryData}
-          alternatives={selectedExerciseForAdjustment.alternatives}
+          workoutEntryId={selectedWorkoutEntryId}
         />
       )}
     </>
@@ -1313,9 +1171,11 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
   },
   adjustModeHint: {
+    
     backgroundColor: nucleus.light.global.brand[40],
     borderRadius: 12,
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     alignSelf: 'stretch',
     overflow: 'hidden',
     justifyContent: 'center',
@@ -1328,6 +1188,32 @@ const styles = StyleSheet.create({
     color: nucleus.light.global.brand[90],
     textAlign: 'center',
     includeFontPadding: false,
+  },
+  adjustHintWrapper: {
+
+    position: 'absolute',
+    left: 24,
+    right: 24,
+    zIndex: 999,
+  },
+  adjustHintContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 16,
+    backgroundColor: nucleus.light.global.brand[40],
+    borderWidth: 1,
+    borderColor: 'rgba(208, 221, 23, 0.16)',
+    overflow: 'hidden',
+    shadowColor: 'rgba(185, 230, 255, 0.30)',
+    shadowOffset: {
+      width: 0,
+      height: 0,
+    },
+    shadowRadius: 15,
+    elevation: 15,
+    shadowOpacity: 1,
   },
   summaryExerciseHeader: {
     flexDirection: 'row',

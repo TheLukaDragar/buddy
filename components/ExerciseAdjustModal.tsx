@@ -1,12 +1,16 @@
+import * as Haptics from 'expo-haptics';
 import { Image } from "expo-image";
-import { useVideoPlayer, VideoView } from 'expo-video';
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, BackHandler, Dimensions, Pressable, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, BackHandler, Dimensions, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { AutoSkeletonView } from 'react-native-auto-skeleton';
 import { PanGestureHandler } from 'react-native-gesture-handler';
 import { Text } from 'react-native-paper';
 import Animated, {
   Easing,
   Extrapolate,
+  FadeIn,
+  FadeOut,
+  Layout,
   interpolate,
   runOnJS,
   useAnimatedGestureHandler,
@@ -17,6 +21,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { nucleus } from '../Buddy_variables';
+import { GetWorkoutEntryBasicQuery } from '../graphql/generated';
+import { useGetWorkoutEntryBasicQuery, useGetExerciseByIdQuery, useSwapExerciseWithAlternativeMutation, useUpdateWorkoutEntryMutation } from '../store/api/enhancedApi';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -98,180 +104,200 @@ const getEquipmentIcon = (slug: string) => {
   return require('../assets/equipment_icons/body-weight.png');
 };
 
-// Exercise Video Component
-interface ExerciseVideoProps {
-  videoUrl?: string;
+// Exercise Thumbnail Component
+interface ExerciseThumbnailProps {
   exerciseName: string;
   slug?: string;
 }
 
-const ExerciseVideo: React.FC<ExerciseVideoProps> = React.memo(({ videoUrl, exerciseName, slug }) => {
-  console.log('ExerciseVideo - Props:', { videoUrl, exerciseName, slug });
-  const [isLoading, setIsLoading] = useState(true);
-  const [showPlaceholder, setShowPlaceholder] = useState(!slug);
-  const videoOpacity = useSharedValue(0);
-  const loadingOpacity = useSharedValue(1);
-
-  // Create video URI
-  const videoUri = slug 
-    ? `https://kmtddcpdqkeqipyetwjs.supabase.co/storage/v1/object/public/workouts/processed/${slug}/${slug}_cropped_video.mp4`
-    : '';
-
-  const player = slug ? useVideoPlayer(videoUri, (player) => {
-    player.loop = true;
-    player.muted = true;
-    player.play();
-  }) : null;
-
-  // Handle video loading and errors
-  useEffect(() => {
-    if (!player || !slug) return;
-
-    const unsubscribe = player.addListener('statusChange', (status) => {
-      console.log('ExerciseVideo - Player status:', status);
-
-      if (status.status === 'readyToPlay') {
-        console.log('ExerciseVideo - Video loaded successfully');
-        setIsLoading(false);
-        setShowPlaceholder(false);
-        
-        // Smooth fade in video, fade out loading
-        videoOpacity.value = withTiming(1, { 
-          duration: 400, 
-          easing: Easing.out(Easing.ease) 
-        });
-        loadingOpacity.value = withTiming(0, { 
-          duration: 300, 
-          easing: Easing.out(Easing.ease) 
-        });
-      } else if (status.status === 'error') {
-        console.log('ExerciseVideo - Video failed to load, showing placeholder');
-        setIsLoading(false);
-        setShowPlaceholder(true);
-        loadingOpacity.value = withTiming(0, { 
-          duration: 200, 
-          easing: Easing.out(Easing.ease) 
-        });
-      } else if (status.status === 'loading') {
-        console.log('ExerciseVideo - Video is loading');
-        setIsLoading(true);
-        videoOpacity.value = 0;
-        loadingOpacity.value = 1;
-      }
-    });
-
-    return () => {
-      unsubscribe.remove();
-    };
-  }, [player, slug]);
-
-  const videoAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: videoOpacity.value,
-  }));
-
-  const loadingAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: loadingOpacity.value,
-  }));
-
-  // Show placeholder if no slug or if error
-  if (showPlaceholder || !slug) {
-    console.log('ExerciseVideo - Showing placeholder');
-    return (
-      <View style={styles.heroContainer}>
-        <Image
-          source={require('../assets/images/9_16_2.png')}
-          style={styles.heroImage}
-          contentFit="cover"
-        />
-      </View>
-    );
-  }
+const ExerciseThumbnail: React.FC<ExerciseThumbnailProps> = React.memo(({ exerciseName, slug }) => {
+  console.log('ExerciseThumbnail - Props:', { exerciseName, slug });
+  
+  // Create thumbnail URI
+  const thumbnailUri = slug 
+    ? `https://kmtddcpdqkeqipyetwjs.supabase.co/storage/v1/object/public/workouts/processed/${slug}/${slug}_cropped_thumbnail_low.jpg`
+    : null;
 
   return (
     <View style={styles.heroContainer}>
-      <Animated.View style={[styles.videoWrapper, videoAnimatedStyle]}>
-        <VideoView
-          player={player!}
-          style={styles.heroVideo}
-          nativeControls={false}
-          contentFit="cover"
-        />
-      </Animated.View>
       <Animated.View 
-        style={[styles.loadingOverlay, loadingAnimatedStyle]}
-        pointerEvents={isLoading ? 'auto' : 'none'}
+        key={slug || 'default'} 
+        entering={FadeIn.duration(300).easing(Easing.out(Easing.ease))}
+        exiting={FadeOut.duration(200).easing(Easing.in(Easing.ease))}
+        layout={Layout.springify()}
+        style={StyleSheet.absoluteFill}
       >
-        <ActivityIndicator 
-          size="large" 
-          color={nucleus.light.global.blue[70]} 
-        />
+        {thumbnailUri ? (
+          <Image
+            source={{ uri: thumbnailUri }}
+            style={styles.heroImage}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            placeholder={require('../assets/images/9_16_2.png')}
+            placeholderContentFit="cover"
+          />
+        ) : (
+          <Image
+            source={require('../assets/images/9_16_2.png')}
+            style={styles.heroImage}
+            contentFit="cover"
+          />
+        )}
       </Animated.View>
     </View>
   );
 });
 
-interface ExerciseInfoModalProps {
-  visible: boolean;
-  onClose: () => void;
-  onSelectAlternative?: (alternativeExercise: any) => void;
-  exercise?: {
-    name: string;
-    category: string;
-    instructions: string[];
-    tips: string[];
-    equipment: string[];
-    equipmentGroups?: string[][];
-    videoUrl?: string;
-    imageUrl?: string;
-    slug?: string;
-    id?: string;
-  };
-  workoutEntry?: {
-    sets: number;
-    reps?: string;
-    time?: string;
-    weight?: string;
-    notes?: string;
-  };
-  alternatives?: Array<{
+// Alternative Exercise Card Component - fetches exercise data separately to avoid stale data
+interface AlternativeExerciseCardProps {
+  alternative: {
     node: {
       id: string;
       alternative_exercise_id: string;
-      note: string;
+      note?: string | null;
       position: number;
-      exercises: {
-        id: string;
-        name: string;
-        slug?: string;
-        equipment_groups?: any;
-      };
     };
-  }>;
+  };
+  onSelect: (exercise: any) => void;
+  isSwapping: boolean;
 }
 
-const ExerciseInfoModal = React.memo<ExerciseInfoModalProps>(function ExerciseInfoModal({ visible, onClose, onSelectAlternative, exercise, workoutEntry, alternatives }) {
+const AlternativeExerciseCard: React.FC<AlternativeExerciseCardProps> = React.memo(({ alternative, onSelect, isSwapping }) => {
+  // Fetch exercise data separately using alternative_exercise_id (always fresh!)
+  const { data: exerciseData, isLoading } = useGetExerciseByIdQuery(
+    { id: alternative.node.alternative_exercise_id },
+    { skip: !alternative.node.alternative_exercise_id }
+  );
+
+  const altExercise = exerciseData?.exercisesCollection?.edges?.[0]?.node;
+
+  const cleanName = altExercise?.name?.replace(/\s*\([^)]*\)/g, '').trim() || '';
+  const thumbnailUrl = altExercise?.slug 
+    ? `https://kmtddcpdqkeqipyetwjs.supabase.co/storage/v1/object/public/workouts/processed/${altExercise.slug}/${altExercise.slug}_cropped_thumbnail_low.jpg`
+    : null;
+
+  return (
+    <TouchableOpacity
+      key={`${alternative.node.id}-${alternative.node.alternative_exercise_id}`}
+      style={styles.alternativeCard}
+      onPress={() => altExercise && onSelect(altExercise)}
+      activeOpacity={0.7}
+      disabled={isSwapping || !altExercise}
+    >
+      <AutoSkeletonView 
+        isLoading={isLoading || !altExercise}
+        shimmerSpeed={1.5}
+        animationType="gradient"
+        defaultRadius={12}
+      >
+        <View style={styles.alternativeRow}>
+          <View style={styles.alternativeImageContainer}>
+            {thumbnailUrl ? (
+              <Image
+                source={{ uri: thumbnailUrl }}
+                style={styles.alternativeImage}
+                contentFit="cover"
+                cachePolicy="memory-disk"
+                onError={() => {
+                  console.log('Failed to load alternative thumbnail:', thumbnailUrl);
+                }}
+                placeholder={require('../assets/exercises/squats.png')}
+                placeholderContentFit="cover"
+              />
+            ) : (
+              <Image
+                source={require('../assets/exercises/squats.png')}
+                style={styles.alternativeImage}
+                contentFit="cover"
+              />
+            )}
+          </View>
+          <View style={styles.alternativeInfo}>
+            <View style={styles.alternativeTextContainer}>
+              <Text style={styles.alternativeName} numberOfLines={3} ellipsizeMode="tail">
+                {cleanName}
+              </Text>
+              {alternative.node.note && (
+                <Text style={styles.alternativeNote}>
+                  {alternative.node.note}
+                </Text>
+              )}
+            </View>
+          </View>
+        </View>
+      </AutoSkeletonView>
+    </TouchableOpacity>
+  );
+});
+
+// Extract the workout entry node type from the generated GraphQL query
+type WorkoutEntryNode = NonNullable<
+  NonNullable<GetWorkoutEntryBasicQuery['workout_entriesCollection']>['edges'][0]['node']
+>;
+
+interface ExerciseInfoModalProps {
+  visible: boolean;
+  onClose: () => void;
+  onAdjustmentComplete?: () => void;
+  
+  // Just pass the workout entry ID - modal will fetch its own data
+  workoutEntryId: string;
+}
+
+const ExerciseInfoModal = React.memo<ExerciseInfoModalProps>(function ExerciseInfoModal({ visible, onClose, onAdjustmentComplete, workoutEntryId }) {
   const insets = useSafeAreaInsets();
   const SHEET_HEIGHT = SCREEN_HEIGHT;
   
   const translateY = useSharedValue(SHEET_HEIGHT);
   
-  // State for adjustable workout parameters
-  const [adjustedSets, setAdjustedSets] = useState(workoutEntry?.sets || 4);
-  const [adjustedReps, setAdjustedReps] = useState(workoutEntry?.reps || '8-12');
-  const [adjustedTime, setAdjustedTime] = useState(workoutEntry?.time || '');
+  // Fetch workout entry data WITHOUT nested exercises (avoids stale data)
+  const { data, isLoading: isLoadingEntry, error } = useGetWorkoutEntryBasicQuery(
+    { id: workoutEntryId },
+    { skip: !visible || !workoutEntryId }
+  );
   
-  // Update state when workoutEntry changes
+  const workoutEntryNode = data?.workout_entriesCollection?.edges[0]?.node;
+  
+  // Fetch main exercise data separately using exercise_id (always fresh!)
+  const { data: mainExerciseData, isLoading: isLoadingMainExercise } = useGetExerciseByIdQuery(
+    { id: workoutEntryNode?.exercise_id || '' },
+    { skip: !visible || !workoutEntryNode?.exercise_id }
+  );
+  
+  const mainExercise = mainExerciseData?.exercisesCollection?.edges?.[0]?.node;
+  
+  // RTK Query mutation hooks
+  const [updateWorkoutEntry, { isLoading: isUpdating }] = useUpdateWorkoutEntryMutation();
+  const [swapExerciseWithAlternative, { isLoading: isSwapping }] = useSwapExerciseWithAlternativeMutation();
+  
+  // Track if exercise has been swapped in this modal session
+  const [hasSwapped, setHasSwapped] = useState(false);
+  
+  // State for Adjusting workout parameters
+  const [adjustedSets, setAdjustedSets] = useState(0);
+  const [adjustedReps, setAdjustedReps] = useState('8-12');
+  const [adjustedTime, setAdjustedTime] = useState('');
+  const [adjustedWeight, setAdjustedWeight] = useState('Body');
+  
+  // Hold-to-increment state
+  const weightHoldIntervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  const setsHoldIntervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  const repsHoldIntervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  
+  // Debounce timers for database updates (prevents excessive mutations during hold)
+  const weightDebounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const setsDebounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const repsDebounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  // Update state when workout entry data loads
   useEffect(() => {
-    if (workoutEntry) {
-      setAdjustedSets(workoutEntry.sets);
-      if (workoutEntry.reps) {
-        setAdjustedReps(workoutEntry.reps);
-      }
-      if (workoutEntry.time) {
-        setAdjustedTime(workoutEntry.time);
-      }
+    if (workoutEntryNode) {
+      setAdjustedSets(workoutEntryNode.sets);
+      setAdjustedReps(workoutEntryNode.reps || '8-12');
+      setAdjustedTime(workoutEntryNode.time || '');
+      setAdjustedWeight(workoutEntryNode.weight || 'Body');
     }
-  }, [workoutEntry]);
+  }, [workoutEntryNode]);
   
   // Parse reps to get min value for adjustment
   const parseReps = (reps: string): { min: number; max?: number; original: string } => {
@@ -291,15 +317,220 @@ const ExerciseInfoModal = React.memo<ExerciseInfoModalProps>(function ExerciseIn
     return match ? match[0] : time;
   };
   
-  // Adjust reps (increment/decrement)
+  // Parse weight to check if it's numeric
+  const parseWeight = (weight: string): { value: number; unit: string } | null => {
+    if (!weight || weight.toLowerCase() === 'body') return null;
+    const match = weight.match(/^([\d.]+)\s*(kg|lbs?|lb)?$/i);
+    if (match) {
+      return { value: parseFloat(match[1]), unit: match[2] || '' };
+    }
+    return null;
+  };
+  
+  // Adjust weight (simple increment) - debounced DB save
+  const adjustWeightValue = (delta: number) => {
+    setAdjustedWeight((currentWeight) => {
+      const parsed = parseWeight(currentWeight);
+      if (!parsed) return currentWeight;
+      
+      const newValue = Math.max(0, parsed.value + delta);
+      const newWeight = `${newValue}${parsed.unit}`;
+      
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      
+      // Clear existing debounce timer
+      if (weightDebounceRef.current) {
+        clearTimeout(weightDebounceRef.current);
+      }
+      
+      // Save to database after 500ms of inactivity
+      weightDebounceRef.current = setTimeout(() => {
+        updateWorkoutEntry({
+          id: workoutEntryId,
+          weight: newWeight,
+          isAdjusted: true,
+          adjustmentReason: 'User adjusted weight'
+        });
+      }, 500);
+      
+      return newWeight;
+    });
+  };
+  
+  // Adjust sets (simple increment) - debounced DB save
+  const adjustSetsValue = (delta: number) => {
+    setAdjustedSets((currentSets) => {
+      const newSets = Math.max(1, currentSets + delta);
+      
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      
+      // Clear existing debounce timer
+      if (setsDebounceRef.current) {
+        clearTimeout(setsDebounceRef.current);
+      }
+      
+      // Save to database after 500ms of inactivity
+      setsDebounceRef.current = setTimeout(() => {
+        updateWorkoutEntry({
+          id: workoutEntryId,
+          sets: newSets,
+          isAdjusted: true,
+          adjustmentReason: 'User adjusted sets'
+        });
+      }, 500);
+      
+      return newSets;
+    });
+  };
+  
+  // Hold-to-increment handlers with separate refs for timeouts
+  const weightHoldTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const setsHoldTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const repsHoldTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  const startHoldIncrement = (
+    adjustFunction: () => void, 
+    intervalRef: React.MutableRefObject<ReturnType<typeof setInterval> | null>,
+    timeoutRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>
+  ) => {
+    // Clear any existing interval and timeout
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    
+    // Call once immediately for instant feedback
+    adjustFunction();
+    
+    // Start auto-incrementing after 300ms, then every 100ms
+    timeoutRef.current = setTimeout(() => {
+      // Haptic feedback when hold starts
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      intervalRef.current = setInterval(() => {
+        adjustFunction();
+      }, 100);
+    }, 300);
+  };
+  
+  const stopHoldIncrement = (
+    intervalRef: React.MutableRefObject<ReturnType<typeof setInterval> | null>,
+    timeoutRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>
+  ) => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  };
+  
+  // Cleanup timers on unmount
+  useEffect(() => {
+    return () => {
+      if (weightHoldIntervalRef.current) {
+        clearInterval(weightHoldIntervalRef.current);
+      }
+      if (setsHoldIntervalRef.current) {
+        clearInterval(setsHoldIntervalRef.current);
+      }
+      if (repsHoldIntervalRef.current) {
+        clearInterval(repsHoldIntervalRef.current);
+      }
+      
+      // Clear debounce timers and flush pending updates
+      if (weightDebounceRef.current) {
+        clearTimeout(weightDebounceRef.current);
+      }
+      if (setsDebounceRef.current) {
+        clearTimeout(setsDebounceRef.current);
+      }
+      if (repsDebounceRef.current) {
+        clearTimeout(repsDebounceRef.current);
+      }
+    };
+  }, []);
+  
+  // Adjust reps (simple increment) - debounced DB save
   const adjustRepsValue = (delta: number) => {
-    const parsed = parseReps(adjustedReps);
-    const newMin = Math.max(1, parsed.min + delta);
-    if (parsed.max) {
-      const newMax = Math.max(newMin + 1, parsed.max + delta);
-      setAdjustedReps(`${newMin}-${newMax}`);
-    } else {
-      setAdjustedReps(`${newMin}`);
+    setAdjustedReps((currentReps) => {
+      const parsed = parseReps(currentReps);
+      const newMin = Math.max(1, parsed.min + delta);
+      let newReps: string;
+      
+      if (parsed.max) {
+        const newMax = Math.max(newMin + 1, parsed.max + delta);
+        newReps = `${newMin}-${newMax}`;
+      } else {
+        newReps = `${newMin}`;
+      }
+      
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      
+      // Clear existing debounce timer
+      if (repsDebounceRef.current) {
+        clearTimeout(repsDebounceRef.current);
+      }
+      
+      // Save to database after 500ms of inactivity
+      repsDebounceRef.current = setTimeout(() => {
+        updateWorkoutEntry({
+          id: workoutEntryId,
+          reps: newReps,
+          isAdjusted: true,
+          adjustmentReason: 'User adjusted reps'
+        });
+      }, 500);
+      
+      return newReps;
+    });
+  };
+  
+  // Handle alternative exercise selection
+  const handleSelectAlternative = async (alternativeExercise: any) => {
+    console.log('Selected alternative exercise:', alternativeExercise);
+    console.log('Current workoutEntryNode:', workoutEntryNode);
+    
+    // Mark that a swap has occurred
+    setHasSwapped(true);
+    
+    try {
+      // Extract plan information for proper cache invalidation
+      const planId = workoutEntryNode?.workout_plans?.id;
+      const weekNumber = workoutEntryNode?.week_number;
+      const day = workoutEntryNode?.day;
+      
+      console.log('Plan information for cache invalidation:', { planId, weekNumber, day });
+      
+      // Call the swap exercise mutation with plan information
+      const result = await swapExerciseWithAlternative({
+        workoutEntryId: workoutEntryId,
+        newExerciseId: alternativeExercise.id,
+        alternativeNote: `Swapped to ${alternativeExercise.name}`,
+        // Pass plan information for specific cache invalidation
+        planId: planId,
+        weekNumber: weekNumber,
+        day: day
+      }).unwrap();
+      
+      console.log('Swap exercise mutation result:', result);
+      
+      // Don't close the modal - let user continue adjusting
+      // The exercise data will automatically update via GetExerciseById refetch
+      
+      // Show success feedback
+      console.log('✅ Exercise swapped successfully', result);
+      
+      // Call adjustment complete callback if provided (for parent component updates)
+      if (onAdjustmentComplete) {
+        onAdjustmentComplete();
+      }
+    } catch (error: any) {
+      console.error('❌ Failed to swap exercise:', error);
+      // Silently fail - don't show error to user
     }
   };
 
@@ -368,42 +599,32 @@ const ExerciseInfoModal = React.memo<ExerciseInfoModalProps>(function ExerciseIn
     opacity: interpolate(translateY.value, [0, SHEET_HEIGHT], [0.7, 0], Extrapolate.CLAMP),
   }));
 
-  // Memoize exercise data to prevent unnecessary re-renders
-  const exerciseData = useMemo(() => {
-    // Default exercise data for demo
-    const defaultExercise = {
-      name: "Squat",
-      category: "How To",
-      instructions: [
-        "Stand with your feet shoulder-width apart.",
-        "Keep your chest up and your back straight.",
-        "Lower your hips like you're sitting into a chair.",
-        "Go as low as you can while keeping your heels on the ground.",
-        "Push through your heels to return to standing."
-      ],
-      tips: [
-        "Keep your knees in line with your toes",
-        "Engage your core throughout the movement"
-      ],
-      equipment: ["Mat"],
-      equipmentGroups: [["body-weight"]],
-      imageUrl: require('../assets/images/9_16_2.png'),
-      videoUrl: undefined,
-      slug: undefined,
-      id: undefined
-    };
-
-    const result = exercise || defaultExercise;
-    
-    // Only log when the exercise data actually changes
-    if (visible && exercise) {
-      console.log('ExerciseInfoModal - exerciseData updated:', result);
-      console.log('ExerciseInfoModal - equipmentGroups:', result.equipmentGroups);
-      console.log('ExerciseInfoModal - equipment array:', result.equipment);
+  // Reset swap state when modal closes
+  useEffect(() => {
+    if (!visible) {
+      setHasSwapped(false);
     }
+  }, [visible]);
+
+  // Extract alternatives from workoutEntryNode (just IDs, we'll fetch exercise data separately)
+  const alternatives = useMemo(() => {
+    if (!workoutEntryNode) return [];
+    return workoutEntryNode.workout_entry_alternativesCollection?.edges || [];
+  }, [workoutEntryNode]);
+
+  // Extract exercise data from mainExercise (fetched separately - always fresh!)
+  const exerciseData = useMemo(() => {
+    if (!mainExercise) return null;
     
-    return result;
-  }, [exercise, visible]); // Only recalculate when exercise or visible changes
+    return {
+      name: mainExercise.name,
+      slug: mainExercise.slug || undefined,
+      id: mainExercise.id,
+      instructions: mainExercise.instructions ? [mainExercise.instructions] : [],
+      equipment_groups: mainExercise.equipment_groups,
+      category: hasSwapped ? "Swapped to" : "Adjust Exercise"
+    };
+  }, [mainExercise, hasSwapped]);
 
   if (!visible) return null;
 
@@ -423,241 +644,188 @@ const ExerciseInfoModal = React.memo<ExerciseInfoModalProps>(function ExerciseIn
               <View style={styles.handle} />
             </View>
 
+            {/* Close button */}
+            <TouchableOpacity
+              style={styles.overlayCloseButton}
+              onPress={onClose}
+              disabled={isSwapping}
+            >
+              
+            </TouchableOpacity>
 
             <ScrollView 
               style={styles.scrollView}
               showsVerticalScrollIndicator={false}
             >
-              {/* Hero Video Section with Overlay Back Button */}
-              <View style={styles.videoContainer}>
-                <ExerciseVideo
-                  videoUrl={exerciseData.videoUrl}
-                  exerciseName={exerciseData.name}
-                  slug={exerciseData.slug}
-                />
-
-                {/* Overlay Back Button */}
-                <Pressable
-                  style={styles.overlayCloseButton}
-                  onPress={() => {
-                    translateY.value = withTiming(SHEET_HEIGHT, {
-                      duration: 250,
-                      easing: Easing.in(Easing.quad),
-                    }, (finished) => {
-                      if (finished) {
-                        runOnJS(onClose)();
-                      }
-                    });
-                  }}
-                >
-                  <Image
-                    source={require('../assets/icons/cross.svg')}
-                    style={styles.overlayCloseIcon}
-                    contentFit="contain"
+              {/* Hero Thumbnail Section */}
+              {exerciseData && (
+                <View style={styles.videoContainer}>
+                  <ExerciseThumbnail
+                    exerciseName={exerciseData.name}
+                    slug={exerciseData.slug}
                   />
-                </Pressable>
-              </View>
+                </View>
+              )}
 
               {/* Content Container */}
               <View style={styles.contentContainer}>
                 {/* Title Section */}
-                <View style={styles.titleSection}>
-                  <Text style={styles.categoryText}>{exerciseData.category}</Text>
-                  <Text style={styles.titleText}>{exerciseData.name}</Text>
-                </View>
+                {exerciseData && (
+                  <View style={styles.titleSection}>
+                    <Animated.View
+                      key={hasSwapped ? 'swapped' : 'adjust'}
+                      entering={FadeIn.duration(300).easing(Easing.out(Easing.ease))}
+                      exiting={FadeOut.duration(200).easing(Easing.in(Easing.ease))}
+                      layout={Layout.springify()}
+                    >
+                      <Text style={styles.categoryText}>{exerciseData.category}</Text>
+                    </Animated.View>
+                    <Animated.View
+                      key={exerciseData.id}
+                      entering={FadeIn.duration(300).easing(Easing.out(Easing.ease))}
+                      exiting={FadeOut.duration(200).easing(Easing.in(Easing.ease))}
+                      layout={Layout.springify()}
+                    >
+                      <Text style={styles.titleText}>{exerciseData.name}</Text>
+                    </Animated.View>
+                  </View>
+                )}
 
                 {/* Workout Info Display - Exactly like timer container in active_workout.tsx */}
-                {workoutEntry && (
+                {workoutEntryNode && (
                   <View style={styles.infoContainer}>
-                    {/* Weight - Centered in Left Section */}
+                    {/* Weight - Centered in Left Section with Adjusters */}
                     <View style={styles.infoItemLeft}>
+                      {parseWeight(adjustedWeight) ? (
+                        <TouchableOpacity 
+                          style={styles.adjusterButton}
+                          onPressIn={() => startHoldIncrement(() => adjustWeightValue(1), weightHoldIntervalRef, weightHoldTimeoutRef)}
+                          onPressOut={() => stopHoldIncrement(weightHoldIntervalRef, weightHoldTimeoutRef)}
+                          activeOpacity={0.5}
+                        >
+                          <Image
+                            source={require('../assets/icons/back.svg')}
+                            style={[styles.adjusterIcon, { transform: [{ rotate: '90deg' }] }]}
+                            contentFit="contain"
+                          />
+                        </TouchableOpacity>
+                      ) : null}
                       <Text style={[styles.infoValue, { color: nucleus.light.global.blue["60"] }]}>
-                        {workoutEntry.weight || 'Body'}
+                        {parseWeight(adjustedWeight)?.value || adjustedWeight}
                       </Text>
                       <Text style={[styles.infoLabel, { color: nucleus.light.global.grey["90"] }]}>
                         WEIGHT
                       </Text>
+                      {parseWeight(adjustedWeight) ? (
+                        <TouchableOpacity 
+                          style={styles.adjusterButton}
+                          onPressIn={() => startHoldIncrement(() => adjustWeightValue(-1), weightHoldIntervalRef, weightHoldTimeoutRef)}
+                          onPressOut={() => stopHoldIncrement(weightHoldIntervalRef, weightHoldTimeoutRef)}
+                          activeOpacity={0.5}
+                        >
+                          <Image
+                            source={require('../assets/icons/back.svg')}
+                            style={[styles.adjusterIcon, { transform: [{ rotate: '-90deg' }] }]}
+                            contentFit="contain"
+                          />
+                        </TouchableOpacity>
+                      ) : null}
                     </View>
 
                     {/* Separator */}
                     <View style={styles.separator} />
 
-                    {/* Sets - Centered in Middle Section */}
+                    {/* Sets - Centered in Middle Section with Adjusters */}
                     <View style={styles.infoItemCenter}>
+                      <TouchableOpacity 
+                        style={styles.adjusterButton}
+                        onPressIn={() => startHoldIncrement(() => adjustSetsValue(1), setsHoldIntervalRef, setsHoldTimeoutRef)}
+                        onPressOut={() => stopHoldIncrement(setsHoldIntervalRef, setsHoldTimeoutRef)}
+                        activeOpacity={0.5}
+                      >
+                        <Image
+                          source={require('../assets/icons/back.svg')}
+                          style={[styles.adjusterIcon, { transform: [{ rotate: '90deg' }] }]}
+                          contentFit="contain"
+                        />
+                      </TouchableOpacity>
                       <Text style={[styles.infoValue, { color: nucleus.light.global.blue["60"] }]}>
                         {adjustedSets}
                       </Text>
                       <Text style={[styles.infoLabel, { color: nucleus.light.global.grey["90"] }]}>
                         SETS
                       </Text>
+                      <TouchableOpacity 
+                        style={styles.adjusterButton}
+                        onPressIn={() => startHoldIncrement(() => adjustSetsValue(-1), setsHoldIntervalRef, setsHoldTimeoutRef)}
+                        onPressOut={() => stopHoldIncrement(setsHoldIntervalRef, setsHoldTimeoutRef)}
+                        activeOpacity={0.5}
+                      >
+                        <Image
+                          source={require('../assets/icons/back.svg')}
+                          style={[styles.adjusterIcon, { transform: [{ rotate: '-90deg' }] }]}
+                          contentFit="contain"
+                        />
+                      </TouchableOpacity>
                     </View>
 
                     {/* Separator */}
                     <View style={styles.separator} />
 
-                    {/* Reps or Time - Centered in Right Section */}
+                    {/* Reps or Time - Centered in Right Section with Adjusters */}
                     <View style={styles.infoItemRight}>
+                      <TouchableOpacity 
+                        style={styles.adjusterButton}
+                        onPressIn={() => startHoldIncrement(() => adjustRepsValue(1), repsHoldIntervalRef, repsHoldTimeoutRef)}
+                        onPressOut={() => stopHoldIncrement(repsHoldIntervalRef, repsHoldTimeoutRef)}
+                        activeOpacity={0.5}
+                      >
+                        <Image
+                          source={require('../assets/icons/back.svg')}
+                          style={[styles.adjusterIcon, { transform: [{ rotate: '90deg' }] }]}
+                          contentFit="contain"
+                        />
+                      </TouchableOpacity>
                       <Text style={[styles.infoValue, { color: nucleus.light.global.blue["60"] }]}>
-                        {workoutEntry.time && !workoutEntry.reps 
+                        {workoutEntryNode.time && !workoutEntryNode.reps 
                           ? parseTime(adjustedTime)
                           : (adjustedReps ? parseReps(adjustedReps).min : '-')
                         }
                       </Text>
                       <Text style={[styles.infoLabel, { color: nucleus.light.global.grey["90"] }]}>
-                        {workoutEntry.time && !workoutEntry.reps ? 'TIME' : 'REPS'}
+                        {workoutEntryNode.time && !workoutEntryNode.reps ? 'TIME' : 'REPS'}
                       </Text>
+                      <TouchableOpacity 
+                        style={styles.adjusterButton}
+                        onPressIn={() => startHoldIncrement(() => adjustRepsValue(-1), repsHoldIntervalRef, repsHoldTimeoutRef)}
+                        onPressOut={() => stopHoldIncrement(repsHoldIntervalRef, repsHoldTimeoutRef)}
+                        activeOpacity={0.5}
+                      >
+                        <Image
+                          source={require('../assets/icons/back.svg')}
+                          style={[styles.adjusterIcon, { transform: [{ rotate: '-90deg' }] }]}
+                          contentFit="contain"
+                        />
+                      </TouchableOpacity>
                     </View>
                   </View>
                 )}
               
-                {/* Instructions Section */}
-                <View style={styles.instructionsSection}>
-                  {exerciseData.instructions.map((instruction, index) => (
-                    <Text key={index} style={styles.instructionText}>
-                      {instruction}
-                    </Text>
-                  ))}
-                  
-                  {/* Tips */}
-                  <View style={styles.tipsContainer}>
-                    {exerciseData.tips.map((tip, index) => (
-                      <Text key={index} style={styles.tipText}>
-                        ✅ {tip}
-                      </Text>
-                    ))}
-                  </View>
-                </View>
-
-                {/* Equipment Section - Unified UI with smart layout */}
-                <View style={styles.equipmentSection}>
-                  <Text style={styles.equipmentTitle}>Equipment</Text>
-                  
-                  {exerciseData.equipmentGroups && exerciseData.equipmentGroups.length > 0 ? (
-                    <View style={styles.equipmentContainer}>
-                      {exerciseData.equipmentGroups.map((group, groupIndex) => (
-                        <View key={groupIndex} style={styles.equipmentGroupWrapper}>
-                          {/* Each group is a row of alternatives (OR) */}
-                          <View style={styles.equipmentAlternativesRow}>
-                            {group.map((equipmentSlug, itemIndex) => {
-                              const equipmentName = equipmentSlug
-                                .split('-')
-                                .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
-                                .join(' ');
-                              
-                              return (
-                                <React.Fragment key={`${groupIndex}-${itemIndex}`}>
-                                  <View style={styles.equipmentChip}>
-                                    <View style={styles.equipmentChipIconContainer}>
-                                      <Image
-                                        source={getEquipmentIcon(equipmentSlug)}
-                                        style={styles.equipmentChipImage}
-                                        contentFit="contain"
-                                      />
-                                    </View>
-                                    <Text style={styles.equipmentChipText} numberOfLines={1}>
-                                      {equipmentName}
-                                    </Text>
-                                  </View>
-                                  {/* "or" text between alternatives in the same group */}
-                                  {itemIndex < group.length - 1 && (
-                                    <Text style={styles.equipmentOrText}>or</Text>
-                                  )}
-                                </React.Fragment>
-                              );
-                            })}
-                          </View>
-                          {/* "and" indicator between required groups (AND) */}
-                          {groupIndex < exerciseData.equipmentGroups!.length - 1 && (
-                            <View style={styles.equipmentAndSeparator}>
-                              <View style={styles.equipmentAndLine} />
-                              <Text style={styles.equipmentAndText}>and</Text>
-                              <View style={styles.equipmentAndLine} />
-                            </View>
-                          )}
-                        </View>
-                      ))}
-                    </View>
-                  ) : (
-                    <View style={styles.equipmentContainer}>
-                      <View style={styles.equipmentChip}>
-                        <View style={styles.equipmentChipIconContainer}>
-                          <Image
-                            source={require('../assets/equipment_icons/body-weight.png')}
-                            style={styles.equipmentChipImage}
-                            contentFit="contain"
-                          />
-                        </View>
-                        <Text style={styles.equipmentChipText}>
-                          {exerciseData.equipment[0] || "Body Weight"}
-                        </Text>
-                      </View>
-                    </View>
-                  )}
-                </View>
+              
 
                   {/* Alternatives Section - Using card style from workout.tsx */}
                   {alternatives && alternatives.length > 0 && (
-                    <View>
-                        <Text style={styles.equipmentTitle}>Similar Alternatives</Text>
-                     
-                      
+                    <View style={styles.alternativesSection}>
+                      <Text style={styles.equipmentTitle}>Similar Alternatives</Text>
                       <View style={styles.alternativesList}>
-                        {alternatives.map((alternative) => {
-                          const altExercise = alternative.node.exercises;
-                          const cleanName = altExercise.name.replace(/\s*\([^)]*\)/g, '').trim();
-                          const thumbnailUrl = altExercise.slug 
-                            ? `https://kmtddcpdqkeqipyetwjs.supabase.co/storage/v1/object/public/workouts/processed/${altExercise.slug}/${altExercise.slug}_cropped_thumbnail_low.jpg`
-                            : null;
-
-                          return (
-                            <TouchableOpacity
-                              key={alternative.node.id}
-                              style={styles.alternativeCard}
-                              onPress={() => {
-                                if (onSelectAlternative) {
-                                  onSelectAlternative(altExercise);
-                                }
-                              }}
-                              activeOpacity={0.7}
-                            >
-                              <View style={styles.alternativeRow}>
-                                <View style={styles.alternativeImageContainer}>
-                                  {thumbnailUrl ? (
-                                    <Image
-                                      source={{ uri: thumbnailUrl }}
-                                      style={styles.alternativeImage}
-                                      contentFit="cover"
-                                      cachePolicy="memory-disk"
-                                      onError={() => {
-                                        console.log('Failed to load alternative thumbnail:', thumbnailUrl);
-                                      }}
-                                      placeholder={require('../assets/exercises/squats.png')}
-                                      placeholderContentFit="cover"
-                                    />
-                                  ) : (
-                                    <Image
-                                      source={require('../assets/exercises/squats.png')}
-                                      style={styles.alternativeImage}
-                                      contentFit="cover"
-                                    />
-                                  )}
-                                </View>
-                                <View style={styles.alternativeInfo}>
-                                  <View style={styles.alternativeTextContainer}>
-                                    <Text style={styles.alternativeName} numberOfLines={3} ellipsizeMode="tail">
-                                      {cleanName}
-                                    </Text>
-                                    {alternative.node.note && (
-                                      <Text style={styles.alternativeNote}>
-                                        {alternative.node.note}
-                                      </Text>
-                                    )}
-                                  </View>
-                                </View>
-                              </View>
-                            </TouchableOpacity>
-                          );
-                        })}
+                        {alternatives.map((alternative) => (
+                          <AlternativeExerciseCard
+                            key={alternative.node.id}
+                            alternative={alternative}
+                            onSelect={handleSelectAlternative}
+                            isSwapping={isSwapping}
+                          />
+                        ))}
                       </View>
                     </View>
                   )}
@@ -710,9 +878,14 @@ const styles = StyleSheet.create({
   },
   videoContainer: {
     position: 'relative',
-    height: 393,
+    height: 200,
     width: '100%',
     backgroundColor: nucleus.light.semantic.bg.muted,
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    overflow: 'hidden',
+    marginTop: 4,
+    alignSelf: 'stretch',
   },
   overlayCloseButton: {
     position: 'absolute',
@@ -735,44 +908,25 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   heroContainer: {
-    height: 393,
+    height: 200,
     width: '100%',
     backgroundColor: nucleus.light.semantic.bg.muted,
     overflow: 'hidden',
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    alignSelf: 'stretch',
   },
   heroImage: {
     width: '100%',
     height: '100%',
+    alignSelf: 'stretch',
   },
-  videoWrapper: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    width: '100%',
-    height: '100%',
-  },
-  heroVideo: {
-    width: '100%',
-    height: '100%',
-  },
-  loadingOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: nucleus.light.semantic.bg.muted,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 16,
-    zIndex: 10,
-  },
+
   
   contentContainer: {
-    padding: 32,
-    gap: 16,
+    padding: 24,
+    paddingTop: 16,
+    gap: 12,
   },
   titleSection: {
     alignItems: 'center',
@@ -925,7 +1079,7 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 3,
+    gap: 2,
   },
   infoItemRight: {
     display: 'flex',
@@ -933,7 +1087,16 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 3,
+    gap: 2,
+  },
+  adjusterButton: {
+    paddingVertical:0,
+    paddingHorizontal: 20,
+  },
+  adjusterIcon: {
+    width: 28,
+    height: 28,
+    tintColor: nucleus.light.global.grey["50"],
   },
   infoValue: {
     fontFamily: 'PlusJakartaSans-Bold',
@@ -953,18 +1116,23 @@ const styles = StyleSheet.create({
     backgroundColor: '#D9D9D9',
   },
   // Alternatives card styles - copied from workout.tsx
+  alternativesSection: {
+    gap: 16,
+  },
   alternativesList: {
     flexDirection: 'column',
     alignItems: 'flex-start',
-    gap: 8,
+    gap: 16,
     alignSelf: 'stretch',
   },
   alternativeCard: {
-    backgroundColor: nucleus.light.global.white,
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
     borderRadius: 12,
     padding: 16,
     gap: 12,
     alignSelf: 'stretch',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.05)',
   },
   alternativeRow: {
     alignItems: 'flex-start',

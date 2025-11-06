@@ -9146,11 +9146,12 @@ Requirements:
 - Must have similar movement patterns
 - Must match difficulty level
 - Use same sets/reps/weight as main exercise
+- Unique alternatives (no duplicates)
 
 Format:
 \`\`\`json
 "similar_alternative_exercises": ["Exercise 1", "Exercise 2"],
-"similar_alternative_exercises_notes": ["Brief note 1.", "Brief note 2."]
+"similar_alternative_exercises_notes": ["Brief personalized note 1.", "Brief personalized note 2."]
 \`\`\`
 
 Note Guidelines (keep short and focused):
