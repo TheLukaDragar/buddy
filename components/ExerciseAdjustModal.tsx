@@ -1,7 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { Image } from "expo-image";
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, BackHandler, Dimensions, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { BackHandler, Dimensions, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { AutoSkeletonView } from 'react-native-auto-skeleton';
 import { PanGestureHandler } from 'react-native-gesture-handler';
 import { Text } from 'react-native-paper';
@@ -22,7 +22,7 @@ import Animated, {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { nucleus } from '../Buddy_variables';
 import { GetWorkoutEntryBasicQuery } from '../graphql/generated';
-import { useGetWorkoutEntryBasicQuery, useGetExerciseByIdQuery, useSwapExerciseWithAlternativeMutation, useUpdateWorkoutEntryMutation } from '../store/api/enhancedApi';
+import { useGetExerciseByIdQuery, useGetWorkoutEntryBasicQuery, useSwapExerciseWithAlternativeMutation, useUpdateWorkoutEntryMutation } from '../store/api/enhancedApi';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 
