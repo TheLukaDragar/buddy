@@ -841,7 +841,7 @@ const ExerciseInfoModal = React.memo<ExerciseInfoModalProps>(function ExerciseIn
 const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    zIndex: 1000,
+    zIndex: 4000, // Higher than BottomModal (2000) and MusicModal (3000)
   },
   backdrop: {
     flex: 1,

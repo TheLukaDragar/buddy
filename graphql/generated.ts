@@ -191,6 +191,7 @@ export type IntListFilter = {
 /** The root type for creating and mutating data */
 export type Mutation = {
   __typename?: "Mutation";
+  calculate_total_time_ms?: Maybe<Scalars["BigInt"]["output"]>;
   /** Deletes zero or more records from the `exercises` collection */
   deleteFromexercisesCollection: ExercisesDeleteResponse;
   /** Deletes zero or more records from the `todos` collection */
@@ -209,6 +210,15 @@ export type Mutation = {
   deleteFromworkout_plan_requestsCollection: Workout_Plan_RequestsDeleteResponse;
   /** Deletes zero or more records from the `workout_plans` collection */
   deleteFromworkout_plansCollection: Workout_PlansDeleteResponse;
+  /** Deletes zero or more records from the `workout_session_adjustments` collection */
+  deleteFromworkout_session_adjustmentsCollection: Workout_Session_AdjustmentsDeleteResponse;
+  /** Deletes zero or more records from the `workout_session_chat` collection */
+  deleteFromworkout_session_chatCollection: Workout_Session_ChatDeleteResponse;
+  /** Deletes zero or more records from the `workout_session_sets` collection */
+  deleteFromworkout_session_setsCollection: Workout_Session_SetsDeleteResponse;
+  /** Deletes zero or more records from the `workout_sessions` collection */
+  deleteFromworkout_sessionsCollection: Workout_SessionsDeleteResponse;
+  increment_completed_sets?: Maybe<Scalars["Opaque"]["output"]>;
   /** Adds one or more `exercises` records to the collection */
   insertIntoexercisesCollection?: Maybe<ExercisesInsertResponse>;
   /** Adds one or more `todos` records to the collection */
@@ -227,6 +237,14 @@ export type Mutation = {
   insertIntoworkout_plan_requestsCollection?: Maybe<Workout_Plan_RequestsInsertResponse>;
   /** Adds one or more `workout_plans` records to the collection */
   insertIntoworkout_plansCollection?: Maybe<Workout_PlansInsertResponse>;
+  /** Adds one or more `workout_session_adjustments` records to the collection */
+  insertIntoworkout_session_adjustmentsCollection?: Maybe<Workout_Session_AdjustmentsInsertResponse>;
+  /** Adds one or more `workout_session_chat` records to the collection */
+  insertIntoworkout_session_chatCollection?: Maybe<Workout_Session_ChatInsertResponse>;
+  /** Adds one or more `workout_session_sets` records to the collection */
+  insertIntoworkout_session_setsCollection?: Maybe<Workout_Session_SetsInsertResponse>;
+  /** Adds one or more `workout_sessions` records to the collection */
+  insertIntoworkout_sessionsCollection?: Maybe<Workout_SessionsInsertResponse>;
   /** Updates zero or more records in the `exercises` collection */
   updateexercisesCollection: ExercisesUpdateResponse;
   /** Updates zero or more records in the `todos` collection */
@@ -245,6 +263,19 @@ export type Mutation = {
   updateworkout_plan_requestsCollection: Workout_Plan_RequestsUpdateResponse;
   /** Updates zero or more records in the `workout_plans` collection */
   updateworkout_plansCollection: Workout_PlansUpdateResponse;
+  /** Updates zero or more records in the `workout_session_adjustments` collection */
+  updateworkout_session_adjustmentsCollection: Workout_Session_AdjustmentsUpdateResponse;
+  /** Updates zero or more records in the `workout_session_chat` collection */
+  updateworkout_session_chatCollection: Workout_Session_ChatUpdateResponse;
+  /** Updates zero or more records in the `workout_session_sets` collection */
+  updateworkout_session_setsCollection: Workout_Session_SetsUpdateResponse;
+  /** Updates zero or more records in the `workout_sessions` collection */
+  updateworkout_sessionsCollection: Workout_SessionsUpdateResponse;
+};
+
+/** The root type for creating and mutating data */
+export type MutationCalculate_Total_Time_MsArgs = {
+  session_id: Scalars["UUID"]["input"];
 };
 
 /** The root type for creating and mutating data */
@@ -302,6 +333,35 @@ export type MutationDeleteFromworkout_PlansCollectionArgs = {
 };
 
 /** The root type for creating and mutating data */
+export type MutationDeleteFromworkout_Session_AdjustmentsCollectionArgs = {
+  atMost?: Scalars["Int"]["input"];
+  filter?: InputMaybe<Workout_Session_AdjustmentsFilter>;
+};
+
+/** The root type for creating and mutating data */
+export type MutationDeleteFromworkout_Session_ChatCollectionArgs = {
+  atMost?: Scalars["Int"]["input"];
+  filter?: InputMaybe<Workout_Session_ChatFilter>;
+};
+
+/** The root type for creating and mutating data */
+export type MutationDeleteFromworkout_Session_SetsCollectionArgs = {
+  atMost?: Scalars["Int"]["input"];
+  filter?: InputMaybe<Workout_Session_SetsFilter>;
+};
+
+/** The root type for creating and mutating data */
+export type MutationDeleteFromworkout_SessionsCollectionArgs = {
+  atMost?: Scalars["Int"]["input"];
+  filter?: InputMaybe<Workout_SessionsFilter>;
+};
+
+/** The root type for creating and mutating data */
+export type MutationIncrement_Completed_SetsArgs = {
+  session_id: Scalars["UUID"]["input"];
+};
+
+/** The root type for creating and mutating data */
 export type MutationInsertIntoexercisesCollectionArgs = {
   objects: Array<ExercisesInsertInput>;
 };
@@ -344,6 +404,26 @@ export type MutationInsertIntoworkout_Plan_RequestsCollectionArgs = {
 /** The root type for creating and mutating data */
 export type MutationInsertIntoworkout_PlansCollectionArgs = {
   objects: Array<Workout_PlansInsertInput>;
+};
+
+/** The root type for creating and mutating data */
+export type MutationInsertIntoworkout_Session_AdjustmentsCollectionArgs = {
+  objects: Array<Workout_Session_AdjustmentsInsertInput>;
+};
+
+/** The root type for creating and mutating data */
+export type MutationInsertIntoworkout_Session_ChatCollectionArgs = {
+  objects: Array<Workout_Session_ChatInsertInput>;
+};
+
+/** The root type for creating and mutating data */
+export type MutationInsertIntoworkout_Session_SetsCollectionArgs = {
+  objects: Array<Workout_Session_SetsInsertInput>;
+};
+
+/** The root type for creating and mutating data */
+export type MutationInsertIntoworkout_SessionsCollectionArgs = {
+  objects: Array<Workout_SessionsInsertInput>;
 };
 
 /** The root type for creating and mutating data */
@@ -409,6 +489,34 @@ export type MutationUpdateworkout_PlansCollectionArgs = {
   set: Workout_PlansUpdateInput;
 };
 
+/** The root type for creating and mutating data */
+export type MutationUpdateworkout_Session_AdjustmentsCollectionArgs = {
+  atMost?: Scalars["Int"]["input"];
+  filter?: InputMaybe<Workout_Session_AdjustmentsFilter>;
+  set: Workout_Session_AdjustmentsUpdateInput;
+};
+
+/** The root type for creating and mutating data */
+export type MutationUpdateworkout_Session_ChatCollectionArgs = {
+  atMost?: Scalars["Int"]["input"];
+  filter?: InputMaybe<Workout_Session_ChatFilter>;
+  set: Workout_Session_ChatUpdateInput;
+};
+
+/** The root type for creating and mutating data */
+export type MutationUpdateworkout_Session_SetsCollectionArgs = {
+  atMost?: Scalars["Int"]["input"];
+  filter?: InputMaybe<Workout_Session_SetsFilter>;
+  set: Workout_Session_SetsUpdateInput;
+};
+
+/** The root type for creating and mutating data */
+export type MutationUpdateworkout_SessionsCollectionArgs = {
+  atMost?: Scalars["Int"]["input"];
+  filter?: InputMaybe<Workout_SessionsFilter>;
+  set: Workout_SessionsUpdateInput;
+};
+
 export type Node = {
   /** Retrieves a record by `ID` */
   nodeId: Scalars["ID"]["output"];
@@ -463,6 +571,14 @@ export type Query = {
   workout_plan_requestsCollection?: Maybe<Workout_Plan_RequestsConnection>;
   /** A pagable collection of type `workout_plans` */
   workout_plansCollection?: Maybe<Workout_PlansConnection>;
+  /** A pagable collection of type `workout_session_adjustments` */
+  workout_session_adjustmentsCollection?: Maybe<Workout_Session_AdjustmentsConnection>;
+  /** A pagable collection of type `workout_session_chat` */
+  workout_session_chatCollection?: Maybe<Workout_Session_ChatConnection>;
+  /** A pagable collection of type `workout_session_sets` */
+  workout_session_setsCollection?: Maybe<Workout_Session_SetsConnection>;
+  /** A pagable collection of type `workout_sessions` */
+  workout_sessionsCollection?: Maybe<Workout_SessionsConnection>;
 };
 
 /** The root type for querying data */
@@ -569,6 +685,50 @@ export type QueryWorkout_PlansCollectionArgs = {
   orderBy?: InputMaybe<Array<Workout_PlansOrderBy>>;
 };
 
+/** The root type for querying data */
+export type QueryWorkout_Session_AdjustmentsCollectionArgs = {
+  after?: InputMaybe<Scalars["Cursor"]["input"]>;
+  before?: InputMaybe<Scalars["Cursor"]["input"]>;
+  filter?: InputMaybe<Workout_Session_AdjustmentsFilter>;
+  first?: InputMaybe<Scalars["Int"]["input"]>;
+  last?: InputMaybe<Scalars["Int"]["input"]>;
+  offset?: InputMaybe<Scalars["Int"]["input"]>;
+  orderBy?: InputMaybe<Array<Workout_Session_AdjustmentsOrderBy>>;
+};
+
+/** The root type for querying data */
+export type QueryWorkout_Session_ChatCollectionArgs = {
+  after?: InputMaybe<Scalars["Cursor"]["input"]>;
+  before?: InputMaybe<Scalars["Cursor"]["input"]>;
+  filter?: InputMaybe<Workout_Session_ChatFilter>;
+  first?: InputMaybe<Scalars["Int"]["input"]>;
+  last?: InputMaybe<Scalars["Int"]["input"]>;
+  offset?: InputMaybe<Scalars["Int"]["input"]>;
+  orderBy?: InputMaybe<Array<Workout_Session_ChatOrderBy>>;
+};
+
+/** The root type for querying data */
+export type QueryWorkout_Session_SetsCollectionArgs = {
+  after?: InputMaybe<Scalars["Cursor"]["input"]>;
+  before?: InputMaybe<Scalars["Cursor"]["input"]>;
+  filter?: InputMaybe<Workout_Session_SetsFilter>;
+  first?: InputMaybe<Scalars["Int"]["input"]>;
+  last?: InputMaybe<Scalars["Int"]["input"]>;
+  offset?: InputMaybe<Scalars["Int"]["input"]>;
+  orderBy?: InputMaybe<Array<Workout_Session_SetsOrderBy>>;
+};
+
+/** The root type for querying data */
+export type QueryWorkout_SessionsCollectionArgs = {
+  after?: InputMaybe<Scalars["Cursor"]["input"]>;
+  before?: InputMaybe<Scalars["Cursor"]["input"]>;
+  filter?: InputMaybe<Workout_SessionsFilter>;
+  first?: InputMaybe<Scalars["Int"]["input"]>;
+  last?: InputMaybe<Scalars["Int"]["input"]>;
+  offset?: InputMaybe<Scalars["Int"]["input"]>;
+  orderBy?: InputMaybe<Array<Workout_SessionsOrderBy>>;
+};
+
 /** Boolean expression comparing fields on type "String" */
 export type StringFilter = {
   eq?: InputMaybe<Scalars["String"]["input"]>;
@@ -657,6 +817,8 @@ export type Exercises = Node & {
   workout_entriesCollection?: Maybe<Workout_EntriesConnection>;
   workout_entry_alternativesCollection?: Maybe<Workout_Entry_AlternativesConnection>;
   workout_entry_exercise_notesCollection?: Maybe<Workout_Entry_Exercise_NotesConnection>;
+  workout_session_adjustmentsCollection?: Maybe<Workout_Session_AdjustmentsConnection>;
+  workout_session_setsCollection?: Maybe<Workout_Session_SetsConnection>;
 };
 
 export type ExercisesWorkout_EntriesCollectionArgs = {
@@ -687,6 +849,26 @@ export type ExercisesWorkout_Entry_Exercise_NotesCollectionArgs = {
   last?: InputMaybe<Scalars["Int"]["input"]>;
   offset?: InputMaybe<Scalars["Int"]["input"]>;
   orderBy?: InputMaybe<Array<Workout_Entry_Exercise_NotesOrderBy>>;
+};
+
+export type ExercisesWorkout_Session_AdjustmentsCollectionArgs = {
+  after?: InputMaybe<Scalars["Cursor"]["input"]>;
+  before?: InputMaybe<Scalars["Cursor"]["input"]>;
+  filter?: InputMaybe<Workout_Session_AdjustmentsFilter>;
+  first?: InputMaybe<Scalars["Int"]["input"]>;
+  last?: InputMaybe<Scalars["Int"]["input"]>;
+  offset?: InputMaybe<Scalars["Int"]["input"]>;
+  orderBy?: InputMaybe<Array<Workout_Session_AdjustmentsOrderBy>>;
+};
+
+export type ExercisesWorkout_Session_SetsCollectionArgs = {
+  after?: InputMaybe<Scalars["Cursor"]["input"]>;
+  before?: InputMaybe<Scalars["Cursor"]["input"]>;
+  filter?: InputMaybe<Workout_Session_SetsFilter>;
+  first?: InputMaybe<Scalars["Int"]["input"]>;
+  last?: InputMaybe<Scalars["Int"]["input"]>;
+  offset?: InputMaybe<Scalars["Int"]["input"]>;
+  orderBy?: InputMaybe<Array<Workout_Session_SetsOrderBy>>;
 };
 
 export type ExercisesConnection = {
@@ -1134,6 +1316,8 @@ export type Workout_Entries = Node & {
   workout_entry_exercise_notesCollection?: Maybe<Workout_Entry_Exercise_NotesConnection>;
   workout_plan_id: Scalars["UUID"]["output"];
   workout_plans?: Maybe<Workout_Plans>;
+  workout_session_adjustmentsCollection?: Maybe<Workout_Session_AdjustmentsConnection>;
+  workout_session_setsCollection?: Maybe<Workout_Session_SetsConnection>;
 };
 
 export type Workout_EntriesWorkout_Entry_AlternativesCollectionArgs = {
@@ -1154,6 +1338,26 @@ export type Workout_EntriesWorkout_Entry_Exercise_NotesCollectionArgs = {
   last?: InputMaybe<Scalars["Int"]["input"]>;
   offset?: InputMaybe<Scalars["Int"]["input"]>;
   orderBy?: InputMaybe<Array<Workout_Entry_Exercise_NotesOrderBy>>;
+};
+
+export type Workout_EntriesWorkout_Session_AdjustmentsCollectionArgs = {
+  after?: InputMaybe<Scalars["Cursor"]["input"]>;
+  before?: InputMaybe<Scalars["Cursor"]["input"]>;
+  filter?: InputMaybe<Workout_Session_AdjustmentsFilter>;
+  first?: InputMaybe<Scalars["Int"]["input"]>;
+  last?: InputMaybe<Scalars["Int"]["input"]>;
+  offset?: InputMaybe<Scalars["Int"]["input"]>;
+  orderBy?: InputMaybe<Array<Workout_Session_AdjustmentsOrderBy>>;
+};
+
+export type Workout_EntriesWorkout_Session_SetsCollectionArgs = {
+  after?: InputMaybe<Scalars["Cursor"]["input"]>;
+  before?: InputMaybe<Scalars["Cursor"]["input"]>;
+  filter?: InputMaybe<Workout_Session_SetsFilter>;
+  first?: InputMaybe<Scalars["Int"]["input"]>;
+  last?: InputMaybe<Scalars["Int"]["input"]>;
+  offset?: InputMaybe<Scalars["Int"]["input"]>;
+  orderBy?: InputMaybe<Array<Workout_Session_SetsOrderBy>>;
 };
 
 export type Workout_EntriesConnection = {
@@ -1629,6 +1833,7 @@ export type Workout_Plans = Node & {
   user_id: Scalars["UUID"]["output"];
   workout_entriesCollection?: Maybe<Workout_EntriesConnection>;
   workout_plan_requestsCollection?: Maybe<Workout_Plan_RequestsConnection>;
+  workout_sessionsCollection?: Maybe<Workout_SessionsConnection>;
 };
 
 export type Workout_PlansUser_FeedbackCollectionArgs = {
@@ -1659,6 +1864,16 @@ export type Workout_PlansWorkout_Plan_RequestsCollectionArgs = {
   last?: InputMaybe<Scalars["Int"]["input"]>;
   offset?: InputMaybe<Scalars["Int"]["input"]>;
   orderBy?: InputMaybe<Array<Workout_Plan_RequestsOrderBy>>;
+};
+
+export type Workout_PlansWorkout_SessionsCollectionArgs = {
+  after?: InputMaybe<Scalars["Cursor"]["input"]>;
+  before?: InputMaybe<Scalars["Cursor"]["input"]>;
+  filter?: InputMaybe<Workout_SessionsFilter>;
+  first?: InputMaybe<Scalars["Int"]["input"]>;
+  last?: InputMaybe<Scalars["Int"]["input"]>;
+  offset?: InputMaybe<Scalars["Int"]["input"]>;
+  orderBy?: InputMaybe<Array<Workout_SessionsOrderBy>>;
 };
 
 export type Workout_PlansConnection = {
@@ -1742,6 +1957,598 @@ export type Workout_PlansUpdateResponse = {
   affectedCount: Scalars["Int"]["output"];
   /** Array of records impacted by the mutation */
   records: Array<Workout_Plans>;
+};
+
+export type Workout_Session_Adjustments = Node & {
+  __typename?: "workout_session_adjustments";
+  affected_set_numbers?: Maybe<Array<Maybe<Scalars["Int"]["output"]>>>;
+  affects_future_sets?: Maybe<Scalars["Boolean"]["output"]>;
+  created_at: Scalars["Datetime"]["output"];
+  exercise_id?: Maybe<Scalars["UUID"]["output"]>;
+  exercises?: Maybe<Exercises>;
+  from_value: Scalars["String"]["output"];
+  id: Scalars["UUID"]["output"];
+  metadata?: Maybe<Scalars["JSON"]["output"]>;
+  /** Globally Unique Record Identifier */
+  nodeId: Scalars["ID"]["output"];
+  reason: Scalars["String"]["output"];
+  session_id: Scalars["UUID"]["output"];
+  to_value: Scalars["String"]["output"];
+  type: Scalars["String"]["output"];
+  workout_entries?: Maybe<Workout_Entries>;
+  workout_entry_id?: Maybe<Scalars["UUID"]["output"]>;
+  workout_sessions?: Maybe<Workout_Sessions>;
+};
+
+export type Workout_Session_AdjustmentsConnection = {
+  __typename?: "workout_session_adjustmentsConnection";
+  edges: Array<Workout_Session_AdjustmentsEdge>;
+  pageInfo: PageInfo;
+};
+
+export type Workout_Session_AdjustmentsDeleteResponse = {
+  __typename?: "workout_session_adjustmentsDeleteResponse";
+  /** Count of the records impacted by the mutation */
+  affectedCount: Scalars["Int"]["output"];
+  /** Array of records impacted by the mutation */
+  records: Array<Workout_Session_Adjustments>;
+};
+
+export type Workout_Session_AdjustmentsEdge = {
+  __typename?: "workout_session_adjustmentsEdge";
+  cursor: Scalars["String"]["output"];
+  node: Workout_Session_Adjustments;
+};
+
+export type Workout_Session_AdjustmentsFilter = {
+  affected_set_numbers?: InputMaybe<IntListFilter>;
+  affects_future_sets?: InputMaybe<BooleanFilter>;
+  /** Returns true only if all its inner filters are true, otherwise returns false */
+  and?: InputMaybe<Array<Workout_Session_AdjustmentsFilter>>;
+  created_at?: InputMaybe<DatetimeFilter>;
+  exercise_id?: InputMaybe<UuidFilter>;
+  from_value?: InputMaybe<StringFilter>;
+  id?: InputMaybe<UuidFilter>;
+  nodeId?: InputMaybe<IdFilter>;
+  /** Negates a filter */
+  not?: InputMaybe<Workout_Session_AdjustmentsFilter>;
+  /** Returns true if at least one of its inner filters is true, otherwise returns false */
+  or?: InputMaybe<Array<Workout_Session_AdjustmentsFilter>>;
+  reason?: InputMaybe<StringFilter>;
+  session_id?: InputMaybe<UuidFilter>;
+  to_value?: InputMaybe<StringFilter>;
+  type?: InputMaybe<StringFilter>;
+  workout_entry_id?: InputMaybe<UuidFilter>;
+};
+
+export type Workout_Session_AdjustmentsInsertInput = {
+  affected_set_numbers?: InputMaybe<Array<InputMaybe<Scalars["Int"]["input"]>>>;
+  affects_future_sets?: InputMaybe<Scalars["Boolean"]["input"]>;
+  created_at?: InputMaybe<Scalars["Datetime"]["input"]>;
+  exercise_id?: InputMaybe<Scalars["UUID"]["input"]>;
+  from_value?: InputMaybe<Scalars["String"]["input"]>;
+  id?: InputMaybe<Scalars["UUID"]["input"]>;
+  metadata?: InputMaybe<Scalars["JSON"]["input"]>;
+  reason?: InputMaybe<Scalars["String"]["input"]>;
+  session_id?: InputMaybe<Scalars["UUID"]["input"]>;
+  to_value?: InputMaybe<Scalars["String"]["input"]>;
+  type?: InputMaybe<Scalars["String"]["input"]>;
+  workout_entry_id?: InputMaybe<Scalars["UUID"]["input"]>;
+};
+
+export type Workout_Session_AdjustmentsInsertResponse = {
+  __typename?: "workout_session_adjustmentsInsertResponse";
+  /** Count of the records impacted by the mutation */
+  affectedCount: Scalars["Int"]["output"];
+  /** Array of records impacted by the mutation */
+  records: Array<Workout_Session_Adjustments>;
+};
+
+export type Workout_Session_AdjustmentsOrderBy = {
+  affects_future_sets?: InputMaybe<OrderByDirection>;
+  created_at?: InputMaybe<OrderByDirection>;
+  exercise_id?: InputMaybe<OrderByDirection>;
+  from_value?: InputMaybe<OrderByDirection>;
+  id?: InputMaybe<OrderByDirection>;
+  reason?: InputMaybe<OrderByDirection>;
+  session_id?: InputMaybe<OrderByDirection>;
+  to_value?: InputMaybe<OrderByDirection>;
+  type?: InputMaybe<OrderByDirection>;
+  workout_entry_id?: InputMaybe<OrderByDirection>;
+};
+
+export type Workout_Session_AdjustmentsUpdateInput = {
+  affected_set_numbers?: InputMaybe<Array<InputMaybe<Scalars["Int"]["input"]>>>;
+  affects_future_sets?: InputMaybe<Scalars["Boolean"]["input"]>;
+  created_at?: InputMaybe<Scalars["Datetime"]["input"]>;
+  exercise_id?: InputMaybe<Scalars["UUID"]["input"]>;
+  from_value?: InputMaybe<Scalars["String"]["input"]>;
+  id?: InputMaybe<Scalars["UUID"]["input"]>;
+  metadata?: InputMaybe<Scalars["JSON"]["input"]>;
+  reason?: InputMaybe<Scalars["String"]["input"]>;
+  session_id?: InputMaybe<Scalars["UUID"]["input"]>;
+  to_value?: InputMaybe<Scalars["String"]["input"]>;
+  type?: InputMaybe<Scalars["String"]["input"]>;
+  workout_entry_id?: InputMaybe<Scalars["UUID"]["input"]>;
+};
+
+export type Workout_Session_AdjustmentsUpdateResponse = {
+  __typename?: "workout_session_adjustmentsUpdateResponse";
+  /** Count of the records impacted by the mutation */
+  affectedCount: Scalars["Int"]["output"];
+  /** Array of records impacted by the mutation */
+  records: Array<Workout_Session_Adjustments>;
+};
+
+export type Workout_Session_Chat = Node & {
+  __typename?: "workout_session_chat";
+  conversation_id: Scalars["String"]["output"];
+  created_at: Scalars["Datetime"]["output"];
+  details?: Maybe<Scalars["String"]["output"]>;
+  event_type: Scalars["String"]["output"];
+  id: Scalars["UUID"]["output"];
+  /** Globally Unique Record Identifier */
+  nodeId: Scalars["ID"]["output"];
+  session_id: Scalars["UUID"]["output"];
+  timestamp: Scalars["Datetime"]["output"];
+  workout_sessions?: Maybe<Workout_Sessions>;
+};
+
+export type Workout_Session_ChatConnection = {
+  __typename?: "workout_session_chatConnection";
+  edges: Array<Workout_Session_ChatEdge>;
+  pageInfo: PageInfo;
+};
+
+export type Workout_Session_ChatDeleteResponse = {
+  __typename?: "workout_session_chatDeleteResponse";
+  /** Count of the records impacted by the mutation */
+  affectedCount: Scalars["Int"]["output"];
+  /** Array of records impacted by the mutation */
+  records: Array<Workout_Session_Chat>;
+};
+
+export type Workout_Session_ChatEdge = {
+  __typename?: "workout_session_chatEdge";
+  cursor: Scalars["String"]["output"];
+  node: Workout_Session_Chat;
+};
+
+export type Workout_Session_ChatFilter = {
+  /** Returns true only if all its inner filters are true, otherwise returns false */
+  and?: InputMaybe<Array<Workout_Session_ChatFilter>>;
+  conversation_id?: InputMaybe<StringFilter>;
+  created_at?: InputMaybe<DatetimeFilter>;
+  details?: InputMaybe<StringFilter>;
+  event_type?: InputMaybe<StringFilter>;
+  id?: InputMaybe<UuidFilter>;
+  nodeId?: InputMaybe<IdFilter>;
+  /** Negates a filter */
+  not?: InputMaybe<Workout_Session_ChatFilter>;
+  /** Returns true if at least one of its inner filters is true, otherwise returns false */
+  or?: InputMaybe<Array<Workout_Session_ChatFilter>>;
+  session_id?: InputMaybe<UuidFilter>;
+  timestamp?: InputMaybe<DatetimeFilter>;
+};
+
+export type Workout_Session_ChatInsertInput = {
+  conversation_id?: InputMaybe<Scalars["String"]["input"]>;
+  created_at?: InputMaybe<Scalars["Datetime"]["input"]>;
+  details?: InputMaybe<Scalars["String"]["input"]>;
+  event_type?: InputMaybe<Scalars["String"]["input"]>;
+  id?: InputMaybe<Scalars["UUID"]["input"]>;
+  session_id?: InputMaybe<Scalars["UUID"]["input"]>;
+  timestamp?: InputMaybe<Scalars["Datetime"]["input"]>;
+};
+
+export type Workout_Session_ChatInsertResponse = {
+  __typename?: "workout_session_chatInsertResponse";
+  /** Count of the records impacted by the mutation */
+  affectedCount: Scalars["Int"]["output"];
+  /** Array of records impacted by the mutation */
+  records: Array<Workout_Session_Chat>;
+};
+
+export type Workout_Session_ChatOrderBy = {
+  conversation_id?: InputMaybe<OrderByDirection>;
+  created_at?: InputMaybe<OrderByDirection>;
+  details?: InputMaybe<OrderByDirection>;
+  event_type?: InputMaybe<OrderByDirection>;
+  id?: InputMaybe<OrderByDirection>;
+  session_id?: InputMaybe<OrderByDirection>;
+  timestamp?: InputMaybe<OrderByDirection>;
+};
+
+export type Workout_Session_ChatUpdateInput = {
+  conversation_id?: InputMaybe<Scalars["String"]["input"]>;
+  created_at?: InputMaybe<Scalars["Datetime"]["input"]>;
+  details?: InputMaybe<Scalars["String"]["input"]>;
+  event_type?: InputMaybe<Scalars["String"]["input"]>;
+  id?: InputMaybe<Scalars["UUID"]["input"]>;
+  session_id?: InputMaybe<Scalars["UUID"]["input"]>;
+  timestamp?: InputMaybe<Scalars["Datetime"]["input"]>;
+};
+
+export type Workout_Session_ChatUpdateResponse = {
+  __typename?: "workout_session_chatUpdateResponse";
+  /** Count of the records impacted by the mutation */
+  affectedCount: Scalars["Int"]["output"];
+  /** Array of records impacted by the mutation */
+  records: Array<Workout_Session_Chat>;
+};
+
+export type Workout_Session_Sets = Node & {
+  __typename?: "workout_session_sets";
+  actual_reps?: Maybe<Scalars["Int"]["output"]>;
+  actual_time?: Maybe<Scalars["Int"]["output"]>;
+  actual_weight?: Maybe<Scalars["BigFloat"]["output"]>;
+  completed_at: Scalars["Datetime"]["output"];
+  created_at: Scalars["Datetime"]["output"];
+  difficulty?: Maybe<Scalars["String"]["output"]>;
+  exercise_id: Scalars["UUID"]["output"];
+  exercises: Exercises;
+  id: Scalars["UUID"]["output"];
+  is_completed?: Maybe<Scalars["Boolean"]["output"]>;
+  /** Globally Unique Record Identifier */
+  nodeId: Scalars["ID"]["output"];
+  session_id: Scalars["UUID"]["output"];
+  set_number: Scalars["Int"]["output"];
+  skipped?: Maybe<Scalars["Boolean"]["output"]>;
+  started_at?: Maybe<Scalars["Datetime"]["output"]>;
+  target_reps?: Maybe<Scalars["Int"]["output"]>;
+  target_time?: Maybe<Scalars["Int"]["output"]>;
+  target_weight?: Maybe<Scalars["BigFloat"]["output"]>;
+  user_notes?: Maybe<Scalars["String"]["output"]>;
+  workout_entries?: Maybe<Workout_Entries>;
+  workout_entry_id: Scalars["UUID"]["output"];
+  workout_sessions?: Maybe<Workout_Sessions>;
+};
+
+export type Workout_Session_SetsConnection = {
+  __typename?: "workout_session_setsConnection";
+  edges: Array<Workout_Session_SetsEdge>;
+  pageInfo: PageInfo;
+};
+
+export type Workout_Session_SetsDeleteResponse = {
+  __typename?: "workout_session_setsDeleteResponse";
+  /** Count of the records impacted by the mutation */
+  affectedCount: Scalars["Int"]["output"];
+  /** Array of records impacted by the mutation */
+  records: Array<Workout_Session_Sets>;
+};
+
+export type Workout_Session_SetsEdge = {
+  __typename?: "workout_session_setsEdge";
+  cursor: Scalars["String"]["output"];
+  node: Workout_Session_Sets;
+};
+
+export type Workout_Session_SetsFilter = {
+  actual_reps?: InputMaybe<IntFilter>;
+  actual_time?: InputMaybe<IntFilter>;
+  actual_weight?: InputMaybe<BigFloatFilter>;
+  /** Returns true only if all its inner filters are true, otherwise returns false */
+  and?: InputMaybe<Array<Workout_Session_SetsFilter>>;
+  completed_at?: InputMaybe<DatetimeFilter>;
+  created_at?: InputMaybe<DatetimeFilter>;
+  difficulty?: InputMaybe<StringFilter>;
+  exercise_id?: InputMaybe<UuidFilter>;
+  id?: InputMaybe<UuidFilter>;
+  is_completed?: InputMaybe<BooleanFilter>;
+  nodeId?: InputMaybe<IdFilter>;
+  /** Negates a filter */
+  not?: InputMaybe<Workout_Session_SetsFilter>;
+  /** Returns true if at least one of its inner filters is true, otherwise returns false */
+  or?: InputMaybe<Array<Workout_Session_SetsFilter>>;
+  session_id?: InputMaybe<UuidFilter>;
+  set_number?: InputMaybe<IntFilter>;
+  skipped?: InputMaybe<BooleanFilter>;
+  started_at?: InputMaybe<DatetimeFilter>;
+  target_reps?: InputMaybe<IntFilter>;
+  target_time?: InputMaybe<IntFilter>;
+  target_weight?: InputMaybe<BigFloatFilter>;
+  user_notes?: InputMaybe<StringFilter>;
+  workout_entry_id?: InputMaybe<UuidFilter>;
+};
+
+export type Workout_Session_SetsInsertInput = {
+  actual_reps?: InputMaybe<Scalars["Int"]["input"]>;
+  actual_time?: InputMaybe<Scalars["Int"]["input"]>;
+  actual_weight?: InputMaybe<Scalars["BigFloat"]["input"]>;
+  completed_at?: InputMaybe<Scalars["Datetime"]["input"]>;
+  created_at?: InputMaybe<Scalars["Datetime"]["input"]>;
+  difficulty?: InputMaybe<Scalars["String"]["input"]>;
+  exercise_id?: InputMaybe<Scalars["UUID"]["input"]>;
+  id?: InputMaybe<Scalars["UUID"]["input"]>;
+  is_completed?: InputMaybe<Scalars["Boolean"]["input"]>;
+  session_id?: InputMaybe<Scalars["UUID"]["input"]>;
+  set_number?: InputMaybe<Scalars["Int"]["input"]>;
+  skipped?: InputMaybe<Scalars["Boolean"]["input"]>;
+  started_at?: InputMaybe<Scalars["Datetime"]["input"]>;
+  target_reps?: InputMaybe<Scalars["Int"]["input"]>;
+  target_time?: InputMaybe<Scalars["Int"]["input"]>;
+  target_weight?: InputMaybe<Scalars["BigFloat"]["input"]>;
+  user_notes?: InputMaybe<Scalars["String"]["input"]>;
+  workout_entry_id?: InputMaybe<Scalars["UUID"]["input"]>;
+};
+
+export type Workout_Session_SetsInsertResponse = {
+  __typename?: "workout_session_setsInsertResponse";
+  /** Count of the records impacted by the mutation */
+  affectedCount: Scalars["Int"]["output"];
+  /** Array of records impacted by the mutation */
+  records: Array<Workout_Session_Sets>;
+};
+
+export type Workout_Session_SetsOrderBy = {
+  actual_reps?: InputMaybe<OrderByDirection>;
+  actual_time?: InputMaybe<OrderByDirection>;
+  actual_weight?: InputMaybe<OrderByDirection>;
+  completed_at?: InputMaybe<OrderByDirection>;
+  created_at?: InputMaybe<OrderByDirection>;
+  difficulty?: InputMaybe<OrderByDirection>;
+  exercise_id?: InputMaybe<OrderByDirection>;
+  id?: InputMaybe<OrderByDirection>;
+  is_completed?: InputMaybe<OrderByDirection>;
+  session_id?: InputMaybe<OrderByDirection>;
+  set_number?: InputMaybe<OrderByDirection>;
+  skipped?: InputMaybe<OrderByDirection>;
+  started_at?: InputMaybe<OrderByDirection>;
+  target_reps?: InputMaybe<OrderByDirection>;
+  target_time?: InputMaybe<OrderByDirection>;
+  target_weight?: InputMaybe<OrderByDirection>;
+  user_notes?: InputMaybe<OrderByDirection>;
+  workout_entry_id?: InputMaybe<OrderByDirection>;
+};
+
+export type Workout_Session_SetsUpdateInput = {
+  actual_reps?: InputMaybe<Scalars["Int"]["input"]>;
+  actual_time?: InputMaybe<Scalars["Int"]["input"]>;
+  actual_weight?: InputMaybe<Scalars["BigFloat"]["input"]>;
+  completed_at?: InputMaybe<Scalars["Datetime"]["input"]>;
+  created_at?: InputMaybe<Scalars["Datetime"]["input"]>;
+  difficulty?: InputMaybe<Scalars["String"]["input"]>;
+  exercise_id?: InputMaybe<Scalars["UUID"]["input"]>;
+  id?: InputMaybe<Scalars["UUID"]["input"]>;
+  is_completed?: InputMaybe<Scalars["Boolean"]["input"]>;
+  session_id?: InputMaybe<Scalars["UUID"]["input"]>;
+  set_number?: InputMaybe<Scalars["Int"]["input"]>;
+  skipped?: InputMaybe<Scalars["Boolean"]["input"]>;
+  started_at?: InputMaybe<Scalars["Datetime"]["input"]>;
+  target_reps?: InputMaybe<Scalars["Int"]["input"]>;
+  target_time?: InputMaybe<Scalars["Int"]["input"]>;
+  target_weight?: InputMaybe<Scalars["BigFloat"]["input"]>;
+  user_notes?: InputMaybe<Scalars["String"]["input"]>;
+  workout_entry_id?: InputMaybe<Scalars["UUID"]["input"]>;
+};
+
+export type Workout_Session_SetsUpdateResponse = {
+  __typename?: "workout_session_setsUpdateResponse";
+  /** Count of the records impacted by the mutation */
+  affectedCount: Scalars["Int"]["output"];
+  /** Array of records impacted by the mutation */
+  records: Array<Workout_Session_Sets>;
+};
+
+export type Workout_Sessions = Node & {
+  __typename?: "workout_sessions";
+  completed_at?: Maybe<Scalars["Datetime"]["output"]>;
+  completed_exercises?: Maybe<Scalars["Int"]["output"]>;
+  completed_sets?: Maybe<Scalars["Int"]["output"]>;
+  created_at: Scalars["Datetime"]["output"];
+  current_exercise_index?: Maybe<Scalars["Int"]["output"]>;
+  current_set_index?: Maybe<Scalars["Int"]["output"]>;
+  date: Scalars["Date"]["output"];
+  day: Weekday;
+  day_name: Scalars["String"]["output"];
+  finished_early?: Maybe<Scalars["Boolean"]["output"]>;
+  id: Scalars["UUID"]["output"];
+  is_fully_completed?: Maybe<Scalars["Boolean"]["output"]>;
+  last_activity_at?: Maybe<Scalars["Datetime"]["output"]>;
+  /** Globally Unique Record Identifier */
+  nodeId: Scalars["ID"]["output"];
+  paused_at?: Maybe<Scalars["Datetime"]["output"]>;
+  resumed_at?: Maybe<Scalars["Datetime"]["output"]>;
+  started_at: Scalars["Datetime"]["output"];
+  status: Scalars["String"]["output"];
+  total_exercises: Scalars["Int"]["output"];
+  total_pause_time_ms?: Maybe<Scalars["BigInt"]["output"]>;
+  total_sets: Scalars["Int"]["output"];
+  total_time_ms?: Maybe<Scalars["BigInt"]["output"]>;
+  updated_at: Scalars["Datetime"]["output"];
+  user_id: Scalars["UUID"]["output"];
+  week_number: Scalars["Int"]["output"];
+  workout_plan_id: Scalars["UUID"]["output"];
+  workout_plans?: Maybe<Workout_Plans>;
+  workout_session_adjustmentsCollection?: Maybe<Workout_Session_AdjustmentsConnection>;
+  workout_session_chatCollection?: Maybe<Workout_Session_ChatConnection>;
+  workout_session_setsCollection?: Maybe<Workout_Session_SetsConnection>;
+};
+
+export type Workout_SessionsWorkout_Session_AdjustmentsCollectionArgs = {
+  after?: InputMaybe<Scalars["Cursor"]["input"]>;
+  before?: InputMaybe<Scalars["Cursor"]["input"]>;
+  filter?: InputMaybe<Workout_Session_AdjustmentsFilter>;
+  first?: InputMaybe<Scalars["Int"]["input"]>;
+  last?: InputMaybe<Scalars["Int"]["input"]>;
+  offset?: InputMaybe<Scalars["Int"]["input"]>;
+  orderBy?: InputMaybe<Array<Workout_Session_AdjustmentsOrderBy>>;
+};
+
+export type Workout_SessionsWorkout_Session_ChatCollectionArgs = {
+  after?: InputMaybe<Scalars["Cursor"]["input"]>;
+  before?: InputMaybe<Scalars["Cursor"]["input"]>;
+  filter?: InputMaybe<Workout_Session_ChatFilter>;
+  first?: InputMaybe<Scalars["Int"]["input"]>;
+  last?: InputMaybe<Scalars["Int"]["input"]>;
+  offset?: InputMaybe<Scalars["Int"]["input"]>;
+  orderBy?: InputMaybe<Array<Workout_Session_ChatOrderBy>>;
+};
+
+export type Workout_SessionsWorkout_Session_SetsCollectionArgs = {
+  after?: InputMaybe<Scalars["Cursor"]["input"]>;
+  before?: InputMaybe<Scalars["Cursor"]["input"]>;
+  filter?: InputMaybe<Workout_Session_SetsFilter>;
+  first?: InputMaybe<Scalars["Int"]["input"]>;
+  last?: InputMaybe<Scalars["Int"]["input"]>;
+  offset?: InputMaybe<Scalars["Int"]["input"]>;
+  orderBy?: InputMaybe<Array<Workout_Session_SetsOrderBy>>;
+};
+
+export type Workout_SessionsConnection = {
+  __typename?: "workout_sessionsConnection";
+  edges: Array<Workout_SessionsEdge>;
+  pageInfo: PageInfo;
+};
+
+export type Workout_SessionsDeleteResponse = {
+  __typename?: "workout_sessionsDeleteResponse";
+  /** Count of the records impacted by the mutation */
+  affectedCount: Scalars["Int"]["output"];
+  /** Array of records impacted by the mutation */
+  records: Array<Workout_Sessions>;
+};
+
+export type Workout_SessionsEdge = {
+  __typename?: "workout_sessionsEdge";
+  cursor: Scalars["String"]["output"];
+  node: Workout_Sessions;
+};
+
+export type Workout_SessionsFilter = {
+  /** Returns true only if all its inner filters are true, otherwise returns false */
+  and?: InputMaybe<Array<Workout_SessionsFilter>>;
+  completed_at?: InputMaybe<DatetimeFilter>;
+  completed_exercises?: InputMaybe<IntFilter>;
+  completed_sets?: InputMaybe<IntFilter>;
+  created_at?: InputMaybe<DatetimeFilter>;
+  current_exercise_index?: InputMaybe<IntFilter>;
+  current_set_index?: InputMaybe<IntFilter>;
+  date?: InputMaybe<DateFilter>;
+  day?: InputMaybe<WeekdayFilter>;
+  day_name?: InputMaybe<StringFilter>;
+  finished_early?: InputMaybe<BooleanFilter>;
+  id?: InputMaybe<UuidFilter>;
+  is_fully_completed?: InputMaybe<BooleanFilter>;
+  last_activity_at?: InputMaybe<DatetimeFilter>;
+  nodeId?: InputMaybe<IdFilter>;
+  /** Negates a filter */
+  not?: InputMaybe<Workout_SessionsFilter>;
+  /** Returns true if at least one of its inner filters is true, otherwise returns false */
+  or?: InputMaybe<Array<Workout_SessionsFilter>>;
+  paused_at?: InputMaybe<DatetimeFilter>;
+  resumed_at?: InputMaybe<DatetimeFilter>;
+  started_at?: InputMaybe<DatetimeFilter>;
+  status?: InputMaybe<StringFilter>;
+  total_exercises?: InputMaybe<IntFilter>;
+  total_pause_time_ms?: InputMaybe<BigIntFilter>;
+  total_sets?: InputMaybe<IntFilter>;
+  total_time_ms?: InputMaybe<BigIntFilter>;
+  updated_at?: InputMaybe<DatetimeFilter>;
+  user_id?: InputMaybe<UuidFilter>;
+  week_number?: InputMaybe<IntFilter>;
+  workout_plan_id?: InputMaybe<UuidFilter>;
+};
+
+export type Workout_SessionsInsertInput = {
+  completed_at?: InputMaybe<Scalars["Datetime"]["input"]>;
+  completed_exercises?: InputMaybe<Scalars["Int"]["input"]>;
+  completed_sets?: InputMaybe<Scalars["Int"]["input"]>;
+  created_at?: InputMaybe<Scalars["Datetime"]["input"]>;
+  current_exercise_index?: InputMaybe<Scalars["Int"]["input"]>;
+  current_set_index?: InputMaybe<Scalars["Int"]["input"]>;
+  date?: InputMaybe<Scalars["Date"]["input"]>;
+  day?: InputMaybe<Weekday>;
+  day_name?: InputMaybe<Scalars["String"]["input"]>;
+  finished_early?: InputMaybe<Scalars["Boolean"]["input"]>;
+  id?: InputMaybe<Scalars["UUID"]["input"]>;
+  is_fully_completed?: InputMaybe<Scalars["Boolean"]["input"]>;
+  last_activity_at?: InputMaybe<Scalars["Datetime"]["input"]>;
+  paused_at?: InputMaybe<Scalars["Datetime"]["input"]>;
+  resumed_at?: InputMaybe<Scalars["Datetime"]["input"]>;
+  started_at?: InputMaybe<Scalars["Datetime"]["input"]>;
+  status?: InputMaybe<Scalars["String"]["input"]>;
+  total_exercises?: InputMaybe<Scalars["Int"]["input"]>;
+  total_pause_time_ms?: InputMaybe<Scalars["BigInt"]["input"]>;
+  total_sets?: InputMaybe<Scalars["Int"]["input"]>;
+  total_time_ms?: InputMaybe<Scalars["BigInt"]["input"]>;
+  updated_at?: InputMaybe<Scalars["Datetime"]["input"]>;
+  user_id?: InputMaybe<Scalars["UUID"]["input"]>;
+  week_number?: InputMaybe<Scalars["Int"]["input"]>;
+  workout_plan_id?: InputMaybe<Scalars["UUID"]["input"]>;
+};
+
+export type Workout_SessionsInsertResponse = {
+  __typename?: "workout_sessionsInsertResponse";
+  /** Count of the records impacted by the mutation */
+  affectedCount: Scalars["Int"]["output"];
+  /** Array of records impacted by the mutation */
+  records: Array<Workout_Sessions>;
+};
+
+export type Workout_SessionsOrderBy = {
+  completed_at?: InputMaybe<OrderByDirection>;
+  completed_exercises?: InputMaybe<OrderByDirection>;
+  completed_sets?: InputMaybe<OrderByDirection>;
+  created_at?: InputMaybe<OrderByDirection>;
+  current_exercise_index?: InputMaybe<OrderByDirection>;
+  current_set_index?: InputMaybe<OrderByDirection>;
+  date?: InputMaybe<OrderByDirection>;
+  day?: InputMaybe<OrderByDirection>;
+  day_name?: InputMaybe<OrderByDirection>;
+  finished_early?: InputMaybe<OrderByDirection>;
+  id?: InputMaybe<OrderByDirection>;
+  is_fully_completed?: InputMaybe<OrderByDirection>;
+  last_activity_at?: InputMaybe<OrderByDirection>;
+  paused_at?: InputMaybe<OrderByDirection>;
+  resumed_at?: InputMaybe<OrderByDirection>;
+  started_at?: InputMaybe<OrderByDirection>;
+  status?: InputMaybe<OrderByDirection>;
+  total_exercises?: InputMaybe<OrderByDirection>;
+  total_pause_time_ms?: InputMaybe<OrderByDirection>;
+  total_sets?: InputMaybe<OrderByDirection>;
+  total_time_ms?: InputMaybe<OrderByDirection>;
+  updated_at?: InputMaybe<OrderByDirection>;
+  user_id?: InputMaybe<OrderByDirection>;
+  week_number?: InputMaybe<OrderByDirection>;
+  workout_plan_id?: InputMaybe<OrderByDirection>;
+};
+
+export type Workout_SessionsUpdateInput = {
+  completed_at?: InputMaybe<Scalars["Datetime"]["input"]>;
+  completed_exercises?: InputMaybe<Scalars["Int"]["input"]>;
+  completed_sets?: InputMaybe<Scalars["Int"]["input"]>;
+  created_at?: InputMaybe<Scalars["Datetime"]["input"]>;
+  current_exercise_index?: InputMaybe<Scalars["Int"]["input"]>;
+  current_set_index?: InputMaybe<Scalars["Int"]["input"]>;
+  date?: InputMaybe<Scalars["Date"]["input"]>;
+  day?: InputMaybe<Weekday>;
+  day_name?: InputMaybe<Scalars["String"]["input"]>;
+  finished_early?: InputMaybe<Scalars["Boolean"]["input"]>;
+  id?: InputMaybe<Scalars["UUID"]["input"]>;
+  is_fully_completed?: InputMaybe<Scalars["Boolean"]["input"]>;
+  last_activity_at?: InputMaybe<Scalars["Datetime"]["input"]>;
+  paused_at?: InputMaybe<Scalars["Datetime"]["input"]>;
+  resumed_at?: InputMaybe<Scalars["Datetime"]["input"]>;
+  started_at?: InputMaybe<Scalars["Datetime"]["input"]>;
+  status?: InputMaybe<Scalars["String"]["input"]>;
+  total_exercises?: InputMaybe<Scalars["Int"]["input"]>;
+  total_pause_time_ms?: InputMaybe<Scalars["BigInt"]["input"]>;
+  total_sets?: InputMaybe<Scalars["Int"]["input"]>;
+  total_time_ms?: InputMaybe<Scalars["BigInt"]["input"]>;
+  updated_at?: InputMaybe<Scalars["Datetime"]["input"]>;
+  user_id?: InputMaybe<Scalars["UUID"]["input"]>;
+  week_number?: InputMaybe<Scalars["Int"]["input"]>;
+  workout_plan_id?: InputMaybe<Scalars["UUID"]["input"]>;
+};
+
+export type Workout_SessionsUpdateResponse = {
+  __typename?: "workout_sessionsUpdateResponse";
+  /** Count of the records impacted by the mutation */
+  affectedCount: Scalars["Int"]["output"];
+  /** Array of records impacted by the mutation */
+  records: Array<Workout_Sessions>;
 };
 
 export type GetTodosQueryVariables = Exact<{ [key: string]: never }>;
@@ -2638,6 +3445,375 @@ export type GetAllExercisesQuery = {
   } | null;
 };
 
+export type GetWorkoutSessionQueryVariables = Exact<{
+  id: Scalars["UUID"]["input"];
+}>;
+
+export type GetWorkoutSessionQuery = {
+  __typename?: "Query";
+  workout_sessionsCollection?: {
+    __typename?: "workout_sessionsConnection";
+    edges: Array<{
+      __typename?: "workout_sessionsEdge";
+      node: {
+        __typename?: "workout_sessions";
+        id: any;
+        user_id: any;
+        workout_plan_id: any;
+        week_number: number;
+        day: Weekday;
+        day_name: string;
+        date: any;
+        status: string;
+        started_at: any;
+        completed_at?: any | null;
+        paused_at?: any | null;
+        resumed_at?: any | null;
+        current_exercise_index?: number | null;
+        current_set_index?: number | null;
+        completed_exercises?: number | null;
+        completed_sets?: number | null;
+        total_exercises: number;
+        total_sets: number;
+        total_time_ms?: any | null;
+        total_pause_time_ms?: any | null;
+        last_activity_at?: any | null;
+        is_fully_completed?: boolean | null;
+        finished_early?: boolean | null;
+        created_at: any;
+        updated_at: any;
+      };
+    }>;
+  } | null;
+};
+
+export type GetActiveWorkoutSessionQueryVariables = Exact<{
+  userId: Scalars["UUID"]["input"];
+}>;
+
+export type GetActiveWorkoutSessionQuery = {
+  __typename?: "Query";
+  workout_sessionsCollection?: {
+    __typename?: "workout_sessionsConnection";
+    edges: Array<{
+      __typename?: "workout_sessionsEdge";
+      node: {
+        __typename?: "workout_sessions";
+        id: any;
+        workout_plan_id: any;
+        week_number: number;
+        day: Weekday;
+        day_name: string;
+        date: any;
+        status: string;
+        started_at: any;
+        paused_at?: any | null;
+        resumed_at?: any | null;
+        current_exercise_index?: number | null;
+        current_set_index?: number | null;
+        completed_exercises?: number | null;
+        completed_sets?: number | null;
+        total_exercises: number;
+        total_sets: number;
+        total_time_ms?: any | null;
+        total_pause_time_ms?: any | null;
+        last_activity_at?: any | null;
+        is_fully_completed?: boolean | null;
+        finished_early?: boolean | null;
+      };
+    }>;
+  } | null;
+};
+
+export type GetWorkoutSessionSetsQueryVariables = Exact<{
+  sessionId: Scalars["UUID"]["input"];
+}>;
+
+export type GetWorkoutSessionSetsQuery = {
+  __typename?: "Query";
+  workout_session_setsCollection?: {
+    __typename?: "workout_session_setsConnection";
+    edges: Array<{
+      __typename?: "workout_session_setsEdge";
+      node: {
+        __typename?: "workout_session_sets";
+        id: any;
+        session_id: any;
+        workout_entry_id: any;
+        exercise_id: any;
+        set_number: number;
+        target_reps?: number | null;
+        target_weight?: any | null;
+        target_time?: number | null;
+        actual_reps?: number | null;
+        actual_weight?: any | null;
+        actual_time?: number | null;
+        difficulty?: string | null;
+        user_notes?: string | null;
+        started_at?: any | null;
+        completed_at: any;
+        is_completed?: boolean | null;
+        skipped?: boolean | null;
+        created_at: any;
+      };
+    }>;
+  } | null;
+};
+
+export type GetWorkoutSessionChatQueryVariables = Exact<{
+  sessionId: Scalars["UUID"]["input"];
+}>;
+
+export type GetWorkoutSessionChatQuery = {
+  __typename?: "Query";
+  workout_session_chatCollection?: {
+    __typename?: "workout_session_chatConnection";
+    edges: Array<{
+      __typename?: "workout_session_chatEdge";
+      node: {
+        __typename?: "workout_session_chat";
+        id: any;
+        session_id: any;
+        conversation_id: string;
+        event_type: string;
+        details?: string | null;
+        timestamp: any;
+        created_at: any;
+      };
+    }>;
+  } | null;
+};
+
+export type CreateWorkoutSessionMutationVariables = Exact<{
+  userId: Scalars["UUID"]["input"];
+  workoutPlanId: Scalars["UUID"]["input"];
+  weekNumber: Scalars["Int"]["input"];
+  day: Weekday;
+  dayName: Scalars["String"]["input"];
+  date: Scalars["Date"]["input"];
+  totalExercises: Scalars["Int"]["input"];
+  totalSets: Scalars["Int"]["input"];
+}>;
+
+export type CreateWorkoutSessionMutation = {
+  __typename?: "Mutation";
+  insertIntoworkout_sessionsCollection?: {
+    __typename?: "workout_sessionsInsertResponse";
+    affectedCount: number;
+    records: Array<{
+      __typename?: "workout_sessions";
+      id: any;
+      user_id: any;
+      workout_plan_id: any;
+      week_number: number;
+      day: Weekday;
+      day_name: string;
+      date: any;
+      status: string;
+      started_at: any;
+      current_exercise_index?: number | null;
+      current_set_index?: number | null;
+      completed_exercises?: number | null;
+      completed_sets?: number | null;
+      total_exercises: number;
+      total_sets: number;
+      created_at: any;
+    }>;
+  } | null;
+};
+
+export type UpdateWorkoutSessionStatusMutationVariables = Exact<{
+  id: Scalars["UUID"]["input"];
+  status: Scalars["String"]["input"];
+  lastActivityAt?: InputMaybe<Scalars["Datetime"]["input"]>;
+}>;
+
+export type UpdateWorkoutSessionStatusMutation = {
+  __typename?: "Mutation";
+  updateworkout_sessionsCollection: {
+    __typename?: "workout_sessionsUpdateResponse";
+    affectedCount: number;
+    records: Array<{
+      __typename?: "workout_sessions";
+      id: any;
+      status: string;
+      updated_at: any;
+      last_activity_at?: any | null;
+    }>;
+  };
+};
+
+export type UpdateWorkoutSessionProgressMutationVariables = Exact<{
+  id: Scalars["UUID"]["input"];
+  currentExerciseIndex?: InputMaybe<Scalars["Int"]["input"]>;
+  currentSetIndex?: InputMaybe<Scalars["Int"]["input"]>;
+  completedExercises?: InputMaybe<Scalars["Int"]["input"]>;
+  completedSets?: InputMaybe<Scalars["Int"]["input"]>;
+  totalTimeMs?: InputMaybe<Scalars["BigInt"]["input"]>;
+  totalPauseTimeMs?: InputMaybe<Scalars["BigInt"]["input"]>;
+  lastActivityAt?: InputMaybe<Scalars["Datetime"]["input"]>;
+}>;
+
+export type UpdateWorkoutSessionProgressMutation = {
+  __typename?: "Mutation";
+  updateworkout_sessionsCollection: {
+    __typename?: "workout_sessionsUpdateResponse";
+    affectedCount: number;
+    records: Array<{
+      __typename?: "workout_sessions";
+      id: any;
+      current_exercise_index?: number | null;
+      current_set_index?: number | null;
+      completed_exercises?: number | null;
+      completed_sets?: number | null;
+      total_time_ms?: any | null;
+      total_pause_time_ms?: any | null;
+      last_activity_at?: any | null;
+    }>;
+  };
+};
+
+export type UpdateWorkoutSessionPauseMutationVariables = Exact<{
+  id: Scalars["UUID"]["input"];
+  pausedAt?: InputMaybe<Scalars["Datetime"]["input"]>;
+  resumedAt?: InputMaybe<Scalars["Datetime"]["input"]>;
+  lastActivityAt?: InputMaybe<Scalars["Datetime"]["input"]>;
+}>;
+
+export type UpdateWorkoutSessionPauseMutation = {
+  __typename?: "Mutation";
+  updateworkout_sessionsCollection: {
+    __typename?: "workout_sessionsUpdateResponse";
+    affectedCount: number;
+    records: Array<{
+      __typename?: "workout_sessions";
+      id: any;
+      paused_at?: any | null;
+      resumed_at?: any | null;
+    }>;
+  };
+};
+
+export type CompleteWorkoutSetMutationVariables = Exact<{
+  sessionId: Scalars["UUID"]["input"];
+  workoutEntryId: Scalars["UUID"]["input"];
+  exerciseId: Scalars["UUID"]["input"];
+  setNumber: Scalars["Int"]["input"];
+  targetReps?: InputMaybe<Scalars["Int"]["input"]>;
+  targetWeight?: InputMaybe<Scalars["BigFloat"]["input"]>;
+  targetTime?: InputMaybe<Scalars["Int"]["input"]>;
+  actualReps?: InputMaybe<Scalars["Int"]["input"]>;
+  actualWeight?: InputMaybe<Scalars["BigFloat"]["input"]>;
+  actualTime?: InputMaybe<Scalars["Int"]["input"]>;
+  difficulty?: InputMaybe<Scalars["String"]["input"]>;
+  userNotes?: InputMaybe<Scalars["String"]["input"]>;
+  startedAt?: InputMaybe<Scalars["Datetime"]["input"]>;
+}>;
+
+export type CompleteWorkoutSetMutation = {
+  __typename?: "Mutation";
+  insertIntoworkout_session_setsCollection?: {
+    __typename?: "workout_session_setsInsertResponse";
+    affectedCount: number;
+    records: Array<{
+      __typename?: "workout_session_sets";
+      id: any;
+      session_id: any;
+      workout_entry_id: any;
+      exercise_id: any;
+      set_number: number;
+      actual_reps?: number | null;
+      actual_weight?: any | null;
+      actual_time?: number | null;
+      difficulty?: string | null;
+      completed_at: any;
+    }>;
+  } | null;
+};
+
+export type AddWorkoutAdjustmentMutationVariables = Exact<{
+  sessionId: Scalars["UUID"]["input"];
+  type: Scalars["String"]["input"];
+  workoutEntryId?: InputMaybe<Scalars["UUID"]["input"]>;
+  exerciseId?: InputMaybe<Scalars["UUID"]["input"]>;
+  fromValue: Scalars["String"]["input"];
+  toValue: Scalars["String"]["input"];
+  reason: Scalars["String"]["input"];
+  affectedSetNumbers?: InputMaybe<
+    Array<Scalars["Int"]["input"]> | Scalars["Int"]["input"]
+  >;
+  affectsFutureSets?: InputMaybe<Scalars["Boolean"]["input"]>;
+  metadata?: InputMaybe<Scalars["JSON"]["input"]>;
+}>;
+
+export type AddWorkoutAdjustmentMutation = {
+  __typename?: "Mutation";
+  insertIntoworkout_session_adjustmentsCollection?: {
+    __typename?: "workout_session_adjustmentsInsertResponse";
+    affectedCount: number;
+    records: Array<{
+      __typename?: "workout_session_adjustments";
+      id: any;
+      session_id: any;
+      type: string;
+      workout_entry_id?: any | null;
+      exercise_id?: any | null;
+      from_value: string;
+      to_value: string;
+      reason: string;
+      created_at: any;
+    }>;
+  } | null;
+};
+
+export type TrackWorkoutConversationMutationVariables = Exact<{
+  sessionId: Scalars["UUID"]["input"];
+  conversationId: Scalars["String"]["input"];
+  eventType: Scalars["String"]["input"];
+  details?: InputMaybe<Scalars["String"]["input"]>;
+}>;
+
+export type TrackWorkoutConversationMutation = {
+  __typename?: "Mutation";
+  insertIntoworkout_session_chatCollection?: {
+    __typename?: "workout_session_chatInsertResponse";
+    affectedCount: number;
+    records: Array<{
+      __typename?: "workout_session_chat";
+      id: any;
+      session_id: any;
+      conversation_id: string;
+      event_type: string;
+      details?: string | null;
+      timestamp: any;
+    }>;
+  } | null;
+};
+
+export type CompleteWorkoutSessionMutationVariables = Exact<{
+  id: Scalars["UUID"]["input"];
+  status: Scalars["String"]["input"];
+  completedAt: Scalars["Datetime"]["input"];
+  isFullyCompleted: Scalars["Boolean"]["input"];
+  finishedEarly: Scalars["Boolean"]["input"];
+}>;
+
+export type CompleteWorkoutSessionMutation = {
+  __typename?: "Mutation";
+  updateworkout_sessionsCollection: {
+    __typename?: "workout_sessionsUpdateResponse";
+    affectedCount: number;
+    records: Array<{
+      __typename?: "workout_sessions";
+      id: any;
+      status: string;
+      completed_at?: any | null;
+      is_fully_completed?: boolean | null;
+      finished_early?: boolean | null;
+    }>;
+  };
+};
+
 export const GetTodosDocument = `
     query GetTodos {
   todosCollection {
@@ -3356,6 +4532,280 @@ export const GetAllExercisesDocument = `
   }
 }
     `;
+export const GetWorkoutSessionDocument = `
+    query GetWorkoutSession($id: UUID!) {
+  workout_sessionsCollection(filter: {id: {eq: $id}}) {
+    edges {
+      node {
+        id
+        user_id
+        workout_plan_id
+        week_number
+        day
+        day_name
+        date
+        status
+        started_at
+        completed_at
+        paused_at
+        resumed_at
+        current_exercise_index
+        current_set_index
+        completed_exercises
+        completed_sets
+        total_exercises
+        total_sets
+        total_time_ms
+        total_pause_time_ms
+        last_activity_at
+        is_fully_completed
+        finished_early
+        created_at
+        updated_at
+      }
+    }
+  }
+}
+    `;
+export const GetActiveWorkoutSessionDocument = `
+    query GetActiveWorkoutSession($userId: UUID!) {
+  workout_sessionsCollection(
+    filter: {user_id: {eq: $userId}, status: {in: ["selected", "preparing", "exercising", "paused"]}}
+    orderBy: [{started_at: DescNullsLast}]
+    first: 1
+  ) {
+    edges {
+      node {
+        id
+        workout_plan_id
+        week_number
+        day
+        day_name
+        date
+        status
+        started_at
+        paused_at
+        resumed_at
+        current_exercise_index
+        current_set_index
+        completed_exercises
+        completed_sets
+        total_exercises
+        total_sets
+        total_time_ms
+        total_pause_time_ms
+        last_activity_at
+        is_fully_completed
+        finished_early
+      }
+    }
+  }
+}
+    `;
+export const GetWorkoutSessionSetsDocument = `
+    query GetWorkoutSessionSets($sessionId: UUID!) {
+  workout_session_setsCollection(
+    filter: {session_id: {eq: $sessionId}}
+    orderBy: [{completed_at: AscNullsLast}]
+  ) {
+    edges {
+      node {
+        id
+        session_id
+        workout_entry_id
+        exercise_id
+        set_number
+        target_reps
+        target_weight
+        target_time
+        actual_reps
+        actual_weight
+        actual_time
+        difficulty
+        user_notes
+        started_at
+        completed_at
+        is_completed
+        skipped
+        created_at
+      }
+    }
+  }
+}
+    `;
+export const GetWorkoutSessionChatDocument = `
+    query GetWorkoutSessionChat($sessionId: UUID!) {
+  workout_session_chatCollection(
+    filter: {session_id: {eq: $sessionId}}
+    orderBy: [{timestamp: AscNullsLast}]
+  ) {
+    edges {
+      node {
+        id
+        session_id
+        conversation_id
+        event_type
+        details
+        timestamp
+        created_at
+      }
+    }
+  }
+}
+    `;
+export const CreateWorkoutSessionDocument = `
+    mutation CreateWorkoutSession($userId: UUID!, $workoutPlanId: UUID!, $weekNumber: Int!, $day: weekday!, $dayName: String!, $date: Date!, $totalExercises: Int!, $totalSets: Int!) {
+  insertIntoworkout_sessionsCollection(
+    objects: [{user_id: $userId, workout_plan_id: $workoutPlanId, week_number: $weekNumber, day: $day, day_name: $dayName, date: $date, status: "selected", total_exercises: $totalExercises, total_sets: $totalSets}]
+  ) {
+    records {
+      id
+      user_id
+      workout_plan_id
+      week_number
+      day
+      day_name
+      date
+      status
+      started_at
+      current_exercise_index
+      current_set_index
+      completed_exercises
+      completed_sets
+      total_exercises
+      total_sets
+      created_at
+    }
+    affectedCount
+  }
+}
+    `;
+export const UpdateWorkoutSessionStatusDocument = `
+    mutation UpdateWorkoutSessionStatus($id: UUID!, $status: String!, $lastActivityAt: Datetime) {
+  updateworkout_sessionsCollection(
+    filter: {id: {eq: $id}}
+    set: {status: $status, last_activity_at: $lastActivityAt}
+  ) {
+    records {
+      id
+      status
+      updated_at
+      last_activity_at
+    }
+    affectedCount
+  }
+}
+    `;
+export const UpdateWorkoutSessionProgressDocument = `
+    mutation UpdateWorkoutSessionProgress($id: UUID!, $currentExerciseIndex: Int, $currentSetIndex: Int, $completedExercises: Int, $completedSets: Int, $totalTimeMs: BigInt, $totalPauseTimeMs: BigInt, $lastActivityAt: Datetime) {
+  updateworkout_sessionsCollection(
+    filter: {id: {eq: $id}}
+    set: {current_exercise_index: $currentExerciseIndex, current_set_index: $currentSetIndex, completed_exercises: $completedExercises, completed_sets: $completedSets, total_time_ms: $totalTimeMs, total_pause_time_ms: $totalPauseTimeMs, last_activity_at: $lastActivityAt}
+  ) {
+    records {
+      id
+      current_exercise_index
+      current_set_index
+      completed_exercises
+      completed_sets
+      total_time_ms
+      total_pause_time_ms
+      last_activity_at
+    }
+    affectedCount
+  }
+}
+    `;
+export const UpdateWorkoutSessionPauseDocument = `
+    mutation UpdateWorkoutSessionPause($id: UUID!, $pausedAt: Datetime, $resumedAt: Datetime, $lastActivityAt: Datetime) {
+  updateworkout_sessionsCollection(
+    filter: {id: {eq: $id}}
+    set: {paused_at: $pausedAt, resumed_at: $resumedAt, last_activity_at: $lastActivityAt}
+  ) {
+    records {
+      id
+      paused_at
+      resumed_at
+    }
+    affectedCount
+  }
+}
+    `;
+export const CompleteWorkoutSetDocument = `
+    mutation CompleteWorkoutSet($sessionId: UUID!, $workoutEntryId: UUID!, $exerciseId: UUID!, $setNumber: Int!, $targetReps: Int, $targetWeight: BigFloat, $targetTime: Int, $actualReps: Int, $actualWeight: BigFloat, $actualTime: Int, $difficulty: String, $userNotes: String, $startedAt: Datetime) {
+  insertIntoworkout_session_setsCollection(
+    objects: [{session_id: $sessionId, workout_entry_id: $workoutEntryId, exercise_id: $exerciseId, set_number: $setNumber, target_reps: $targetReps, target_weight: $targetWeight, target_time: $targetTime, actual_reps: $actualReps, actual_weight: $actualWeight, actual_time: $actualTime, difficulty: $difficulty, user_notes: $userNotes, started_at: $startedAt, is_completed: true}]
+  ) {
+    records {
+      id
+      session_id
+      workout_entry_id
+      exercise_id
+      set_number
+      actual_reps
+      actual_weight
+      actual_time
+      difficulty
+      completed_at
+    }
+    affectedCount
+  }
+}
+    `;
+export const AddWorkoutAdjustmentDocument = `
+    mutation AddWorkoutAdjustment($sessionId: UUID!, $type: String!, $workoutEntryId: UUID, $exerciseId: UUID, $fromValue: String!, $toValue: String!, $reason: String!, $affectedSetNumbers: [Int!], $affectsFutureSets: Boolean, $metadata: JSON) {
+  insertIntoworkout_session_adjustmentsCollection(
+    objects: [{session_id: $sessionId, type: $type, workout_entry_id: $workoutEntryId, exercise_id: $exerciseId, from_value: $fromValue, to_value: $toValue, reason: $reason, affected_set_numbers: $affectedSetNumbers, affects_future_sets: $affectsFutureSets, metadata: $metadata}]
+  ) {
+    records {
+      id
+      session_id
+      type
+      workout_entry_id
+      exercise_id
+      from_value
+      to_value
+      reason
+      created_at
+    }
+    affectedCount
+  }
+}
+    `;
+export const TrackWorkoutConversationDocument = `
+    mutation TrackWorkoutConversation($sessionId: UUID!, $conversationId: String!, $eventType: String!, $details: String) {
+  insertIntoworkout_session_chatCollection(
+    objects: [{session_id: $sessionId, conversation_id: $conversationId, event_type: $eventType, details: $details}]
+  ) {
+    records {
+      id
+      session_id
+      conversation_id
+      event_type
+      details
+      timestamp
+    }
+    affectedCount
+  }
+}
+    `;
+export const CompleteWorkoutSessionDocument = `
+    mutation CompleteWorkoutSession($id: UUID!, $status: String!, $completedAt: Datetime!, $isFullyCompleted: Boolean!, $finishedEarly: Boolean!) {
+  updateworkout_sessionsCollection(
+    filter: {id: {eq: $id}}
+    set: {status: $status, completed_at: $completedAt, is_fully_completed: $isFullyCompleted, finished_early: $finishedEarly}
+  ) {
+    records {
+      id
+      status
+      completed_at
+      is_fully_completed
+      finished_early
+    }
+    affectedCount
+  }
+}
+    `;
 
 const injectedRtkApi = api.injectEndpoints({
   endpoints: (build) => ({
@@ -3520,6 +4970,114 @@ const injectedRtkApi = api.injectEndpoints({
     >({
       query: (variables) => ({ document: GetAllExercisesDocument, variables }),
     }),
+    GetWorkoutSession: build.query<
+      GetWorkoutSessionQuery,
+      GetWorkoutSessionQueryVariables
+    >({
+      query: (variables) => ({
+        document: GetWorkoutSessionDocument,
+        variables,
+      }),
+    }),
+    GetActiveWorkoutSession: build.query<
+      GetActiveWorkoutSessionQuery,
+      GetActiveWorkoutSessionQueryVariables
+    >({
+      query: (variables) => ({
+        document: GetActiveWorkoutSessionDocument,
+        variables,
+      }),
+    }),
+    GetWorkoutSessionSets: build.query<
+      GetWorkoutSessionSetsQuery,
+      GetWorkoutSessionSetsQueryVariables
+    >({
+      query: (variables) => ({
+        document: GetWorkoutSessionSetsDocument,
+        variables,
+      }),
+    }),
+    GetWorkoutSessionChat: build.query<
+      GetWorkoutSessionChatQuery,
+      GetWorkoutSessionChatQueryVariables
+    >({
+      query: (variables) => ({
+        document: GetWorkoutSessionChatDocument,
+        variables,
+      }),
+    }),
+    CreateWorkoutSession: build.mutation<
+      CreateWorkoutSessionMutation,
+      CreateWorkoutSessionMutationVariables
+    >({
+      query: (variables) => ({
+        document: CreateWorkoutSessionDocument,
+        variables,
+      }),
+    }),
+    UpdateWorkoutSessionStatus: build.mutation<
+      UpdateWorkoutSessionStatusMutation,
+      UpdateWorkoutSessionStatusMutationVariables
+    >({
+      query: (variables) => ({
+        document: UpdateWorkoutSessionStatusDocument,
+        variables,
+      }),
+    }),
+    UpdateWorkoutSessionProgress: build.mutation<
+      UpdateWorkoutSessionProgressMutation,
+      UpdateWorkoutSessionProgressMutationVariables
+    >({
+      query: (variables) => ({
+        document: UpdateWorkoutSessionProgressDocument,
+        variables,
+      }),
+    }),
+    UpdateWorkoutSessionPause: build.mutation<
+      UpdateWorkoutSessionPauseMutation,
+      UpdateWorkoutSessionPauseMutationVariables
+    >({
+      query: (variables) => ({
+        document: UpdateWorkoutSessionPauseDocument,
+        variables,
+      }),
+    }),
+    CompleteWorkoutSet: build.mutation<
+      CompleteWorkoutSetMutation,
+      CompleteWorkoutSetMutationVariables
+    >({
+      query: (variables) => ({
+        document: CompleteWorkoutSetDocument,
+        variables,
+      }),
+    }),
+    AddWorkoutAdjustment: build.mutation<
+      AddWorkoutAdjustmentMutation,
+      AddWorkoutAdjustmentMutationVariables
+    >({
+      query: (variables) => ({
+        document: AddWorkoutAdjustmentDocument,
+        variables,
+      }),
+    }),
+    TrackWorkoutConversation: build.mutation<
+      TrackWorkoutConversationMutation,
+      TrackWorkoutConversationMutationVariables
+    >({
+      query: (variables) => ({
+        document: TrackWorkoutConversationDocument,
+        variables,
+      }),
+    }),
+    CompleteWorkoutSession: build.mutation<
+      CompleteWorkoutSessionMutation,
+      CompleteWorkoutSessionMutationVariables
+    >({
+      query: (variables) => ({
+        document: CompleteWorkoutSessionDocument,
+        variables,
+      }),
+    }),
   }),
 });
 
@@ -3560,4 +5118,20 @@ export const {
   useLazyGetExerciseByIdQuery,
   useGetAllExercisesQuery,
   useLazyGetAllExercisesQuery,
+  useGetWorkoutSessionQuery,
+  useLazyGetWorkoutSessionQuery,
+  useGetActiveWorkoutSessionQuery,
+  useLazyGetActiveWorkoutSessionQuery,
+  useGetWorkoutSessionSetsQuery,
+  useLazyGetWorkoutSessionSetsQuery,
+  useGetWorkoutSessionChatQuery,
+  useLazyGetWorkoutSessionChatQuery,
+  useCreateWorkoutSessionMutation,
+  useUpdateWorkoutSessionStatusMutation,
+  useUpdateWorkoutSessionProgressMutation,
+  useUpdateWorkoutSessionPauseMutation,
+  useCompleteWorkoutSetMutation,
+  useAddWorkoutAdjustmentMutation,
+  useTrackWorkoutConversationMutation,
+  useCompleteWorkoutSessionMutation,
 } = injectedRtkApi;

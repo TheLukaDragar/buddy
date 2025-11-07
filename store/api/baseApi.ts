@@ -26,7 +26,7 @@ const graphqlBaseQuery = graphqlRequestBaseQuery({
 export const api = createApi({
   reducerPath: 'api',
   baseQuery: graphqlBaseQuery,
-  tagTypes: ['Todo', 'User', 'WorkoutPlan', 'WorkoutPlanRequest', 'WorkoutDay', 'WorkoutEntry', 'Exercise'],
+  tagTypes: ['Todo', 'User', 'WorkoutPlan', 'WorkoutPlanRequest', 'WorkoutDay', 'WorkoutEntry', 'Exercise', 'WorkoutSession', 'WorkoutSessionSet', 'WorkoutSessionChat'],
   endpoints: () => ({}), // Empty - will be populated by injectEndpoints from codegen
 })
 

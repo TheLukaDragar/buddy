@@ -543,11 +543,7 @@ export default function WorkoutScreen() {
                 )}
               />
             ) : (
-              <Image
-                source={{ uri: 'https://kmtddcpdqkeqipyetwjs.supabase.co/storage/v1/object/public/workouts/processed/barbell-squat/barbell-squat_cropped_thumbnail.jpg' }}
-                style={styles.headerImage}
-                contentFit="cover"
-              />
+              <View style={[styles.headerImage, { backgroundColor: 'transparent' }]} />
             )}
           </Animated.View>
                      <Animated.View style={[styles.headerBackButton, buttonAnimatedStyle]}>

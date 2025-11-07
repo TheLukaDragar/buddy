@@ -1,5 +1,7 @@
 import { createAsyncThunk } from '@reduxjs/toolkit'
+import { supabase } from '../../lib/supabase'
 import { WorkoutSession } from '../../types/workout'
+import { enhancedApi } from '../api/enhancedApi'
 import type { RootState } from '../index'
 import {
   adjustReps as adjustRepsReducer,
@@ -11,6 +13,7 @@ import {
   confirmReadyAndStartSet as confirmReadyAndStartSetReducer,
   extendRest as extendRestReducer,
   finishWorkoutEarly as finishWorkoutEarlyReducer,
+  jumpToExercise as jumpToExerciseReducer,
   jumpToSet as jumpToSetReducer,
   nextSet as nextSetReducer,
   pauseSet as pauseSetReducer,
@@ -124,13 +127,99 @@ export const selectWorkoutFromEntries = createAsyncThunk(
       return rejectWithValue('No workout entries provided')
     }
 
-    dispatch(selectWorkoutFromEntriesReducer(workoutEntries, planId, dayName))
+    // Get user ID from auth session
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.user?.id) {
+      return rejectWithValue('User not authenticated')
+    }
+    const userId = session.user.id
+
+    // Extract workout metadata from first entry
+    const firstEntry = workoutEntries[0]
+    const weekNumber = firstEntry.week_number
+    const day = firstEntry.day
+    const date = firstEntry.date || new Date().toISOString().split('T')[0] // Use today's date if not set
+    
+    // Calculate total sets across all entries
+    const totalSets = workoutEntries.reduce((sum, entry) => sum + entry.sets, 0)
+    const totalExercises = workoutEntries.length
+
+    // Fetch exercise data separately for each unique exercise_id to avoid stale nested relationship data
+    // This ensures we always use fresh exercise data, not cached nested data from GetWorkoutDay query
+    const uniqueExerciseIds = [...new Set(workoutEntries.map(entry => entry.exercise_id))]
+    const exerciseDataMap = new Map<string, any>()
+    
+    try {
+      // Fetch all exercises in parallel
+      const exercisePromises = uniqueExerciseIds.map(async (exerciseId) => {
+        try {
+          const result = await dispatch(
+            enhancedApi.endpoints.GetExerciseById.initiate({ id: exerciseId })
+          ).unwrap()
+          const exercise = result?.exercisesCollection?.edges?.[0]?.node
+          if (exercise) {
+            exerciseDataMap.set(exerciseId, exercise)
+          }
+        } catch (error: any) {
+          console.warn(`Failed to fetch exercise ${exerciseId}:`, error)
+        }
+      })
+      
+      await Promise.all(exercisePromises)
+      
+      // Enrich workout entries with fresh exercise data
+      const enrichedEntries = workoutEntries.map(entry => ({
+        ...entry,
+        exercises: exerciseDataMap.get(entry.exercise_id) || entry.exercises // Fallback to nested if fetch failed
+      }))
+      
+      // Replace workoutEntries with enriched version
+      workoutEntries = enrichedEntries as WorkoutEntryNode[]
+    } catch (error: any) {
+      console.warn('Failed to fetch exercise data separately, using nested data:', error)
+      // Continue with nested data as fallback
+    }
+
+    // Use atomic database function to start workout session
+    // This function atomically completes any existing active sessions and creates a new one
+    // Eliminates race conditions entirely
+    let sessionId: string
+    try {
+      const { data: sessionData, error: rpcError } = await supabase.rpc('start_workout_session', {
+        p_user_id: userId,
+        p_workout_plan_id: planId,
+        p_week_number: weekNumber,
+        p_day: day,
+        p_day_name: dayName,
+        p_date: date,
+        p_total_exercises: totalExercises,
+        p_total_sets: totalSets,
+      })
+
+      if (rpcError) {
+        throw rpcError
+      }
+
+      if (!sessionData || !sessionData[0]?.id) {
+        return rejectWithValue('Failed to create workout session - no session ID returned from function')
+      }
+
+      sessionId = sessionData[0].id
+      console.log('✅ Created workout session atomically:', sessionId)
+    } catch (error: any) {
+      console.error('Failed to start workout session:', error)
+      return rejectWithValue(`Failed to start workout session: ${error?.message || String(error)}`)
+    }
+
+    // Dispatch reducer with sessionId
+    dispatch(selectWorkoutFromEntriesReducer(workoutEntries, planId, dayName, sessionId))
 
     return { 
       success: true,
       message: `Selected workout: ${dayName}`,
       workoutName: dayName,
       planId,
+      sessionId,
       entryCount: workoutEntries.length
     }
   }
@@ -395,6 +484,48 @@ export const jumpToSet = createAsyncThunk(
   }
 )
 
+export const jumpToExercise = createAsyncThunk(
+  'workout/jumpToExercise',
+  async ({ exerciseSlug, reason }: { exerciseSlug: string; reason: string }, { getState, dispatch, rejectWithValue }) => {
+    const state = getState() as RootState
+    
+    if (!state.workout.activeWorkout) {
+      return rejectWithValue('No active workout')
+    }
+    
+    if (!state.workout.workoutEntries || state.workout.workoutEntries.length === 0) {
+      return rejectWithValue('No workout entries available')
+    }
+    
+    // Find exercise by slug
+    const exerciseIndex = state.workout.workoutEntries.findIndex(
+      entry => entry.exercises?.slug === exerciseSlug
+    )
+    
+    if (exerciseIndex === -1) {
+      const availableSlugs = state.workout.workoutEntries
+        .map(e => e.exercises?.slug)
+        .filter(Boolean)
+        .join(', ')
+      return rejectWithValue(`Exercise with slug "${exerciseSlug}" not found. Available exercises: ${availableSlugs}`)
+    }
+    
+    const targetEntry = state.workout.workoutEntries[exerciseIndex]
+    const exerciseName = targetEntry.exercises?.name || 'Unknown Exercise'
+    
+    dispatch(jumpToExerciseReducer({ exerciseSlug, reason }))
+    
+    return { 
+      success: true,
+      message: `Jumped to exercise: ${exerciseName}. Tell me when ready`,
+      exerciseSlug,
+      exerciseName,
+      exercisePosition: exerciseIndex + 1,
+      totalExercises: state.workout.workoutEntries.length
+    }
+  }
+)
+
 // =============================================================================
 // NAVIGATION ACTIONS
 // =============================================================================
@@ -470,21 +601,64 @@ export const getWorkoutStatus = createAsyncThunk(
     const setNum = state.workout.activeWorkout.currentSetIndex + 1
     const totalSets = exercise?.sets.length || 0
     const exerciseNum = state.workout.activeWorkout.currentExerciseIndex + 1
-    const totalExercises = state.workout.session?.exercises.length || 0
+    // Get total exercises from activeWorkout (set during selectWorkoutFromEntries) or workoutEntries or session
+    const totalExercises = state.workout.activeWorkout?.totalExercises 
+      || state.workout.workoutEntries?.length 
+      || state.workout.session?.exercises.length 
+      || 0
     
-    const statusMessage = `Workout: ${state.workout.session?.name} | Exercise ${exerciseNum}/${totalExercises}: ${exercise?.name} | Set ${setNum}/${totalSets} | State: ${state.workout.status}`
+    const workoutName = state.workout.session?.name || state.workout.dayName || 'Workout'
+    const statusMessage = `Workout: ${workoutName} | Exercise ${exerciseNum}/${totalExercises}: ${exercise?.name} | Set ${setNum}/${totalSets} | State: ${state.workout.status}`
+    
+    const currentExerciseIndex = state.workout.activeWorkout.currentExerciseIndex
+    const currentEntry = state.workout.workoutEntries?.[currentExerciseIndex]
+    
+    // Build list of all exercises (without alternatives)
+    const allExercises = state.workout.workoutEntries?.map((entry, index) => {
+      const isCurrent = index === currentExerciseIndex
+      const isCompleted = index < currentExerciseIndex
+      const isUpcoming = index > currentExerciseIndex
+      
+      return {
+        position: index + 1,
+        name: entry.exercises?.name || 'Unknown Exercise',
+        slug: entry.exercises?.slug || '',
+        status: isCurrent ? 'current' : isCompleted ? 'completed' : isUpcoming ? 'upcoming' : 'pending',
+        sets: entry.sets,
+        reps: entry.reps,
+        weight: entry.weight,
+        isCurrent,
+        isCompleted,
+        isUpcoming
+      }
+    }) || []
+    
+    // Get alternatives ONLY for current exercise
+    const currentExerciseAlternatives = currentEntry?.workout_entry_alternativesCollection?.edges?.map(edge => ({
+      id: edge.node.exercises?.id,
+      name: edge.node.exercises?.name || 'Unknown',
+      slug: edge.node.exercises?.slug || '',
+      note: edge.node.note || ''
+    })) || []
     
     return { 
       success: true,
       message: statusMessage,
       hasActiveWorkout: true,
       data: {
-        workoutName: state.workout.session?.name,
+        workoutName: workoutName,
         exerciseName: exercise?.name,
         exerciseProgress: `${exerciseNum}/${totalExercises}`,
         setProgress: `${setNum}/${totalSets}`,
         status: state.workout.status,
-        isPaused: state.workout.activeWorkout.isPaused
+        isPaused: state.workout.activeWorkout.isPaused,
+        // All exercises with names and slugs
+        allExercises: allExercises,
+        currentExerciseIndex: currentExerciseIndex,
+        currentExerciseSlug: currentEntry?.exercises?.slug || '',
+        // Alternatives ONLY for current exercise
+        currentExerciseAlternatives: currentExerciseAlternatives,
+        currentWorkoutEntryId: currentEntry?.id || null
       }
     }
   }

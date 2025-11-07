@@ -1,4 +1,7 @@
+import { supabase } from '@/lib/supabase';
+import { enhancedApi } from '@/store/api/enhancedApi';
 import { unwrapResult } from '@reduxjs/toolkit';
+import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { router, useFocusEffect } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
@@ -8,14 +11,14 @@ import { SystemBars } from 'react-native-edge-to-edge';
 import { PanGestureHandler } from 'react-native-gesture-handler';
 import { Button, Text } from 'react-native-paper';
 import ReanimatedAnimated, {
-    Easing,
-    FadeIn,
-    runOnJS,
-    useAnimatedGestureHandler,
-    useAnimatedStyle,
-    useSharedValue,
-    withSpring,
-    withTiming
+  Easing,
+  FadeIn,
+  runOnJS,
+  useAnimatedGestureHandler,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming
 } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
@@ -24,55 +27,60 @@ import ChatComponent from '../components/ChatComponent';
 import MusicModal from '../components/MusicModal';
 import { useBuddyTheme } from '../constants/BuddyTheme';
 import { contextBridgeService } from '../services/contextBridgeService';
+import type { RootState } from '../store';
 import { store } from '../store';
 import {
-    getMusicStatus,
-    getPlaylists,
-    getTracks,
-    pauseMusic,
-    playTrack,
-    resumeMusic,
-    selectPlaylist,
-    setVolume,
-    skipNext,
-    skipPrevious,
-    syncPlaylistToSpotify
+  getMusicStatus,
+  getPlaylists,
+  getTracks,
+  pauseMusic,
+  playTrack,
+  resumeMusic,
+  selectPlaylist,
+  setVolume,
+  skipNext,
+  skipPrevious,
+  syncPlaylistToSpotify
 } from '../store/actions/musicActions';
 import {
-    adjustReps,
-    adjustRestTime,
-    adjustWeight,
-    completeExercise,
-    completeSet,
-    completeWorkout,
-    confirmReadyAndStartSet,
-    finishWorkoutEarly,
-    getExerciseInstructions,
-    getWorkoutStatus,
-    jumpToSet,
-    pauseSet,
-    resumeSet,
-    showAd,
-    startExercisePreparation,
-    startRest
+  adjustReps,
+  adjustRestTime,
+  adjustWeight,
+  completeExercise,
+  completeSet,
+  completeWorkout,
+  confirmReadyAndStartSet,
+  finishWorkoutEarly,
+  getExerciseInstructions,
+  getWorkoutStatus,
+  jumpToExercise,
+  jumpToSet,
+  pauseSet,
+  resumeSet,
+  selectWorkoutFromEntries,
+  showAd,
+  startExercisePreparation,
+  startRest
 } from '../store/actions/workoutActions';
 import { useAppDispatch } from '../store/hooks';
-import { hideMiniPlayer, showMiniPlayer } from '../store/slices/musicSlice';
+import { hideMiniPlayer, selectMiniPlayerVisible, showMiniPlayer } from '../store/slices/musicSlice';
 import {
-    extendRest,
-    selectActiveWorkout,
-    selectCurrentExercise,
-    selectCurrentSet,
-    selectTimers,
-    selectVoiceAgentStatus,
-    selectWorkoutSession,
-    selectWorkoutStatus,
-    setVoiceAgentStatus
+  extendRest,
+  selectActiveWorkout,
+  selectCurrentExercise,
+  selectCurrentSet,
+  selectTimers,
+  selectVoiceAgentStatus,
+  selectWorkoutSession,
+  selectWorkoutStatus,
+  setVoiceAgentStatus,
+  trackConversation
 } from '../store/slices/workoutSlice';
 
 import type { ConversationEvent, ConversationStatus, Mode, Role } from '@elevenlabs/react-native';
 import { useConversation } from '@elevenlabs/react-native';
 import { AnimatedAIButton } from '../components/AnimatedAIButton';
+import ExerciseAdjustModal from '../components/ExerciseAdjustModal';
 import MusicPlayerMini from '../components/MusicPlayerMini';
 import PartynetAudioPlayer from '../components/PartynetAudioPlayer';
 import { useAuth } from '../contexts/AuthContext';
@@ -91,11 +99,39 @@ interface WorkoutProgressProps {
   segments: ProgressSegment[];
 }
 
+// Warmup Placeholder Component
+const WarmupPlaceholder: React.FC = () => {
+  return (
+    <View style={warmupPlaceholderStyles.container}>
+      <Image
+        source={require('../assets/placeholder/placeholder.png')}
+        style={warmupPlaceholderStyles.image}
+        contentFit="cover"
+      />
+    </View>
+  );
+};
+
+const warmupPlaceholderStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    overflow: 'hidden',
+    backgroundColor: nucleus.light.global.grey["20"],
+  },
+  image: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+    transform: [{ rotate: '90deg' }, { scale: 1.78 }], // Rotate 90deg and scale to fit 16:9 (9:16 rotated becomes 16:9, scale by 16/9)
+  },
+});
+
 // Exercise Video Component
 interface ExerciseVideoProps {
   videoUrl?: string;
   exerciseName: string;
   isPaused?: boolean;
+  status?: string;
 }
 
 // Workout Summary Component with animated exercise list
@@ -207,7 +243,7 @@ const WorkoutSummary: React.FC<WorkoutSummaryProps> = ({ activeWorkout, session 
   );
 };
 
-const ExerciseVideo: React.FC<ExerciseVideoProps> = ({ videoUrl, exerciseName, isPaused = false }) => {
+const ExerciseVideo: React.FC<ExerciseVideoProps> = ({ videoUrl, exerciseName, isPaused = false, status }) => {
   // Get session data from Redux for WorkoutSummary component
   const session = useSelector(selectWorkoutSession);
   // Map video URLs to required assets or return remote URLs
@@ -249,20 +285,29 @@ const ExerciseVideo: React.FC<ExerciseVideoProps> = ({ videoUrl, exerciseName, i
     player.loop = true;
     player.muted = true;
     if (videoAsset) {
-      player.play();
+      // Preload video but don't play when status is 'selected'
+      // Video will be ready when transitioning from warmup
+      if (status !== 'selected') {
+        player.play();
+      }
     }
   });
 
   // Handle pause/resume based on workout state
+  // Preload video when status is 'selected' but keep it paused
   useEffect(() => {
     if (player && videoAsset) {
-      if (isPaused) {
+      if (status === 'selected') {
+        // Preload video in background but keep it paused
         player.pause();
-      } else {
+      } else if (!isPaused) {
+        // Play video when not in selected state and not paused
         player.play();
+      } else {
+        player.pause();
       }
     }
-  }, [isPaused, player, videoAsset]);
+  }, [isPaused, player, videoAsset, status]);
 
   if (!videoAsset) {
     return (
@@ -335,6 +380,7 @@ interface VideoContainerProps {
   status: string;
   activeWorkout?: any;
   onShowFinishAlert: () => void;
+  onShowAdjustModal: () => void;
   onHideControls?: () => void;
   dispatch: any;
 }
@@ -344,17 +390,48 @@ const VideoContainer: React.FC<VideoContainerProps> = ({
   status, 
   activeWorkout, 
   onShowFinishAlert,
+  onShowAdjustModal,
   onHideControls,
   dispatch
 }) => {
   // Get session data from Redux for WorkoutSummary component
   const session = useSelector(selectWorkoutSession);
+  const miniPlayerVisible = useSelector(selectMiniPlayerVisible);
+  const musicProvider = useSelector((state: any) => state.music?.selectedMusicOption);
+  const isSpotifyAuth = useSelector((state: any) => state.spotifyAuth?.accessToken && state.spotifyAuth?.user);
+  
+  // Check if there's actually a music player available (not just visible)
+  // MusicPlayerMini returns null for 'app' music, so we only have a player for 'spotify' (with auth) or 'partynet'
+  const hasMusicPlayer = (musicProvider === 'spotify' && isSpotifyAuth) || musicProvider === 'partynet';
+  const shouldAdjustForPlayer = hasMusicPlayer && miniPlayerVisible;
+  
+  const insets = useSafeAreaInsets();
   const [controlsVisible, setControlsVisible] = useState(true);
   const controlsOpacity = useSharedValue(1);
-
-  // Auto-show controls when paused/preparing, hide when exercising
+  
+  // Animation for top-right button position based on music player visibility
+  const topRightButtonTop = useSharedValue(insets.top + 16);
+  
+  // Update button position when music player visibility changes
+  // Only adjust if there's actually a player available
+  // When no player: position below safe area with 16px padding
+  // When player visible: position below player (insets.top + 70)
   useEffect(() => {
-    if (status === 'paused' || activeWorkout?.isPaused || status === 'preparing') {
+    const targetTop = insets.top + (shouldAdjustForPlayer ? 70 : 16);
+    topRightButtonTop.value = withTiming(targetTop, { duration: 300 });
+  }, [shouldAdjustForPlayer, insets.top]);
+  
+  const animatedTopRightStyle = useAnimatedStyle(() => ({
+    top: topRightButtonTop.value,
+  }));
+  
+  // Fade animations for warmup/video transition
+  const warmupOpacity = useSharedValue(status === 'selected' ? 1 : 0);
+  const videoOpacity = useSharedValue(status === 'selected' ? 0 : 1);
+
+  // Auto-show controls when paused/preparing/selected, hide when exercising
+  useEffect(() => {
+    if (status === 'paused' || activeWorkout?.isPaused || status === 'preparing' || status === 'selected') {
       setControlsVisible(true);
       controlsOpacity.value = withTiming(1, { duration: 300 });
       dispatch(showMiniPlayer()); // Show mini player when START button appears
@@ -367,8 +444,9 @@ const VideoContainer: React.FC<VideoContainerProps> = ({
   }, [status, activeWorkout?.isPaused]);
 
   // Auto-hide controls after 5 seconds when not paused
+  // BUT keep controls visible when status is 'selected' (no auto-hide)
   useEffect(() => {
-    if (controlsVisible && status !== 'paused' && !activeWorkout?.isPaused && status !== 'preparing') {
+    if (controlsVisible && status !== 'paused' && !activeWorkout?.isPaused && status !== 'preparing' && status !== 'selected') {
       const timeout = setTimeout(() => {
         setControlsVisible(false);
         controlsOpacity.value = withTiming(0, { duration: 300 });
@@ -386,15 +464,35 @@ const VideoContainer: React.FC<VideoContainerProps> = ({
   };
 
   const hideControls = () => {
-    if (status !== 'paused' && !activeWorkout?.isPaused && status !== 'preparing') {
+    // Don't hide controls when status is 'selected' or 'preparing' or paused
+    if (status !== 'paused' && !activeWorkout?.isPaused && status !== 'preparing' && status !== 'selected') {
       setControlsVisible(false);
       controlsOpacity.value = withTiming(0, { duration: 300 });
       dispatch(hideMiniPlayer());
     }
   };
 
+  // Animate warmup/video transition when status changes
+  useEffect(() => {
+    if (status === 'selected') {
+      warmupOpacity.value = withTiming(1, { duration: 300 });
+      videoOpacity.value = withTiming(0, { duration: 300 });
+    } else if (status !== 'workout-completed') {
+      warmupOpacity.value = withTiming(0, { duration: 300 });
+      videoOpacity.value = withTiming(1, { duration: 300 });
+    }
+  }, [status]);
+
   const animatedOverlayStyle = useAnimatedStyle(() => ({
     opacity: controlsOpacity.value,
+  }));
+
+  const animatedWarmupStyle = useAnimatedStyle(() => ({
+    opacity: warmupOpacity.value,
+  }));
+
+  const animatedVideoStyle = useAnimatedStyle(() => ({
+    opacity: videoOpacity.value,
   }));
 
   return (
@@ -442,29 +540,57 @@ const VideoContainer: React.FC<VideoContainerProps> = ({
         </View>
       ) : (
         <>
-          <ExerciseVideo 
-            videoUrl={currentExercise?.videoUrl} 
-            exerciseName={currentExercise?.name || 'Exercise'} 
-            isPaused={activeWorkout?.isPaused}
-          />
+          {/* Warmup Placeholder - fade in/out */}
+          <ReanimatedAnimated.View style={[animatedWarmupStyle, StyleSheet.absoluteFill]}>
+            <WarmupPlaceholder />
+          </ReanimatedAnimated.View>
           
-          {/* Tap area to show controls */}
-          <TouchableWithoutFeedback onPress={showControls}>
-            <View style={styles.videoTouchArea} />
-          </TouchableWithoutFeedback>
+          {/* Exercise Video - preload in background, fade in/out */}
+          <ReanimatedAnimated.View style={[animatedVideoStyle, StyleSheet.absoluteFill]}>
+            <ExerciseVideo 
+              videoUrl={currentExercise?.videoUrl} 
+              exerciseName={currentExercise?.name || 'Exercise'} 
+              isPaused={activeWorkout?.isPaused}
+              status={status}
+            />
+          </ReanimatedAnimated.View>
+          
+          {/* Tap area to show controls - only when not in 'selected' state */}
+          {status !== 'selected' && (
+            <TouchableWithoutFeedback onPress={showControls}>
+              <View style={styles.videoTouchArea} />
+            </TouchableWithoutFeedback>
+          )}
+          
+          {/* Top Right Overlay - Always visible over video when exercise is active */}
+          {currentExercise && status !== 'inactive' && status !== 'workout-completed' && status !== 'selected' && (
+            <ReanimatedAnimated.View style={[styles.topRightOverlay, animatedTopRightStyle, { 
+              paddingRight: shouldAdjustForPlayer ? 16 : insets.right + 16,
+            }]}>
+              <TouchableOpacity 
+                style={styles.topRightButton}
+                onPress={onShowAdjustModal}
+                activeOpacity={0.7}
+              >
+                <Image
+                  source={require('../assets/icons/topright.svg')}
+                  style={styles.topRightIcon}
+                  contentFit="contain"
+                />
+              </TouchableOpacity>
+            </ReanimatedAnimated.View>
+          )}
         </>
       )}
       
       {/* Always visible exercise info - hide when workout completed */}
       {status !== 'workout-completed' && (
         <View style={styles.bottomLayout}>
-          {currentExercise && (
-            <View style={styles.exerciseNameContainer}>
-              <Text style={styles.exerciseName}>
-                {currentExercise.name}
-              </Text>
-            </View>
-          )}
+          <View style={styles.exerciseNameContainer}>
+            <Text style={styles.exerciseName}>
+              {status === 'selected' ? 'Warmup' : (currentExercise?.name || 'Exercise')}
+            </Text>
+          </View>
           
           <View style={styles.statusContainer}>
             <Text style={styles.statusInfo}>
@@ -506,6 +632,7 @@ const WorkoutProgress: React.FC<WorkoutProgressProps> = ({
   const currentSet = useSelector(selectCurrentSet);
   const timers = useSelector(selectTimers);
   const status = useSelector(selectWorkoutStatus);
+  const dispatch = useAppDispatch();
   
   // Calculate current values from Redux state
   const currentWeight = currentSet?.targetWeight ? `${currentSet.targetWeight} kg` : 'Body';
@@ -513,6 +640,136 @@ const WorkoutProgress: React.FC<WorkoutProgressProps> = ({
   const elapsedTime = activeWorkout?.elapsedTime ? Math.floor(activeWorkout.elapsedTime / 1000) : 0;
   const isRunning = status === 'exercising' && !activeWorkout?.isPaused;
   const theme = useBuddyTheme();
+
+  // Hold-to-increment refs
+  const weightHoldIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const repsHoldIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const weightHoldTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const repsHoldTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  // Refs to track current values to avoid stale closures
+  const currentWeightRef = useRef(currentWeight);
+  const currentRepsRef = useRef(currentReps);
+  const currentSetRef = useRef(currentSet);
+  
+  // Update refs when values change
+  useEffect(() => {
+    currentWeightRef.current = currentWeight;
+    currentRepsRef.current = currentReps;
+    currentSetRef.current = currentSet;
+  }, [currentWeight, currentReps, currentSet]);
+
+  // Parse weight to check if it's numeric
+  const parseWeight = (weight: string): { value: number; unit: string } | null => {
+    if (!weight || weight.toLowerCase() === 'body') return null;
+    const match = weight.match(/^([\d.]+)\s*(kg|lbs?|lb)?$/i);
+    if (match) {
+      return { value: parseFloat(match[1]), unit: match[2] || 'kg' };
+    }
+    return null;
+  };
+
+  // Adjust weight value - using refs to get latest values
+  const adjustWeightValue = useCallback((delta: number) => {
+    const latestWeight = currentWeightRef.current;
+    const latestSet = currentSetRef.current;
+    const parsed = parseWeight(latestWeight);
+    
+    if (!parsed || !latestSet) return;
+    
+    const newValue = Math.max(0, parsed.value + delta);
+    
+    // Only dispatch if value actually changed
+    if (newValue === parsed.value) return;
+    
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    
+    dispatch(adjustWeight({ 
+      newWeight: newValue, 
+      reason: 'User adjustment' 
+    }));
+  }, [dispatch]);
+
+  // Adjust reps value - using refs to get latest values
+  const adjustRepsValue = useCallback((delta: number) => {
+    const latestReps = currentRepsRef.current;
+    const latestSet = currentSetRef.current;
+    
+    if (!latestSet) return;
+    
+    const newReps = Math.max(1, latestReps + delta);
+    
+    // Only dispatch if value actually changed
+    if (newReps === latestReps) return;
+    
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    
+    dispatch(adjustReps({ 
+      newReps: newReps, 
+      reason: 'User adjustment' 
+    }));
+  }, [dispatch]);
+
+  // Hold-to-increment handlers
+  const startHoldIncrement = useCallback((
+    adjustFunction: () => void, 
+    intervalRef: React.MutableRefObject<ReturnType<typeof setInterval> | null>,
+    timeoutRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>
+  ) => {
+    // Clear any existing interval and timeout
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    
+    // Call once immediately for instant feedback
+    adjustFunction();
+    
+    // Start auto-incrementing after 500ms, then every 150ms (slower to reduce glitches)
+    timeoutRef.current = setTimeout(() => {
+      // Haptic feedback when hold starts
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      intervalRef.current = setInterval(() => {
+        adjustFunction();
+      }, 150); // Increased from 100ms to 150ms to reduce rapid updates
+    }, 500); // Increased from 300ms to 500ms delay before auto-increment starts
+  }, []);
+
+  const stopHoldIncrement = useCallback((
+    intervalRef: React.MutableRefObject<ReturnType<typeof setInterval> | null>,
+    timeoutRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>
+  ) => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  }, []);
+
+  // Cleanup timers on unmount
+  useEffect(() => {
+    return () => {
+      if (weightHoldIntervalRef.current) {
+        clearInterval(weightHoldIntervalRef.current);
+      }
+      if (repsHoldIntervalRef.current) {
+        clearInterval(repsHoldIntervalRef.current);
+      }
+      if (weightHoldTimeoutRef.current) {
+        clearTimeout(weightHoldTimeoutRef.current);
+      }
+      if (repsHoldTimeoutRef.current) {
+        clearTimeout(repsHoldTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Memoize total duration calculation to prevent recalculation on every render
   const totalDuration = useMemo(() => 
@@ -692,14 +949,42 @@ const WorkoutProgress: React.FC<WorkoutProgressProps> = ({
 
       {/* Info Row */}
       <View style={styles.infoContainer}>
-        {/* Weight - Centered in Left Section */}
+        {/* Weight - Centered in Left Section with Adjusters */}
         <View style={styles.infoItemLeft}>
+          {parseWeight(currentWeight) ? (
+            <TouchableOpacity 
+              style={styles.adjusterButton}
+              onPressIn={() => startHoldIncrement(() => adjustWeightValue(1), weightHoldIntervalRef, weightHoldTimeoutRef)}
+              onPressOut={() => stopHoldIncrement(weightHoldIntervalRef, weightHoldTimeoutRef)}
+              activeOpacity={0.5}
+            >
+              <Image
+                source={require('../assets/icons/back.svg')}
+                style={[styles.adjusterIcon, { transform: [{ rotate: '90deg' }] }]}
+                contentFit="contain"
+              />
+            </TouchableOpacity>
+          ) : null}
           <Text style={[styles.infoValue, { color: nucleus.light.global.blue["60"] }]}>
-            {currentWeight}
+            {parseWeight(currentWeight)?.value || currentWeight}
           </Text>
           <Text style={[styles.infoLabel, { color: nucleus.light.global.grey["90"] }]}>
             WEIGHT
           </Text>
+          {parseWeight(currentWeight) ? (
+            <TouchableOpacity 
+              style={styles.adjusterButton}
+              onPressIn={() => startHoldIncrement(() => adjustWeightValue(-1), weightHoldIntervalRef, weightHoldTimeoutRef)}
+              onPressOut={() => stopHoldIncrement(weightHoldIntervalRef, weightHoldTimeoutRef)}
+              activeOpacity={0.5}
+            >
+              <Image
+                source={require('../assets/icons/back.svg')}
+                style={[styles.adjusterIcon, { transform: [{ rotate: '-90deg' }] }]}
+                contentFit="contain"
+              />
+            </TouchableOpacity>
+          ) : null}
         </View>
 
         {/* Separator */}
@@ -715,14 +1000,38 @@ const WorkoutProgress: React.FC<WorkoutProgressProps> = ({
         {/* Separator */}
         <View style={styles.separator} />
 
-        {/* Reps - Centered in Right Section */}
+        {/* Reps - Centered in Right Section with Adjusters */}
         <View style={styles.infoItemRight}>
+          <TouchableOpacity 
+            style={styles.adjusterButton}
+            onPressIn={() => startHoldIncrement(() => adjustRepsValue(1), repsHoldIntervalRef, repsHoldTimeoutRef)}
+            onPressOut={() => stopHoldIncrement(repsHoldIntervalRef, repsHoldTimeoutRef)}
+            activeOpacity={0.5}
+          >
+            <Image
+              source={require('../assets/icons/back.svg')}
+              style={[styles.adjusterIcon, { transform: [{ rotate: '90deg' }] }]}
+              contentFit="contain"
+            />
+          </TouchableOpacity>
           <Text style={[styles.infoValue, { color: nucleus.light.global.blue["60"] }]}>
             {currentReps}
           </Text>
           <Text style={[styles.infoLabel, { color: nucleus.light.global.grey["90"] }]}>
             REPS
           </Text>
+          <TouchableOpacity 
+            style={styles.adjusterButton}
+            onPressIn={() => startHoldIncrement(() => adjustRepsValue(-1), repsHoldIntervalRef, repsHoldTimeoutRef)}
+            onPressOut={() => stopHoldIncrement(repsHoldIntervalRef, repsHoldTimeoutRef)}
+            activeOpacity={0.5}
+          >
+            <Image
+              source={require('../assets/icons/back.svg')}
+              style={[styles.adjusterIcon, { transform: [{ rotate: '-90deg' }] }]}
+              contentFit="contain"
+            />
+          </TouchableOpacity>
         </View>
       </View>
     </View>
@@ -758,7 +1067,7 @@ const WorkoutControls: React.FC<WorkoutControlsProps> = ({ onShowFinishAlert }) 
       case 'preparing':
       case 'rest-ending':
       case 'exercise-transition':
-        return 'START';
+        return 'START SET';
       case 'exercising':
         return activeWorkout?.isPaused ? 'RESUME' : 'PAUSE';
       case 'resting':
@@ -766,12 +1075,12 @@ const WorkoutControls: React.FC<WorkoutControlsProps> = ({ onShowFinishAlert }) 
       case 'set-complete':
         return 'REST';
       case 'selected':
-        return 'BEGIN';
+        return "I'm ready!";
       case 'workout-completed':
         return 'FINISH';
       case 'inactive':
       default:
-        return 'START';
+        return 'START SET';
     }
   };
 
@@ -960,6 +1269,7 @@ const WorkoutControls: React.FC<WorkoutControlsProps> = ({ onShowFinishAlert }) 
   const handleAdjustWeight = async () => {
     if (newWeight && currentSet) {
       try {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         const adjustResult = await dispatch(adjustWeight({ 
           newWeight: parseFloat(newWeight), 
           reason: 'User adjustment' 
@@ -977,6 +1287,7 @@ const WorkoutControls: React.FC<WorkoutControlsProps> = ({ onShowFinishAlert }) 
   const handleAdjustReps = async () => {
     if (newReps && currentSet) {
       try {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         const adjustResult = await dispatch(adjustReps({ 
           newReps: parseInt(newReps), 
           reason: 'User adjustment' 
@@ -996,41 +1307,54 @@ const WorkoutControls: React.FC<WorkoutControlsProps> = ({ onShowFinishAlert }) 
     <View style={workoutControlsStyles.container}>
       {/* Compact 3-Button Controls */}
       <View style={workoutControlsStyles.compactButtonContainer}>
-        {/* Left Button - Tour */}
-        <TouchableOpacity
-          style={workoutControlsStyles.tourButton}
-          onPress={handleLeftButton}
-        >
-          <Image
-            source={require('../assets/icons/back.svg')}
-            style={workoutControlsStyles.tourIcon}
-            contentFit="contain"
-          />
-        </TouchableOpacity>
+        {/* Left Button - Hide when status is 'selected' */}
+        {status !== 'selected' && (
+          <TouchableOpacity
+            style={workoutControlsStyles.tourButton}
+            onPress={handleLeftButton}
+          >
+            <Image
+              source={require('../assets/icons/back.svg')}
+              style={workoutControlsStyles.tourIcon}
+              contentFit="contain"
+            />
+          </TouchableOpacity>
+        )}
 
         {/* Center Button */}
         <Button
           mode="outlined"
-          style={workoutControlsStyles.compactCenterButton}
-          labelStyle={workoutControlsStyles.compactCenterButtonLabel}
-          contentStyle={workoutControlsStyles.compactCenterButtonContent}
+          style={[
+            workoutControlsStyles.compactCenterButton,
+            status === 'selected' && workoutControlsStyles.compactCenterButtonLarge
+          ]}
+          labelStyle={[
+            workoutControlsStyles.compactCenterButtonLabel,
+            status === 'selected' && workoutControlsStyles.compactCenterButtonLabelLarge
+          ]}
+          contentStyle={[
+            workoutControlsStyles.compactCenterButtonContent,
+            status === 'selected' && workoutControlsStyles.compactCenterButtonContentLarge
+          ]}
           compact={false}
           onPress={handleCenterButton}
         >
           {getCenterButtonText()}
         </Button>
 
-        {/* Right Button - Tour */}
-        <TouchableOpacity
-          style={workoutControlsStyles.tourButton}
-          onPress={handleRightButton}
-        >
-          <Image
-            source={require('../assets/icons/back.svg')}
-            style={workoutControlsStyles.tourIconFlipped}
-            contentFit="contain"
-          />
-        </TouchableOpacity>
+        {/* Right Button - Hide when status is 'selected' */}
+        {status !== 'selected' && (
+          <TouchableOpacity
+            style={workoutControlsStyles.tourButton}
+            onPress={handleRightButton}
+          >
+            <Image
+              source={require('../assets/icons/back.svg')}
+              style={workoutControlsStyles.tourIconFlipped}
+              contentFit="contain"
+            />
+          </TouchableOpacity>
+        )}
       </View>
 
      
@@ -1095,6 +1419,11 @@ const workoutControlsStyles = StyleSheet.create({
     shadowRadius: 25,
     elevation: 25,
   },
+  compactCenterButtonLarge: {
+    borderRadius: 40,
+    minHeight: 72,
+    minWidth: 200,
+  },
   compactCenterButtonLabel: {
     color: nucleus.light.global.white,
     fontFamily: 'PlusJakartaSans-Bold',
@@ -1103,12 +1432,20 @@ const workoutControlsStyles = StyleSheet.create({
     marginVertical: 0,
     includeFontPadding: false,
   },
+  compactCenterButtonLabelLarge: {
+    fontSize: 18,
+    lineHeight: 22,
+  },
   compactCenterButtonContent: {
     minHeight: 56,
     paddingHorizontal: 0,
     paddingVertical: 0,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  compactCenterButtonContentLarge: {
+    minHeight: 72,
+    paddingHorizontal: 32,
   },
   exerciseInfo: {
     alignItems: 'center',
@@ -1829,6 +2166,7 @@ export default function ActiveWorkoutScreen() {
   const insets = useSafeAreaInsets();
   const [showFinishAlert, setShowFinishAlert] = useState(false);
   const [showMusicModal, setShowMusicModal] = useState(false);
+  const [showAdjustModal, setShowAdjustModal] = useState(false);
   
   // Auth context
   const { user } = useAuth();
@@ -1843,13 +2181,146 @@ export default function ActiveWorkoutScreen() {
   const session = useSelector(selectWorkoutSession);
   const timers = useSelector(selectTimers);
   const voiceAgent = useSelector(selectVoiceAgentStatus);
+  const workoutEntries = useSelector((state: any) => state.workout.workoutEntries);
   const dispatch = useAppDispatch();
+  
+  // Get current workout entry ID - use the entry at current index (this is the source of truth)
+  // The workout entry's exercise_id reflects the current exercise, even if it was swapped
+  const currentWorkoutEntryId = useMemo(() => {
+    if (!workoutEntries || !activeWorkout) return null;
+    const currentIndex = activeWorkout.currentExerciseIndex;
+    const entry = workoutEntries[currentIndex];
+    
+    // Only log mismatches or on first entry change (for debugging)
+    if (entry && entry.exercise_id !== currentExercise?.id) {
+      console.warn('⚠️ Workout entry mismatch:', {
+        index: currentIndex,
+        entryId: entry.id,
+        entryExerciseId: entry.exercise_id,
+        entryExerciseName: entry.exercises?.name,
+        currentExerciseName: currentExercise?.name,
+        currentExerciseId: currentExercise?.id,
+      });
+    }
+    
+    return entry?.id || null;
+  }, [workoutEntries, activeWorkout, currentExercise]);
 
   // Track if ad has been shown to prevent multiple triggers
   const adShownRef = useRef(false);
+  
+  // Track if welcome message has been shown
+  const welcomeMessageShownRef = useRef(false);
+
+  // Resume active workout session on mount (if exists)
+  useEffect(() => {
+    const resumeActiveSession = async () => {
+      // Only check if status is inactive (no active workout)
+      if (status !== 'inactive') {
+        return;
+      }
+
+      try {
+        // Get user ID from auth session
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user?.id) {
+          return; // User not authenticated
+        }
+        const userId = session.user.id;
+
+        // Check for active workout session in database
+        // Note: This will work once codegen is run and GetActiveWorkoutSession query is available
+        try {
+          const result = await dispatch(
+            enhancedApi.endpoints.GetActiveWorkoutSession.initiate({ userId })
+          ).unwrap();
+
+          const activeSession = result?.workout_sessionsCollection?.edges?.[0]?.node;
+          if (!activeSession) {
+            return; // No active session found
+          }
+
+          console.log('🔄 Found active workout session, resuming...', activeSession);
+
+          // Load workout entries for this session
+          const workoutData = await dispatch(
+            enhancedApi.endpoints.GetWorkoutDay.initiate({
+              planId: activeSession.workout_plan_id,
+              weekNumber: activeSession.week_number,
+              day: activeSession.day,
+            })
+          ).unwrap();
+
+          const entries = workoutData?.workout_plansCollection?.edges?.[0]?.node?.workout_entriesCollection?.edges || [];
+          if (entries.length === 0) {
+            console.warn('⚠️ No workout entries found for active session');
+            return;
+          }
+
+          // Extract workout entries
+          const workoutEntries = entries.map((edge: any) => edge.node);
+
+          // Resume workout by dispatching selectWorkoutFromEntries with the session ID
+          // The reducer will restore state from the session data
+          await dispatch(
+            selectWorkoutFromEntries({
+              workoutEntries,
+              planId: activeSession.workout_plan_id,
+              dayName: activeSession.day_name,
+            })
+          ).unwrap();
+
+          console.log('✅ Workout session resumed successfully');
+        } catch (error: any) {
+          // If query doesn't exist yet (codegen not run), silently fail
+          if (error?.message?.includes('endpoint') || error?.message?.includes('not found')) {
+            console.log('ℹ️ Resume functionality will be available after codegen is run');
+          } else {
+            console.error('Failed to resume workout session:', error);
+          }
+        }
+      } catch (error: any) {
+        console.error('Error checking for active session:', error);
+      }
+    };
+
+    resumeActiveSession();
+  }, []); // Run once on mount
 
   // Note: Auto-selection removed to prevent loops when finishing workout early
   // Users should start workouts from the workout selection screen instead
+
+  // Add welcome message when status becomes 'selected'
+  useEffect(() => {
+    if (status === 'selected' && !welcomeMessageShownRef.current) {
+      const currentState = store.getState() as any;
+      const workoutState = currentState.workout;
+      
+      // Get exercise count from activeWorkout or workoutEntries
+      const exerciseCount = activeWorkout?.totalExercises || 
+                           workoutState.workoutEntries?.length || 
+                           0;
+      
+      // Create welcome message
+      const welcomeMessage: ConversationEvent = {
+        type: 'agent_response',
+        agent_response_event: {
+          agent_response: `Welcome! We have ${exerciseCount} exercise${exerciseCount !== 1 ? 's' : ''} today. When you are warmed up, let me know when you're ready for the first exercise!`
+        }
+      } as any;
+      
+      // Add welcome message to conversation events
+      setConversationEvents(prev => [...prev, welcomeMessage]);
+      welcomeMessageShownRef.current = true;
+      
+      console.log('👋 Welcome message added:', welcomeMessage);
+    }
+    
+    // Reset welcome message flag when workout is completed or finished early
+    if (status === 'workout-completed' || status === 'inactive') {
+      welcomeMessageShownRef.current = false;
+    }
+  }, [status, activeWorkout, session]);
 
   // Check if workoutEntries exist but status is still inactive (race condition fix)
   useEffect(() => {
@@ -1959,6 +2430,7 @@ export default function ActiveWorkoutScreen() {
   const [conversationMode, setConversationMode] = useState<Mode | undefined>();
   const [conversationStatus, setConversationStatus] = useState<ConversationStatus>('disconnected');
   const [canSendFeedback, setCanSendFeedback] = useState<boolean>(false);
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null); // Track conversation ID for disconnect
   const agentId = process.env.EXPO_PUBLIC_ELEVENLABS_AGENT_ID || 'none';
   
   // Initialize conversation with handlers and client tools
@@ -2158,6 +2630,105 @@ export default function ActiveWorkoutScreen() {
         } catch (error) {
           console.error('❌ [Client Tool] get_exercise_instructions failed:', error);
           return JSON.stringify({ success: false, message: `Failed to get exercise instructions: ${error}` });
+        }
+      },
+      
+      jump_to_exercise: async (params: unknown) => {
+        try {
+          const typedParams = params as { exerciseSlug: string; reason?: string };
+          if (!typedParams.exerciseSlug) {
+            throw new Error('Missing exerciseSlug parameter');
+          }
+          
+          const reason = typedParams.reason || 'Agent navigation';
+          const result = await dispatch(jumpToExercise({ 
+            exerciseSlug: typedParams.exerciseSlug,
+            reason 
+          }));
+          const data = unwrapResult(result);
+          console.log('🎯 [Client Tool] jump_to_exercise result:', data);
+          return JSON.stringify(data);
+        } catch (error) {
+          console.error('❌ [Client Tool] jump_to_exercise failed:', error);
+          return JSON.stringify({ success: false, message: `Failed to jump to exercise: ${error}` });
+        }
+      },
+      
+      swap_exercise: async (params: unknown) => {
+        try {
+          const typedParams = params as { 
+            exerciseSlug: string; // Slug of alternative exercise to swap to
+            reason?: string;
+          };
+          
+          if (!typedParams.exerciseSlug) {
+            throw new Error('Missing exerciseSlug parameter');
+          }
+          
+          const state = store.getState() as RootState;
+          const workoutState = state.workout;
+          
+          if (!workoutState.activeWorkout || !workoutState.workoutEntries) {
+            throw new Error('No active workout');
+          }
+          
+          const currentExerciseIndex = workoutState.activeWorkout.currentExerciseIndex;
+          const currentEntry = workoutState.workoutEntries[currentExerciseIndex];
+          
+          if (!currentEntry) {
+            throw new Error('Current workout entry not found');
+          }
+          
+          // Find the alternative by slug in current entry's alternatives
+          const alternative = currentEntry.workout_entry_alternativesCollection?.edges?.find(
+            edge => edge.node.exercises?.slug === typedParams.exerciseSlug
+          );
+          
+          if (!alternative) {
+            // List available alternatives for better error message
+            const availableAlternatives = currentEntry.workout_entry_alternativesCollection?.edges?.map(
+              edge => `${edge.node.exercises?.name} (${edge.node.exercises?.slug})`
+            ).filter(Boolean).join(', ') || 'none';
+            
+            throw new Error(
+              `Exercise "${typedParams.exerciseSlug}" is not a valid alternative for current exercise "${currentEntry.exercises?.name}". ` +
+              `Available alternatives: ${availableAlternatives}`
+            );
+          }
+          
+          const newExerciseId = alternative.node.alternative_exercise_id;
+          const newExerciseName = alternative.node.exercises?.name || 'Unknown Exercise';
+          const reason = typedParams.reason || `Swapped to alternative: ${newExerciseName}`;
+          
+          // Call the swap mutation
+          const result = await dispatch(
+            enhancedApi.endpoints.SwapExerciseWithAlternative.initiate({
+              workoutEntryId: currentEntry.id,
+              newExerciseId: newExerciseId,
+              alternativeNote: reason,
+              planId: workoutState.planId || undefined,
+              weekNumber: currentEntry.week_number || undefined,
+              day: currentEntry.day || undefined
+            })
+          ).unwrap();
+          
+          console.log('🎯 [Client Tool] swap_exercise result:', result);
+          
+          return JSON.stringify({
+            success: true,
+            message: `Swapped to ${newExerciseName}`,
+            oldExerciseName: currentEntry.exercises?.name,
+            newExerciseName: newExerciseName,
+            newExerciseSlug: typedParams.exerciseSlug,
+            workoutEntryId: currentEntry.id
+          });
+          
+        } catch (error) {
+          console.error('❌ [Client Tool] swap_exercise failed:', error);
+          return JSON.stringify({ 
+            success: false, 
+            message: `Failed to swap exercise: ${error instanceof Error ? error.message : error}` 
+          });
         }
       },
       
@@ -2361,10 +2932,27 @@ export default function ActiveWorkoutScreen() {
     onConnect: ({ conversationId }: { conversationId: string }) => {
       console.log('Connected to ElevenLabs conversation', conversationId);
       setConversationStatus('connected');
+      setCurrentConversationId(conversationId);
+      
+      // Track conversation connection in database
+      dispatch(trackConversation({
+        conversationId,
+        eventType: 'connected',
+      }));
     },
     onDisconnect: (details: string) => {
       console.log('Disconnected from ElevenLabs conversation', details);
       setConversationStatus('disconnected');
+      
+      // Track conversation disconnection in database
+      if (currentConversationId) {
+        dispatch(trackConversation({
+          conversationId: currentConversationId,
+          eventType: 'disconnected',
+          details,
+        }));
+        setCurrentConversationId(null);
+      }
       
       // Unregister voice message callbacks when disconnected
       contextBridgeService.unregisterCallbacks();
@@ -2629,6 +3217,7 @@ export default function ActiveWorkoutScreen() {
               status={status}
               activeWorkout={activeWorkout}
               onShowFinishAlert={() => setShowFinishAlert(true)}
+              onShowAdjustModal={() => setShowAdjustModal(true)}
               dispatch={dispatch}
             />
           </View>
@@ -2688,11 +3277,23 @@ export default function ActiveWorkoutScreen() {
       )}
 
       {/* Music Modal */}
-
       <MusicModal
         visible={showMusicModal}
         onClose={() => setShowMusicModal(false)}
       />
+      
+      {/* Exercise Adjust Modal */}
+      {currentWorkoutEntryId && (
+        <ExerciseAdjustModal
+          visible={showAdjustModal}
+          onClose={() => setShowAdjustModal(false)}
+          onAdjustmentComplete={() => {
+            console.log('✅ Exercise adjusted successfully');
+            // Optionally refresh the workout state here if needed
+          }}
+          workoutEntryId={currentWorkoutEntryId}
+        />
+      )}
     </ReanimatedAnimated.View>
   );
 }
@@ -2831,6 +3432,25 @@ const styles = StyleSheet.create({
     bottom: 0,
     zIndex: 5,
   },
+  topRightOverlay: {
+    position: 'absolute',
+    right: 0,
+    zIndex: 20,
+    pointerEvents: 'box-none',
+  },
+  topRightButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  topRightIcon: {
+    width: 24,
+    height: 24,
+    tintColor: nucleus.light.global.white,
+  },
   controlsOverlay: {
     position: 'absolute',
     top: 0,
@@ -2959,7 +3579,7 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 3,
+    gap: 0,
   },
   infoItemRight: {
     display: 'flex',
@@ -2967,7 +3587,18 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 3,
+    gap: 0,
+  },
+  adjusterButton: {
+    paddingVertical: 2,
+    paddingHorizontal: 20,
+    marginTop: -4,
+    marginBottom: -4,
+  },
+  adjusterIcon: {
+    width: 24,
+    height: 24,
+    tintColor: nucleus.light.global.grey["50"],
   },
   infoValue: {
     fontFamily: 'PlusJakartaSans-Bold',

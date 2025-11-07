@@ -1,0 +1,77 @@
+{
+  "tools": [
+    {
+      "tool_config": {
+        "type": "client",
+        "name": "jump_to_exercise",
+        "description": "Jump to a specific exercise in the workout by exercise slug. Use this to navigate to any exercise in today's workout. This does NOT swap exercises - it just changes which exercise you're currently doing.",
+        "response_timeout_secs": 8,
+        "disable_interruptions": false,
+        "force_pre_tool_speech": false,
+        "assignments": [],
+        "parameters": {
+          "type": "object",
+          "required": [
+            "exerciseSlug"
+          ],
+          "description": "Parameters for jumping to a specific exercise",
+          "properties": {
+            "exerciseSlug": {
+              "type": "string",
+              "description": "The slug of the exercise to jump to (e.g., 'push-ups', 'prisoner-squat', 'side-plank'). Get available exercises from get_workout_status()",
+              "dynamic_variable": "",
+              "constant_value": ""
+            },
+            "reason": {
+              "type": "string",
+              "description": "Optional reason for jumping to this exercise (e.g., 'user requested', 'skipping ahead')",
+              "dynamic_variable": "",
+              "constant_value": ""
+            }
+          }
+        },
+        "expects_response": true,
+        "dynamic_variables": {
+          "dynamic_variable_placeholders": {}
+        }
+      }
+    },
+    {
+      "tool_config": {
+        "type": "client",
+        "name": "swap_exercise",
+        "description": "Swap the current exercise with one of its valid alternatives. Use this when equipment is unavailable or user wants a different exercise for the current position. Alternatives can ONLY replace the CURRENT exercise and must exist in workout_entry_alternatives. After swap, the old exercise becomes an alternative automatically.",
+        "response_timeout_secs": 10,
+        "disable_interruptions": false,
+        "force_pre_tool_speech": false,
+        "assignments": [],
+        "parameters": {
+          "type": "object",
+          "required": [
+            "exerciseSlug"
+          ],
+          "description": "Parameters for swapping current exercise with an alternative",
+          "properties": {
+            "exerciseSlug": {
+              "type": "string",
+              "description": "The slug of the alternative exercise to swap to (e.g., 'diamond-push-ups', 'push-ups'). Must be a valid alternative for the current exercise. Get available alternatives from get_workout_status() -> currentExerciseAlternatives",
+              "dynamic_variable": "",
+              "constant_value": ""
+            },
+            "reason": {
+              "type": "string",
+              "description": "Optional reason for the swap (e.g., 'equipment unavailable - no dumbbells', 'user preference')",
+              "dynamic_variable": "",
+              "constant_value": ""
+            }
+          }
+        },
+        "expects_response": true,
+        "dynamic_variables": {
+          "dynamic_variable_placeholders": {}
+        }
+      }
+    }
+  ]
+}
+

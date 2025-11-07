@@ -1,0 +1,407 @@
+# ============================================================================
+# Workout Session Queries and Mutations
+# ============================================================================
+# GraphQL queries and mutations for workout session tracking
+# ============================================================================
+
+# Query to get a single workout session with all related data
+query GetWorkoutSession($id: UUID!) {
+  workout_sessionsCollection(filter: { id: { eq: $id } }) {
+    edges {
+      node {
+        id
+        user_id
+        workout_plan_id
+        week_number
+        day
+        day_name
+        date
+        status
+        started_at
+        completed_at
+        paused_at
+        resumed_at
+        current_exercise_index
+        current_set_index
+        completed_exercises
+        completed_sets
+        total_exercises
+        total_sets
+        total_time_ms
+        total_pause_time_ms
+        last_activity_at
+        is_fully_completed
+        finished_early
+        created_at
+        updated_at
+      }
+    }
+  }
+}
+
+# Query to get user's active workout session
+query GetActiveWorkoutSession($userId: UUID!) {
+  workout_sessionsCollection(
+    filter: { 
+      user_id: { eq: $userId }
+      status: { in: ["selected", "preparing", "exercising", "paused"] }
+    }
+    orderBy: [{ started_at: DescNullsLast }]
+    first: 1
+  ) {
+    edges {
+      node {
+        id
+        workout_plan_id
+        week_number
+        day
+        day_name
+        date
+        status
+        started_at
+        paused_at
+        resumed_at
+        current_exercise_index
+        current_set_index
+        completed_exercises
+        completed_sets
+        total_exercises
+        total_sets
+        total_time_ms
+        total_pause_time_ms
+        last_activity_at
+        is_fully_completed
+        finished_early
+      }
+    }
+  }
+}
+
+# Query to get all sets for a workout session
+query GetWorkoutSessionSets($sessionId: UUID!) {
+  workout_session_setsCollection(
+    filter: { session_id: { eq: $sessionId } }
+    orderBy: [{ completed_at: AscNullsLast }]
+  ) {
+    edges {
+      node {
+        id
+        session_id
+        workout_entry_id
+        exercise_id
+        set_number
+        target_reps
+        target_weight
+        target_time
+        actual_reps
+        actual_weight
+        actual_time
+        difficulty
+        user_notes
+        started_at
+        completed_at
+        is_completed
+        skipped
+        created_at
+      }
+    }
+  }
+}
+
+# Query to get conversation IDs for a workout session
+query GetWorkoutSessionChat($sessionId: UUID!) {
+  workout_session_chatCollection(
+    filter: { session_id: { eq: $sessionId } }
+    orderBy: [{ timestamp: AscNullsLast }]
+  ) {
+    edges {
+      node {
+        id
+        session_id
+        conversation_id
+        event_type
+        details
+        timestamp
+        created_at
+      }
+    }
+  }
+}
+
+# Mutation to create a new workout session
+mutation CreateWorkoutSession(
+  $userId: UUID!
+  $workoutPlanId: UUID!
+  $weekNumber: Int!
+  $day: weekday!
+  $dayName: String!
+  $date: Date!
+  $totalExercises: Int!
+  $totalSets: Int!
+) {
+  insertIntoworkout_sessionsCollection(
+    objects: [{
+      user_id: $userId
+      workout_plan_id: $workoutPlanId
+      week_number: $weekNumber
+      day: $day
+      day_name: $dayName
+      date: $date
+      status: "selected"
+      total_exercises: $totalExercises
+      total_sets: $totalSets
+    }]
+  ) {
+    records {
+      id
+      user_id
+      workout_plan_id
+      week_number
+      day
+      day_name
+      date
+      status
+      started_at
+      current_exercise_index
+      current_set_index
+      completed_exercises
+      completed_sets
+      total_exercises
+      total_sets
+      created_at
+    }
+    affectedCount
+  }
+}
+
+# Mutation to update workout session status
+mutation UpdateWorkoutSessionStatus(
+  $id: UUID!
+  $status: String!
+  $lastActivityAt: Datetime
+) {
+  updateworkout_sessionsCollection(
+    filter: { id: { eq: $id } }
+    set: { 
+      status: $status
+      last_activity_at: $lastActivityAt
+    }
+  ) {
+    records {
+      id
+      status
+      updated_at
+      last_activity_at
+    }
+    affectedCount
+  }
+}
+
+# Mutation to update workout session progress
+mutation UpdateWorkoutSessionProgress(
+  $id: UUID!
+  $currentExerciseIndex: Int
+  $currentSetIndex: Int
+  $completedExercises: Int
+  $completedSets: Int
+  $totalTimeMs: BigInt
+  $totalPauseTimeMs: BigInt
+  $lastActivityAt: Datetime
+) {
+  updateworkout_sessionsCollection(
+    filter: { id: { eq: $id } }
+    set: {
+      current_exercise_index: $currentExerciseIndex
+      current_set_index: $currentSetIndex
+      completed_exercises: $completedExercises
+      completed_sets: $completedSets
+      total_time_ms: $totalTimeMs
+      total_pause_time_ms: $totalPauseTimeMs
+      last_activity_at: $lastActivityAt
+    }
+  ) {
+    records {
+      id
+      current_exercise_index
+      current_set_index
+      completed_exercises
+      completed_sets
+      total_time_ms
+      total_pause_time_ms
+      last_activity_at
+    }
+    affectedCount
+  }
+}
+
+# Mutation to update pause/resume timestamps
+mutation UpdateWorkoutSessionPause(
+  $id: UUID!
+  $pausedAt: Datetime
+  $resumedAt: Datetime
+  $lastActivityAt: Datetime
+) {
+  updateworkout_sessionsCollection(
+    filter: { id: { eq: $id } }
+    set: {
+      paused_at: $pausedAt
+      resumed_at: $resumedAt
+      last_activity_at: $lastActivityAt
+    }
+  ) {
+    records {
+      id
+      paused_at
+      resumed_at
+    }
+    affectedCount
+  }
+}
+
+# Mutation to complete a workout set
+mutation CompleteWorkoutSet(
+  $sessionId: UUID!
+  $workoutEntryId: UUID!
+  $exerciseId: UUID!
+  $setNumber: Int!
+  $targetReps: Int
+  $targetWeight: BigFloat
+  $targetTime: Int
+  $actualReps: Int
+  $actualWeight: BigFloat
+  $actualTime: Int
+  $difficulty: String
+  $userNotes: String
+  $startedAt: Datetime
+) {
+  insertIntoworkout_session_setsCollection(
+    objects: [{
+      session_id: $sessionId
+      workout_entry_id: $workoutEntryId
+      exercise_id: $exerciseId
+      set_number: $setNumber
+      target_reps: $targetReps
+      target_weight: $targetWeight
+      target_time: $targetTime
+      actual_reps: $actualReps
+      actual_weight: $actualWeight
+      actual_time: $actualTime
+      difficulty: $difficulty
+      user_notes: $userNotes
+      started_at: $startedAt
+      is_completed: true
+    }]
+  ) {
+    records {
+      id
+      session_id
+      workout_entry_id
+      exercise_id
+      set_number
+      actual_reps
+      actual_weight
+      actual_time
+      difficulty
+      completed_at
+    }
+    affectedCount
+  }
+}
+
+# Mutation to add workout adjustment
+mutation AddWorkoutAdjustment(
+  $sessionId: UUID!
+  $type: String!
+  $workoutEntryId: UUID
+  $exerciseId: UUID
+  $fromValue: String!
+  $toValue: String!
+  $reason: String!
+  $affectedSetNumbers: [Int!]
+  $affectsFutureSets: Boolean
+  $metadata: JSON
+) {
+  insertIntoworkout_session_adjustmentsCollection(
+    objects: [{
+      session_id: $sessionId
+      type: $type
+      workout_entry_id: $workoutEntryId
+      exercise_id: $exerciseId
+      from_value: $fromValue
+      to_value: $toValue
+      reason: $reason
+      affected_set_numbers: $affectedSetNumbers
+      affects_future_sets: $affectsFutureSets
+      metadata: $metadata
+    }]
+  ) {
+    records {
+      id
+      session_id
+      type
+      workout_entry_id
+      exercise_id
+      from_value
+      to_value
+      reason
+      created_at
+    }
+    affectedCount
+  }
+}
+
+# Mutation to track ElevenLabs conversation connection/disconnection
+mutation TrackWorkoutConversation(
+  $sessionId: UUID!
+  $conversationId: String!
+  $eventType: String!
+  $details: String
+) {
+  insertIntoworkout_session_chatCollection(
+    objects: [{
+      session_id: $sessionId
+      conversation_id: $conversationId
+      event_type: $eventType
+      details: $details
+    }]
+  ) {
+    records {
+      id
+      session_id
+      conversation_id
+      event_type
+      details
+      timestamp
+    }
+    affectedCount
+  }
+}
+
+# Mutation to complete workout session
+mutation CompleteWorkoutSession(
+  $id: UUID!
+  $status: String!
+  $completedAt: Datetime!
+  $isFullyCompleted: Boolean!
+  $finishedEarly: Boolean!
+) {
+  updateworkout_sessionsCollection(
+    filter: { id: { eq: $id } }
+    set: {
+      status: $status
+      completed_at: $completedAt
+      is_fully_completed: $isFullyCompleted
+      finished_early: $finishedEarly
+    }
+  ) {
+    records {
+      id
+      status
+      completed_at
+      is_fully_completed
+      finished_early
+    }
+    affectedCount
+  }
+}
+

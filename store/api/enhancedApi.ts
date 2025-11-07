@@ -1,6 +1,7 @@
 import { api as generatedApi } from '../../graphql/generated'
 import { realtimeClient } from '../../lib/realtimeClient'
 import { showWorkoutPlanCompletedNotification, showWorkoutPlanFailedNotification } from '../../services/workoutPlanService'
+import type { RootState } from '../index'
 
 // Enhanced API with real-time capabilities
 export const enhancedApi = generatedApi.enhanceEndpoints({
@@ -465,30 +466,78 @@ export const enhancedApi = generatedApi.enhanceEndpoints({
       async onQueryStarted({ id, sets, reps, weight, time, notes, isAdjusted, adjustmentReason }, { dispatch, queryFulfilled, getState }) {
         console.log('UpdateWorkoutEntry onQueryStarted:', { id, sets, reps, weight, time, notes, isAdjusted, adjustmentReason });
         
-        // Create patch for optimistic update on individual workout entry
-        const patchResult = dispatch(
-          enhancedApi.util.updateQueryData('GetWorkoutEntry', { id }, (draft) => {
-            if (draft?.workout_entriesCollection?.edges?.[0]?.node) {
-              const entry = draft.workout_entriesCollection.edges[0].node;
-              if (sets !== undefined) entry.sets = sets as number;
-              if (reps !== undefined) entry.reps = reps as string;
-              if (weight !== undefined) entry.weight = weight as string;
-              if (time !== undefined) entry.time = time as string;
-              if (notes !== undefined) entry.notes = notes as string;
-              if (isAdjusted !== undefined) entry.is_adjusted = isAdjusted as boolean;
-              if (adjustmentReason !== undefined) entry.adjustment_reason = adjustmentReason as string;
-              console.log('Optimistic update applied to GetWorkoutEntry cache for UpdateWorkoutEntry');
-            }
-          })
-        );
+        const state = getState() as RootState;
+        const workoutState = state.workout;
+        
+        // Get planId, weekNumber, day from Redux state if workout is active
+        let planId: string | undefined;
+        let weekNumber: number | undefined;
+        let day: any; // Weekday enum type
+        
+        if (workoutState.workoutEntries && workoutState.workoutEntries.length > 0) {
+          const entry = workoutState.workoutEntries.find(e => e.id === id);
+          if (entry) {
+            // Get planId from state (stored when workout is selected)
+            planId = workoutState.planId || undefined;
+            weekNumber = entry.week_number;
+            day = entry.day; // day is Weekday enum
+          }
+        }
+        
+        // Create patches for optimistic updates
+        const patches: any[] = [];
+        
+        // Patch GetWorkoutEntry cache
+        if (enhancedApi.endpoints.GetWorkoutEntry) {
+          const patchResult = dispatch(
+            enhancedApi.util.updateQueryData('GetWorkoutEntry', { id }, (draft) => {
+              if (draft?.workout_entriesCollection?.edges?.[0]?.node) {
+                const entry = draft.workout_entriesCollection.edges[0].node;
+                if (sets !== undefined) entry.sets = sets as number;
+                if (reps !== undefined) entry.reps = reps as string;
+                if (weight !== undefined) entry.weight = weight as string;
+                if (time !== undefined) entry.time = time as string;
+                if (notes !== undefined) entry.notes = notes as string;
+                if (isAdjusted !== undefined) entry.is_adjusted = isAdjusted as boolean;
+                if (adjustmentReason !== undefined) entry.adjustment_reason = adjustmentReason as string;
+                console.log('Optimistic update applied to GetWorkoutEntry cache');
+              }
+            })
+          );
+          patches.push(patchResult);
+        }
+        
+        // Patch GetWorkoutDay cache if we have the required params
+        if (planId && weekNumber !== undefined && day && enhancedApi.endpoints.GetWorkoutDay) {
+          const patchResult = dispatch(
+            enhancedApi.util.updateQueryData('GetWorkoutDay', { planId, weekNumber, day }, (draft) => {
+              const entries = draft?.workout_plansCollection?.edges?.[0]?.node?.workout_entriesCollection?.edges;
+              if (entries) {
+                const entryEdge = entries.find((e: any) => e.node.id === id);
+                if (entryEdge?.node) {
+                  const entry = entryEdge.node;
+                  if (sets !== undefined) entry.sets = sets as number;
+                  if (reps !== undefined) entry.reps = reps as string;
+                  if (weight !== undefined) entry.weight = weight as string;
+                  if (time !== undefined) entry.time = time as string;
+                  if (notes !== undefined) entry.notes = notes as string;
+                  if (isAdjusted !== undefined) entry.is_adjusted = isAdjusted as boolean;
+                  if (adjustmentReason !== undefined) entry.adjustment_reason = adjustmentReason as string;
+                  console.log('Optimistic update applied to GetWorkoutDay cache');
+                }
+              }
+            })
+          );
+          patches.push(patchResult);
+        }
 
         try {
           // Wait for the mutation to complete
           await queryFulfilled;
           console.log('✅ Workout entry updated successfully');
         } catch (err) {
-          // If the mutation fails, undo the optimistic update
-          patchResult.undo();
+          // If the mutation fails, undo all optimistic updates
+          patches.forEach(patch => patch.undo());
           console.error('❌ Failed to update workout entry, reverted changes:', err);
         }
       }

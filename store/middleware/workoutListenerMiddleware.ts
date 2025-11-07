@@ -1,34 +1,38 @@
 import { createListenerMiddleware, isAnyOf, type TypedStartListening } from '@reduxjs/toolkit';
 import { contextBridgeService } from '../../services/contextBridgeService';
-import type { AppDispatch, RootState } from '../index';
-import { getWorkoutStatus } from '../actions/workoutActions';
 import { getMusicStatus } from '../actions/musicActions';
+import { getWorkoutStatus } from '../actions/workoutActions';
+import { enhancedApi } from '../api/enhancedApi';
+import type { AppDispatch, RootState } from '../index';
 import {
-  addContextMessage,
-  adjustReps,
-  adjustRestTime,
-  adjustWeight,
-  clearProcessedContextMessages,
-  completeExercise,
-  completeSet,
-  completeWorkout,
-  confirmReadyAndStartSet,
-  extendRest,
-  finishWorkoutEarly,
-  jumpToSet,
-  nextSet,
-  pauseSet,
-  previousSet,
-  restTimerExpired,
-  resumeSet,
-  selectWorkout,
-  setTimerExpired,
-  setVoiceAgentStatus,
-  startExercisePreparation,
-  startRest,
-  triggerRestEnding,
-  updateRestTimer,
-  updateSetTimer,
+    addContextMessage,
+    adjustReps,
+    adjustRestTime,
+    adjustWeight,
+    clearProcessedContextMessages,
+    completeExercise,
+    completeSet,
+    completeWorkout,
+    confirmReadyAndStartSet,
+    extendRest,
+    finishWorkoutEarly,
+    jumpToSet,
+    nextSet,
+    pauseSet,
+    previousSet,
+    restTimerExpired,
+    resumeSet,
+    selectSessionId,
+    selectWorkout,
+    setTimerExpired,
+    setVoiceAgentStatus,
+    startExercisePreparation,
+    startRest,
+    syncWorkoutEntryUpdate,
+    trackConversation,
+    triggerRestEnding,
+    updateRestTimer,
+    updateSetTimer,
 } from '../slices/workoutSlice';
 
 // Create the listener middleware with proper typing
@@ -47,6 +51,64 @@ let activeTimers: {
   restUpdateInterval?: ReturnType<typeof setInterval>;
 } = {};
 
+// Debounce timers for adjustments to prevent rapid database updates
+const adjustmentDebounceTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
+const adjustmentUpdateFunctions: Map<string, () => Promise<void>> = new Map();
+
+// Helper to debounce database updates for adjustments
+const debounceAdjustmentUpdate = (
+  key: string,
+  updateFn: () => Promise<void>,
+  delay: number = 800
+) => {
+  // Clear existing timer for this key
+  const existingTimer = adjustmentDebounceTimers.get(key);
+  if (existingTimer) {
+    clearTimeout(existingTimer);
+  }
+  
+  // Store the update function
+  adjustmentUpdateFunctions.set(key, updateFn);
+  
+  // Set new timer
+  const timer = setTimeout(async () => {
+    try {
+      const fn = adjustmentUpdateFunctions.get(key);
+      if (fn) {
+        await fn();
+      }
+    } catch (error) {
+      console.error(`Failed to execute debounced update for ${key}:`, error);
+    } finally {
+      adjustmentDebounceTimers.delete(key);
+      adjustmentUpdateFunctions.delete(key);
+    }
+  }, delay);
+  
+  adjustmentDebounceTimers.set(key, timer);
+};
+
+// Helper to flush all pending debounced updates immediately
+const flushPendingAdjustments = async () => {
+  const pendingKeys = Array.from(adjustmentDebounceTimers.keys());
+  const timers = Array.from(adjustmentDebounceTimers.values());
+  const updateFns = Array.from(adjustmentUpdateFunctions.values());
+  
+  // Clear all timers
+  timers.forEach(timer => clearTimeout(timer));
+  adjustmentDebounceTimers.clear();
+  
+  // Execute all pending updates immediately
+  if (updateFns.length > 0) {
+    console.log(`🔄 Flushing ${updateFns.length} pending adjustment updates immediately...`);
+    await Promise.all(updateFns.map(fn => fn().catch(err => {
+      console.error('Error executing pending adjustment update:', err);
+    })));
+    adjustmentUpdateFunctions.clear();
+    console.log('✅ All pending adjustments flushed');
+  }
+};
+
 // Helper to clear all timers
 const clearAllTimers = () => {
   Object.entries(activeTimers).forEach(([key, timer]) => {
@@ -59,6 +121,13 @@ const clearAllTimers = () => {
     }
   });
   activeTimers = {};
+  
+  // Clear all debounce timers and update functions
+  adjustmentDebounceTimers.forEach((timer) => {
+    clearTimeout(timer);
+  });
+  adjustmentDebounceTimers.clear();
+  adjustmentUpdateFunctions.clear();
 };
 
 // Helper to start timer updates - Clean countdown implementation
@@ -531,11 +600,13 @@ startAppListening({
 startAppListening({
   actionCreator: adjustWeight,
   effect: async (action, listenerApi) => {
-    const { dispatch, getState } = listenerApi;
+    const { dispatch, getState, getOriginalState } = listenerApi;
     // Generate context message for weight adjustment
     const { newWeight, reason } = action.payload;
+    // Get the state BEFORE the reducer updated it
+    const originalState = getOriginalState() as RootState;
+    const oldWeight = originalState.workout.activeWorkout?.currentSet?.targetWeight || 0;
     const state = getState() as RootState;
-    const oldWeight = state.workout.activeWorkout?.currentSet?.targetWeight || 0;
     const currentSetIndex = state.workout.activeWorkout?.currentSetIndex || 0;
     const totalSets = state.workout.activeWorkout?.currentExercise?.sets.length || 0;
     const remainingSets = totalSets - currentSetIndex;
@@ -557,11 +628,13 @@ startAppListening({
 startAppListening({
   actionCreator: adjustReps,
   effect: async (action, listenerApi) => {
-    const { dispatch, getState } = listenerApi;
+    const { dispatch, getState, getOriginalState } = listenerApi;
     // Generate context message for reps adjustment
     const { newReps, reason } = action.payload;
+    // Get the state BEFORE the reducer updated it
+    const originalState = getOriginalState() as RootState;
+    const oldReps = originalState.workout.activeWorkout?.currentSet?.targetReps || 0;
     const state = getState() as RootState;
-    const oldReps = state.workout.activeWorkout?.currentSet?.targetReps || 0;
     const currentSetIndex = state.workout.activeWorkout?.currentSetIndex || 0;
     const totalSets = state.workout.activeWorkout?.currentExercise?.sets.length || 0;
     const remainingSets = totalSets - currentSetIndex;
@@ -1127,6 +1200,601 @@ startAppListening({
     setTimeout(() => {
       dispatch(clearProcessedContextMessages());
     }, 100);
+  },
+});
+
+// ============================================================================
+// DATABASE SYNC LISTENERS
+// ============================================================================
+// These listeners sync workout data to the database for persistence
+// Note: Mutations will be available after codegen is run
+
+// Listener for set completion - sync to workout_session_sets
+startAppListening({
+  actionCreator: completeSet,
+  effect: async (action, listenerApi) => {
+    const { dispatch, getState } = listenerApi;
+    const state = getState() as RootState;
+    const sessionId = selectSessionId(state);
+    
+    if (!sessionId || sessionId.startsWith('temp-')) {
+      // Skip sync for temporary sessions (backward compatibility)
+      return;
+    }
+    
+    const activeWorkout = state.workout.activeWorkout;
+    if (!activeWorkout?.currentExercise || !activeWorkout.currentSet) {
+      return;
+    }
+    
+    const currentEntry = state.workout.workoutEntries?.[activeWorkout.currentExerciseIndex];
+    if (!currentEntry) {
+      return;
+    }
+    
+    try {
+      // Sync set completion to database
+      // Note: This will work once codegen is run and CompleteWorkoutSet mutation is available
+      await dispatch(
+        enhancedApi.endpoints.CompleteWorkoutSet.initiate({
+          sessionId,
+          workoutEntryId: currentEntry.id,
+          exerciseId: activeWorkout.currentExercise.id,
+          setNumber: activeWorkout.currentSetIndex + 1,
+          targetReps: activeWorkout.currentSet.targetReps,
+          targetWeight: activeWorkout.currentSet.targetWeight || null,
+          targetTime: activeWorkout.currentSet.targetTime || null,
+          actualReps: activeWorkout.currentSet.actualReps || null,
+          actualWeight: activeWorkout.currentSet.actualWeight || null,
+          actualTime: null, // Not tracked in Redux state, set to null
+          startedAt: null, // Not tracked in Redux state, set to null
+        })
+      ).unwrap();
+      
+      console.log('✅ Synced set completion to database');
+    } catch (error: any) {
+      console.error('Failed to sync set completion to database:', error);
+      // Don't throw - allow workout to continue even if sync fails
+    }
+  },
+});
+
+// Listener for reps adjustment - sync to workout_session_adjustments AND workout_entries table
+// Debounced to prevent rapid database updates during hold-to-increment
+startAppListening({
+  actionCreator: adjustReps,
+  effect: async (action, listenerApi) => {
+    const { dispatch, getState, getOriginalState } = listenerApi;
+    const state = getState() as RootState;
+    const sessionId = selectSessionId(state);
+    
+    if (!sessionId || sessionId.startsWith('temp-')) {
+      return;
+    }
+    
+    const { newReps, reason } = action.payload;
+    const originalState = getOriginalState() as RootState;
+    const oldReps = originalState.workout.activeWorkout?.currentSet?.targetReps || 0;
+    const activeWorkout = state.workout.activeWorkout;
+    const currentEntry = state.workout.workoutEntries?.[activeWorkout?.currentExerciseIndex || 0];
+    
+    if (!activeWorkout || !currentEntry) {
+      return;
+    }
+    
+    // Debounce the database update - only execute after user stops adjusting for 800ms
+    const debounceKey = `reps-${currentEntry.id}`;
+    debounceAdjustmentUpdate(debounceKey, async () => {
+      try {
+        // Get latest state at the time of execution
+        const latestState = listenerApi.getState() as RootState;
+        const latestWorkout = latestState.workout.activeWorkout;
+        const latestEntry = latestState.workout.workoutEntries?.[latestWorkout?.currentExerciseIndex || 0];
+        
+        if (!latestWorkout || !latestEntry) {
+          return;
+        }
+        
+        // Use the latest reps value from state
+        const latestReps = latestWorkout.currentSet?.targetReps || newReps;
+        const repsStr = latestReps.toString();
+        
+        // Update workout_entry table with new reps value (affects all future sets)
+        await dispatch(
+          enhancedApi.endpoints.UpdateWorkoutEntry.initiate({
+            id: latestEntry.id,
+            reps: repsStr,
+            isAdjusted: true,
+            adjustmentReason: reason || 'User adjusted reps',
+          })
+        ).unwrap();
+        
+        // Also log to workout_session_adjustments for tracking
+        await dispatch(
+          enhancedApi.endpoints.AddWorkoutAdjustment.initiate({
+            sessionId,
+            type: 'reps',
+            workoutEntryId: latestEntry.id,
+            exerciseId: latestWorkout.currentExercise?.id,
+            fromValue: oldReps.toString(),
+            toValue: latestReps.toString(),
+            reason: reason || 'User adjusted reps',
+            affectedSetNumbers: [latestWorkout.currentSetIndex + 1],
+            affectsFutureSets: true,
+          })
+        ).unwrap();
+        
+        console.log('✅ Synced reps adjustment to database (workout_entry + session_adjustments)');
+      } catch (error: any) {
+        console.error('Failed to sync reps adjustment to database:', error);
+      }
+    }, 800);
+  },
+});
+
+// Listener for weight adjustment - sync to workout_session_adjustments AND workout_entries table
+// Debounced to prevent rapid database updates during hold-to-increment
+startAppListening({
+  actionCreator: adjustWeight,
+  effect: async (action, listenerApi) => {
+    const { dispatch, getState, getOriginalState } = listenerApi;
+    const state = getState() as RootState;
+    const sessionId = selectSessionId(state);
+    
+    if (!sessionId || sessionId.startsWith('temp-')) {
+      return;
+    }
+    
+    const { newWeight, reason } = action.payload;
+    const originalState = getOriginalState() as RootState;
+    const oldWeight = originalState.workout.activeWorkout?.currentSet?.targetWeight || 0;
+    const activeWorkout = state.workout.activeWorkout;
+    const currentEntry = state.workout.workoutEntries?.[activeWorkout?.currentExerciseIndex || 0];
+    
+    if (!activeWorkout || !currentEntry) {
+      return;
+    }
+    
+    // Debounce the database update - only execute after user stops adjusting for 800ms
+    const debounceKey = `weight-${currentEntry.id}`;
+    debounceAdjustmentUpdate(debounceKey, async () => {
+      try {
+        // Get latest state at the time of execution
+        const latestState = listenerApi.getState() as RootState;
+        const latestWorkout = latestState.workout.activeWorkout;
+        const latestEntry = latestState.workout.workoutEntries?.[latestWorkout?.currentExerciseIndex || 0];
+        
+        if (!latestWorkout || !latestEntry) {
+          return;
+        }
+        
+        // Use the latest weight value from state
+        const latestWeight = latestWorkout.currentSet?.targetWeight || newWeight;
+        const weightStr = latestWeight.toString() + 'kg';
+        
+        // Update workout_entry table with new weight value (affects all future sets)
+        await dispatch(
+          enhancedApi.endpoints.UpdateWorkoutEntry.initiate({
+            id: latestEntry.id,
+            weight: weightStr,
+            isAdjusted: true,
+            adjustmentReason: reason || 'User adjusted weight',
+          })
+        ).unwrap();
+        
+        // Also log to workout_session_adjustments for tracking
+        await dispatch(
+          enhancedApi.endpoints.AddWorkoutAdjustment.initiate({
+            sessionId,
+            type: 'weight',
+            workoutEntryId: latestEntry.id,
+            exerciseId: latestWorkout.currentExercise?.id,
+            fromValue: oldWeight.toString(),
+            toValue: latestWeight.toString(),
+            reason: reason || 'User adjusted weight',
+            affectedSetNumbers: [latestWorkout.currentSetIndex + 1],
+            affectsFutureSets: true,
+          })
+        ).unwrap();
+        
+        console.log('✅ Synced weight adjustment to database (workout_entry + session_adjustments)');
+      } catch (error: any) {
+        console.error('Failed to sync weight adjustment to database:', error);
+      }
+    }, 800);
+  },
+});
+
+// Listener for UpdateWorkoutEntry mutation completion - sync Redux state from cache
+// This ensures that when workout entries are updated (e.g., from adjust modal),
+// the Redux state is immediately updated so the active workout screen reflects changes
+startAppListening({
+  matcher: (action): action is any => {
+    return enhancedApi.endpoints.UpdateWorkoutEntry.matchFulfilled(action);
+  },
+  effect: async (action, listenerApi) => {
+    const { dispatch } = listenerApi;
+    
+    const { id } = action.meta.arg.originalArgs;
+    const updatedEntry = action.payload?.updateworkout_entriesCollection?.records?.[0];
+    
+    if (!updatedEntry) {
+      return;
+    }
+    
+    // Dispatch reducer action to update Redux state (handles immutability properly)
+    dispatch(syncWorkoutEntryUpdate({
+      entryId: id,
+      updates: {
+        sets: updatedEntry.sets,
+        reps: updatedEntry.reps,
+        weight: updatedEntry.weight,
+        time: updatedEntry.time,
+        notes: updatedEntry.notes,
+        isAdjusted: updatedEntry.is_adjusted,
+        adjustmentReason: updatedEntry.adjustment_reason,
+      },
+    }));
+    
+    console.log('✅ Synced workout entry update to Redux state');
+  },
+});
+
+// Listener for SwapExerciseWithAlternative mutation completion - sync Redux state from cache
+// This ensures that when exercises are swapped in the adjust modal,
+// the Redux state is immediately updated so the active workout screen reflects the new exercise
+startAppListening({
+  matcher: (action): action is any => {
+    return enhancedApi.endpoints.SwapExerciseWithAlternative.matchFulfilled(action);
+  },
+  effect: async (action, listenerApi) => {
+    const { dispatch, getState } = listenerApi;
+    const state = getState() as RootState;
+    
+    const { workoutEntryId, newExerciseId, alternativeNote } = action.meta.arg.originalArgs;
+    const updatedEntry = action.payload?.updateworkout_entriesCollection?.records?.[0];
+    
+    if (!updatedEntry) {
+      return;
+    }
+    
+    // Get workout state to find old exercise name
+    const workoutState = state.workout;
+    const entryIndex = workoutState.workoutEntries?.findIndex(entry => entry.id === workoutEntryId) ?? -1;
+    const oldEntry = entryIndex >= 0 ? workoutState.workoutEntries?.[entryIndex] : null;
+    const oldExerciseName = oldEntry?.exercises?.name 
+      ? oldEntry.exercises.name.replace(/\s*\([^)]*\)/g, '').trim()
+      : 'previous exercise';
+    const oldExerciseId = oldEntry?.exercise_id || null;
+    
+    // CRITICAL: Fetch exercise data separately - NEVER use nested data from mutation response
+    let exerciseData;
+    try {
+      const exerciseResult = await dispatch(
+        enhancedApi.endpoints.GetExerciseById.initiate({ id: newExerciseId }, { forceRefetch: true })
+      ).unwrap();
+      exerciseData = exerciseResult?.exercisesCollection?.edges?.[0]?.node;
+      
+      if (!exerciseData) {
+        console.error(`❌ Failed to fetch exercise ${newExerciseId} after swap`);
+        return;
+      }
+      
+      console.log(`✅ Fetched fresh exercise data for swap: ${exerciseData.name}`);
+    } catch (error: any) {
+      console.error(`❌ Failed to fetch exercise ${newExerciseId} after swap:`, error);
+      return;
+    }
+    
+    const newExerciseName = exerciseData.name.replace(/\s*\([^)]*\)/g, '').trim();
+    
+    console.log('🔄 Swapping exercise in Redux state:', {
+      workoutEntryId,
+      oldExerciseId: 'will be checked in reducer',
+      newExerciseId: updatedEntry.exercise_id,
+      newExerciseName,
+    });
+    
+    // CRITICAL: Refetch GetWorkoutDay to get fresh workoutEntries with updated nested data (reps/time)
+    // This ensures we have the correct reps/time for the new exercise
+    const planId = workoutState.planId;
+    const weekNumber = oldEntry?.week_number;
+    const day = oldEntry?.day;
+    
+    if (planId && weekNumber !== undefined && day) {
+      try {
+        console.log('🔄 Refetching GetWorkoutDay to get fresh workoutEntries after swap...');
+        await dispatch(
+          enhancedApi.endpoints.GetWorkoutDay.initiate(
+            { planId, weekNumber, day },
+            { forceRefetch: true }
+          )
+        ).unwrap();
+        console.log('✅ Refetched GetWorkoutDay with fresh workoutEntries');
+      } catch (error: any) {
+        console.warn('⚠️ Failed to refetch GetWorkoutDay after swap, continuing with current data:', error);
+        // Continue anyway - we'll use the exercise data we fetched
+      }
+    } else {
+      console.warn('⚠️ Missing planId/weekNumber/day, cannot refetch GetWorkoutDay');
+    }
+    
+    // Get fresh entry data from state after refetch
+    const freshState = listenerApi.getState() as RootState;
+    const freshEntry = freshState.workout.workoutEntries?.find(entry => entry.id === workoutEntryId);
+    
+    // Dispatch reducer action to update Redux state with exercise swap
+    // Use fresh entry data if available, otherwise use what we have
+    dispatch(syncWorkoutEntryUpdate({
+      entryId: workoutEntryId,
+      updates: {
+        exerciseId: updatedEntry.exercise_id,
+        exerciseData: exerciseData, // Use fresh data from GetExerciseById
+        isAdjusted: updatedEntry.is_adjusted,
+        adjustmentReason: updatedEntry.adjustment_reason,
+        // Pass fresh entry data if refetch succeeded
+        ...(freshEntry ? {
+          sets: freshEntry.sets,
+          reps: freshEntry.reps,
+          weight: freshEntry.weight,
+          time: freshEntry.time,
+          notes: freshEntry.notes,
+        } : {}),
+      },
+    }));
+    
+    // Log exercise swap to workout_session_adjustments for tracking
+    const sessionId = workoutState.sessionId;
+    if (sessionId && !sessionId.startsWith('temp-')) {
+      try {
+        await dispatch(
+          enhancedApi.endpoints.AddWorkoutAdjustment.initiate({
+            sessionId,
+            type: 'exercise_swap',
+            workoutEntryId: workoutEntryId,
+            exerciseId: newExerciseId,
+            fromValue: oldExerciseName,
+            toValue: newExerciseName,
+            reason: updatedEntry.adjustment_reason || 'User chose an alternative exercise',
+            affectedSetNumbers: undefined, // Exercise swap affects all sets
+            affectsFutureSets: true,
+            // Omit metadata for now - can add later if needed
+            // The exercise IDs are already tracked in fromValue/toValue and exerciseId fields
+          })
+        ).unwrap();
+        
+        console.log('✅ Logged exercise swap to workout_session_adjustments');
+      } catch (error: any) {
+        console.error('Failed to log exercise swap to workout_session_adjustments:', error);
+        // Don't throw - allow workout to continue even if logging fails
+      }
+    }
+    
+    // Notify voice agent about exercise swap (works for both manual swaps from UI and agent swaps)
+    const reason = alternativeNote || updatedEntry.adjustment_reason || 'User chose an alternative exercise';
+    const contextMessage = `SYSTEM: exercise-swap - Exercise swapped from "${oldExerciseName}" to "${newExerciseName}". Reason: ${reason}. The current exercise is now "${newExerciseName}". Update your context accordingly.`;
+    
+    contextBridgeService.sendContextualUpdate(contextMessage).catch(err => 
+      console.log('🎙️ Could not send exercise swap context:', err)
+    );
+    
+    console.log('✅ Synced exercise swap to Redux state');
+  },
+});
+
+// Listener for ElevenLabs conversation tracking - sync to workout_session_chat
+// Only tracks conversation IDs, not individual messages (ElevenLabs stores those)
+startAppListening({
+  actionCreator: trackConversation,
+  effect: async (action, listenerApi) => {
+    const { dispatch, getState } = listenerApi;
+    const state = getState() as RootState;
+    const sessionId = selectSessionId(state);
+    
+    if (!sessionId || sessionId.startsWith('temp-')) {
+      return;
+    }
+    
+    const { conversationId, eventType, details } = action.payload;
+    
+    try {
+      await dispatch(
+        enhancedApi.endpoints.TrackWorkoutConversation.initiate({
+          sessionId,
+          conversationId,
+          eventType,
+          details: details || null,
+        })
+      ).unwrap();
+      
+      console.log(`✅ Tracked conversation ${eventType}: ${conversationId}`);
+    } catch (error: any) {
+      const errorMessage = error?.message || String(error);
+      console.error(`❌ Failed to track conversation ${eventType}:`, errorMessage.substring(0, 200));
+    }
+  },
+});
+
+// Listener for status changes - sync to workout_sessions
+startAppListening({
+  matcher: isAnyOf(
+    startExercisePreparation,
+    confirmReadyAndStartSet,
+    completeSet,
+    startRest,
+    triggerRestEnding,
+    completeExercise,
+    completeWorkout,
+    finishWorkoutEarly,
+    pauseSet,
+    resumeSet
+  ),
+  effect: async (action, listenerApi) => {
+    const { dispatch, getState } = listenerApi;
+    const state = getState() as RootState;
+    const sessionId = selectSessionId(state);
+    
+    if (!sessionId || sessionId.startsWith('temp-')) {
+      return;
+    }
+    
+    const status = state.workout.status;
+    const activeWorkout = state.workout.activeWorkout;
+    
+    if (!activeWorkout) {
+      return;
+    }
+    
+    // Map Redux status to DB status
+    // DB only allows: 'selected', 'preparing', 'exercising', 'paused', 'completed', 'finished_early', 'abandoned'
+    // Redux has: 'inactive', 'selected', 'preparing', 'exercising', 'set-complete', 'resting', 'rest-ending', 'exercise-transition', 'workout-completed'
+    let dbStatus: string;
+    switch (status) {
+      case 'selected':
+        dbStatus = 'selected';
+        break;
+      case 'preparing':
+      case 'exercise-transition':
+        dbStatus = 'preparing';
+        break;
+      case 'exercising':
+        dbStatus = 'exercising';
+        break;
+      case 'set-complete':
+      case 'resting':
+      case 'rest-ending':
+        // These are all part of the exercising phase - keep as 'exercising'
+        dbStatus = 'exercising';
+        break;
+      case 'workout-completed':
+        dbStatus = 'completed';
+        break;
+      case 'inactive':
+        // Don't sync inactive status
+        return;
+      default:
+        // For any unknown status, default to 'exercising' to be safe
+        console.warn(`⚠️ Unknown status "${status}", mapping to 'exercising'`);
+        dbStatus = 'exercising';
+    }
+    
+    // Safety check - ensure dbStatus is valid before sending
+    const validStatuses = ['selected', 'preparing', 'exercising', 'paused', 'completed', 'finished_early', 'abandoned'];
+    if (!validStatuses.includes(dbStatus)) {
+      console.error(`❌ Invalid dbStatus "${dbStatus}" mapped from "${status}", skipping sync`);
+      return;
+    }
+    
+    console.log(`🔄 Syncing status: "${status}" -> "${dbStatus}"`);
+    
+    try {
+      // Update session status - use mapped dbStatus, not raw status
+      await dispatch(
+        enhancedApi.endpoints.UpdateWorkoutSessionStatus.initiate({
+          id: sessionId,
+          status: dbStatus, // Use mapped status, not raw Redux status
+          lastActivityAt: new Date().toISOString(),
+        })
+      ).unwrap();
+      
+      // Update progress
+      await dispatch(
+        enhancedApi.endpoints.UpdateWorkoutSessionProgress.initiate({
+          id: sessionId,
+          currentExerciseIndex: activeWorkout.currentExerciseIndex,
+          currentSetIndex: activeWorkout.currentSetIndex,
+          completedExercises: activeWorkout.completedExercises,
+          completedSets: activeWorkout.completedSets,
+          totalTimeMs: activeWorkout.elapsedTime,
+          totalPauseTimeMs: activeWorkout.totalPauseTime,
+          lastActivityAt: new Date().toISOString(),
+        })
+      ).unwrap();
+      
+      console.log('✅ Synced workout status to database');
+    } catch (error: any) {
+      console.error('Failed to sync workout status to database:', error);
+    }
+  },
+});
+
+// Listener for workout completion - mark session as completed
+startAppListening({
+  actionCreator: completeWorkout,
+  effect: async (action, listenerApi) => {
+    const { dispatch, getState } = listenerApi;
+    
+    // Flush any pending adjustment updates before completing
+    await flushPendingAdjustments();
+    
+    const state = getState() as RootState;
+    const sessionId = selectSessionId(state);
+    
+    if (!sessionId || sessionId.startsWith('temp-')) {
+      return;
+    }
+    
+    const activeWorkout = state.workout.activeWorkout;
+    const isFullyCompleted = activeWorkout?.completedExercises === activeWorkout?.totalExercises;
+    
+    // Compute status based on completion state
+    const dbStatus = 'completed'; // Always completed for completeWorkout action
+    
+    try {
+      await dispatch(
+        enhancedApi.endpoints.CompleteWorkoutSession.initiate({
+          id: sessionId,
+          status: dbStatus,
+          completedAt: new Date().toISOString(),
+          isFullyCompleted: !!isFullyCompleted,
+          finishedEarly: false,
+        })
+      ).unwrap();
+      
+      console.log('✅ Synced workout completion to database');
+    } catch (error: any) {
+      console.error('Failed to sync workout completion to database:', error);
+    }
+  },
+});
+
+// Listener for early finish - mark session as finished early
+startAppListening({
+  actionCreator: finishWorkoutEarly,
+  effect: async (action, listenerApi) => {
+    const { dispatch, getState } = listenerApi;
+    
+    // Flush any pending adjustment updates before finishing early
+    await flushPendingAdjustments();
+    
+    const state = getState() as RootState;
+    const sessionId = selectSessionId(state);
+    
+    if (!sessionId || sessionId.startsWith('temp-')) {
+      return;
+    }
+    
+    const activeWorkout = state.workout.activeWorkout;
+    const isFullyCompleted = activeWorkout?.completedExercises === activeWorkout?.totalExercises;
+    
+    // Compute status - always finished_early in this listener
+    const dbStatus = 'finished_early';
+    
+    try {
+      await dispatch(
+        enhancedApi.endpoints.CompleteWorkoutSession.initiate({
+          id: sessionId,
+          status: dbStatus,
+          completedAt: new Date().toISOString(),
+          isFullyCompleted: !!isFullyCompleted,
+          finishedEarly: true,
+        })
+      ).unwrap();
+      
+      console.log('✅ Synced early finish to database');
+    } catch (error: any) {
+      console.error('Failed to sync early finish to database:', error);
+    }
   },
 });
 
