@@ -175,7 +175,16 @@ export class AuthService {
    * Get the current session
    */
   async getSession() {
-    return await this.supabase.auth.getSession();
+    console.log('🔧 [AUTH_SERVICE] getSession called');
+    try {
+      console.log('🔧 [AUTH_SERVICE] Calling supabase.auth.getSession()');
+      const result = await this.supabase.auth.getSession();
+      console.log('🔧 [AUTH_SERVICE] getSession completed - hasSession:', !!result.data?.session);
+      return result;
+    } catch (error) {
+      console.error('🔧 [AUTH_SERVICE] getSession error:', error);
+      throw error;
+    }
   }
 
   /**

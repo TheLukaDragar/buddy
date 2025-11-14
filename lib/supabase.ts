@@ -15,31 +15,46 @@ let supabaseInstance: SupabaseClient | null = null
 
 function createSupabaseClient() {
   if (supabaseInstance) {
+    console.log('🔧 [SUPABASE] Returning existing client instance');
     return supabaseInstance
   }
 
+  console.log('🔧 [SUPABASE] Creating new Supabase client');
+  console.log('🔧 [SUPABASE] Platform:', Platform.OS);
+  
   // Check if we're in a browser environment (not during static rendering)
   const isBrowser = typeof window !== 'undefined'
+  const isNative = Platform.OS !== 'web'
   
-  // For static rendering, we'll create a minimal client without storage
-  const authConfig = isBrowser ? {
+  console.log('🔧 [SUPABASE] isBrowser:', isBrowser, 'isNative:', isNative);
+  
+  // For React Native, always use AsyncStorage and persist session
+  // For web, check if we're in a browser (not static rendering)
+  const authConfig = (isNative || isBrowser) ? {
     storage: AsyncStorage,
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
   } : {
+    // Only for static rendering (SSR)
     autoRefreshToken: false,
     persistSession: false,
     detectSessionInUrl: false,
   }
 
+  console.log('🔧 [SUPABASE] Auth config:', JSON.stringify(authConfig, null, 2));
+
   supabaseInstance = createClient(supabaseUrl!, supabaseAnonKey!, {
     auth: authConfig,
   })
+  
+  console.log('🔧 [SUPABASE] Client created successfully');
 
   // Only set up AppState listener in native environments
-  if (Platform.OS !== 'web' && isBrowser) {
+  if (isNative) {
+    console.log('🔧 [SUPABASE] Setting up AppState listener for native platform');
     AppState.addEventListener('change', (state) => {
+      console.log('🔧 [SUPABASE] AppState changed:', state);
       if (state === 'active') {
         supabaseInstance?.auth.startAutoRefresh()
       } else {

@@ -52,18 +52,62 @@ const BuddyNavigationTheme = {
   },
 };
 
-export default function RootLayout() {
-  const colorScheme = useColorScheme();
+// Component to log when PersistGate finishes rehydration
+// Moved outside RootLayout to prevent remounting on every render
+// Using a stable component reference so it doesn't get recreated
+function PersistGateContent() {
+  console.log('🚀 [ENTRY] PersistGate - rehydration complete, rendering app');
   const [showIntro, setShowIntro] = useState(false);
+  
+  const handleDismissIntro = React.useCallback(() => {
+    setShowIntro(false);
+  }, []);
+
+  // Memoize the context value to prevent unnecessary re-renders
+  const introContextValue = React.useMemo(() => ({
+    showIntro,
+    setShowIntro
+  }), [showIntro]);
+
+  return (
+    <AuthProvider>
+      <SplashScreenController />
+      <SafeAreaProvider> 
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <PaperProvider theme={BuddyLightTheme}>
+            <ThemeProvider value={BuddyNavigationTheme}>
+              <IntroContext.Provider value={introContextValue}>
+                <RootNavigator />
+                <SystemBars style="dark" />
+                
+                {/* Global SwipeableIntro - renders above everything */}
+                <SwipeableIntro 
+                  visible={showIntro}
+                  onDismiss={handleDismissIntro}
+                />
+              </IntroContext.Provider>
+            </ThemeProvider>
+          </PaperProvider>
+        </GestureHandlerRootView>
+      </SafeAreaProvider>
+    </AuthProvider>
+  );
+}
+
+export default function RootLayout() {
+  console.log('🚀 [ENTRY] RootLayout component rendering');
+  const colorScheme = useColorScheme();
   
   // Configure Android navigation bar for edge-to-edge
   useEffect(() => {
+    console.log('🚀 [ENTRY] RootLayout useEffect - configuring navigation bar');
     if (Platform.OS === 'android') {
       // Set navigation bar style for edge-to-edge
       NavigationBar.setStyle('dark');
     }
   }, []);
   
+  console.log('🚀 [ENTRY] RootLayout - loading fonts');
   const [loaded] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
     // Official Plus Jakarta Sans fonts from Tokotype
@@ -87,44 +131,19 @@ export default function RootLayout() {
   });
 
   if (!loaded) {
+    console.log('🚀 [ENTRY] RootLayout - fonts not loaded yet, returning null');
     // Async font loading only occurs in development.
     return null;
   }
 
-  // Force light theme throughout the app
-  const paperTheme = BuddyLightTheme;
-
-  const handleDismissIntro = () => {
-    setShowIntro(false);
-  };
+  console.log('🚀 [ENTRY] RootLayout - fonts loaded, rendering provider tree');
 
   return (
     <ElevenLabsProvider>
     <Provider store={store}>
       <PersistGate loading={null} persistor={persistor}>
-       
-        <AuthProvider>
-            <SplashScreenController />
-            <SafeAreaProvider> 
-              <GestureHandlerRootView style={{ flex: 1 }}>
-                <PaperProvider theme={paperTheme}>
-                  <ThemeProvider value={BuddyNavigationTheme}>
-                    <IntroContext.Provider value={{ showIntro, setShowIntro }}>
-                      <RootNavigator />
-                      <SystemBars style="dark" />
-                      
-                      {/* Global SwipeableIntro - renders above everything */}
-                      <SwipeableIntro 
-                        visible={showIntro}
-                        onDismiss={handleDismissIntro}
-                      />
-                    </IntroContext.Provider>
-                  </ThemeProvider>
-                </PaperProvider>
-              </GestureHandlerRootView>
-              </SafeAreaProvider>
-          </AuthProvider>
-        </PersistGate>
+        <PersistGateContent />
+      </PersistGate>
       </Provider>
     </ElevenLabsProvider>
   );
@@ -132,10 +151,13 @@ export default function RootLayout() {
 
 // Separate this into a new component so it can access the AuthProvider context
 function RootNavigator() {
+  console.log('🚀 [NAVIGATOR] RootNavigator component rendering');
   const { user, loading } = useAuth();
+  console.log('🚀 [NAVIGATOR] Auth state - loading:', loading, 'user:', user?.id || 'null');
 
   // Show loading screen while checking authentication
   if (loading) {
+    console.log('🚀 [NAVIGATOR] Showing loading screen (auth loading)');
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: nucleus.light.semantic.bg.subtle }}>
         <ActivityIndicator size="large" color={nucleus.light.global.blue["50"]} />
@@ -143,6 +165,7 @@ function RootNavigator() {
     );
   }
 
+  console.log('🚀 [NAVIGATOR] Auth loaded, rendering Stack navigator');
   return (
     <Stack
       screenOptions={{

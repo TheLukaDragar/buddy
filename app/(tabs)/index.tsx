@@ -20,21 +20,27 @@ import { getDayNameImage } from '../../utils';
 import { useIntro } from '../_layout';
 
 export default function ExploreScreen() {
+  console.log('🏠 [MAIN] ExploreScreen component rendering');
   const theme = useBuddyTheme();
   const { setShowIntro } = useIntro();
   const { user } = useAuth();
+  console.log('🏠 [MAIN] User:', user?.id || 'null');
 
   // Get user profile data from Redux store
   const userProfile = useAppSelector((state: RootState) => (state as any).user?.extractedProfile);
+  console.log('🏠 [MAIN] User profile:', userProfile ? 'exists' : 'null');
 
   // Fetch real workout plans from database
+  console.log('🏠 [MAIN] Fetching workout plans for user:', user?.id || 'null');
   const { data: workoutPlansData, isLoading: isLoadingWorkoutPlans, isFetching: isFetchingWorkoutPlans, refetch: refetchWorkoutPlans } = useGetUserWorkoutPlansQuery(
     { userId: user?.id || '' },
     { skip: !user?.id }
   );
+  console.log('🏠 [MAIN] Workout plans - isLoading:', isLoadingWorkoutPlans, 'isFetching:', isFetchingWorkoutPlans, 'hasData:', !!workoutPlansData);
   
   const userWorkoutPlans = workoutPlansData?.workout_plansCollection?.edges?.map(edge => edge.node) || [];
   const activeWorkoutPlan = userWorkoutPlans.find(plan => plan.status === 'active');
+  console.log('🏠 [MAIN] Active workout plan:', activeWorkoutPlan?.id || 'none');
   
   // Function to generate personalized morning message
   const getPersonalizedGreeting = () => {
@@ -144,15 +150,21 @@ export default function ExploreScreen() {
   
   // Show the intro popup when the screen loads
   useEffect(() => {
+    console.log('🏠 [MAIN] Setting up intro popup timer');
     const timer = setTimeout(() => {
+      console.log('🏠 [MAIN] Showing intro popup');
       setShowIntro(true);
     }, 1000); // Show after 1 second delay
 
-    return () => clearTimeout(timer);
+    return () => {
+      console.log('🏠 [MAIN] Cleaning up intro popup timer');
+      clearTimeout(timer);
+    };
   }, [setShowIntro]);
 
   // Start entrance animations
   useEffect(() => {
+    console.log('🏠 [MAIN] Starting entrance animations');
     const startAnimations = () => {
       // Staggered entrance animations
       greetingOpacity.value = withTiming(1, { duration: 600 });
@@ -177,6 +189,7 @@ export default function ExploreScreen() {
     startAnimations();
   }, []);
 
+  console.log('🏠 [MAIN] ExploreScreen render complete - rendering UI');
   // Week calendar data
   const weeks = [1, 2, 3, 4, 5, 6, 7, 8];
   const completedWeeks = [1, 2]; // Completed weeks (exclude current week)
@@ -500,6 +513,7 @@ export default function ExploreScreen() {
     transform: [{ translateY: (1 - statsOpacity.value) * 60 }]
   }));
 
+  console.log('🏠 [MAIN] Rendering SafeAreaView');
   return (
     <SafeAreaView edges={['top']} style={[styles.container, { backgroundColor: nucleus.light.semantic.bg.subtle }]}>
 

@@ -20,53 +20,70 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  console.log('🔐 [AUTH] AuthProvider component rendering');
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const dispatch = useDispatch<AppDispatch>();
   const previousUserIdRef = useRef<string | null>(null);
+  const initialSessionHandledRef = useRef<boolean>(false);
 
   useEffect(() => {
-    // Get initial session
-    authService.getSession().then(async ({ data: { session } }) => {
-      try {
-        setSession(session);
-        setUser(session?.user ?? null);
-        previousUserIdRef.current = session?.user?.id ?? null;
-
-        // Sync user profile from database when session is restored
-        if (session?.user) {
-          try {
-            await syncUserProfileWithDatabase(dispatch);
-          } catch (error) {
-            console.error('Failed to sync user profile on session restore:', error);
-          }
-        }
-
-        // Only set loading to false after sync completes
-        setLoading(false);
-      } catch (error) {
-        console.error('Error during session initialization:', error);
-        setLoading(false);
-      }
-    }).catch((error) => {
-      console.error('Failed to get initial session:', error);
+    console.log('🔐 [AUTH] AuthProvider useEffect - initializing auth');
+    
+    // Reset initial session flag on mount
+    initialSessionHandledRef.current = false;
+    
+    // Add timeout to prevent infinite hanging
+    const timeoutId = setTimeout(() => {
+      console.error('🔐 [AUTH] TIMEOUT: Auth initialization took longer than 10 seconds, forcing loading to false');
       setLoading(false);
-    });
-
-    // Listen for auth changes
+    }, 10000);
+    
+    // Listen for auth changes - this will fire INITIAL_SESSION event when ready
+    // This is more reliable than calling getSession() directly, especially on first launch
+    console.log('🔐 [AUTH] Setting up auth state change listener');
     const { data: { subscription } } = authService.onAuthStateChange(async (_event: string, session: Session | null) => {
+      console.log('🔐 [AUTH] Auth state changed - event:', _event, 'session:', session ? 'exists' : 'null');
       try {
         const currentUserId = session?.user?.id ?? null;
         const previousUserId = previousUserIdRef.current;
+        console.log('🔐 [AUTH] User IDs - current:', currentUserId, 'previous:', previousUserId);
 
         setSession(session);
         setUser(session?.user ?? null);
+
+        // Handle initial session - this is fired when Supabase is ready
+        if (_event === 'INITIAL_SESSION' && !initialSessionHandledRef.current) {
+          initialSessionHandledRef.current = true;
+          clearTimeout(timeoutId);
+          console.log('🔐 [AUTH] Initial session received - user ID:', currentUserId || 'null');
+          
+          previousUserIdRef.current = currentUserId;
+
+          // Sync user profile from database when session is restored
+          if (session?.user) {
+            console.log('🔐 [AUTH] Syncing user profile with database (initial session)');
+            try {
+              await syncUserProfileWithDatabase(dispatch);
+              console.log('🔐 [AUTH] User profile sync completed (initial session)');
+            } catch (error) {
+              console.error('🔐 [AUTH] Failed to sync user profile on initial session:', error);
+            }
+          } else {
+            console.log('🔐 [AUTH] No user session on initial load, skipping profile sync');
+          }
+
+          // Set loading to false after initial session is handled
+          console.log('🔐 [AUTH] Setting loading to false (initial session handled)');
+          setLoading(false);
+          return;
+        }
 
         // Clear API cache ONLY when switching between different authenticated users
         // Don't clear on initial load (previousUserId = null) to prevent race conditions
         if (previousUserId && currentUserId && previousUserId !== currentUserId) {
-          console.log('🧹 User switched accounts, clearing API cache to prevent stale data');
+          console.log('🧹 [AUTH] User switched accounts, clearing API cache to prevent stale data');
           dispatch(enhancedApi.util.resetApiState());
         }
 
@@ -75,26 +92,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         // Sync user profile from database when user signs in OR clear on sign out
         if (session?.user) {
+          console.log('🔐 [AUTH] Syncing user profile on auth change');
           try {
             await syncUserProfileWithDatabase(dispatch);
+            console.log('🔐 [AUTH] User profile sync on auth change completed');
           } catch (error) {
-            console.error('Failed to sync user profile on auth change:', error);
+            console.error('🔐 [AUTH] Failed to sync user profile on auth change:', error);
           }
         } else if (!session?.user && previousUserId) {
           // User signed out, clear Redux state
-          console.log('🧹 User signed out, clearing Redux state');
+          console.log('🧹 [AUTH] User signed out, clearing Redux state');
           dispatch(clearUserData());
         }
 
-        // Only set loading to false after sync completes
-        setLoading(false);
+        // Only set loading to false after sync completes (for non-initial events)
+        if (_event !== 'INITIAL_SESSION') {
+          console.log('🔐 [AUTH] Setting loading to false after auth change');
+          setLoading(false);
+        }
       } catch (error) {
-        console.error('Error during auth state change:', error);
+        console.error('🔐 [AUTH] Error during auth state change:', error);
+        clearTimeout(timeoutId);
         setLoading(false);
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      console.log('🔐 [AUTH] Cleaning up auth state change listener');
+      subscription.unsubscribe();
+    };
   }, [dispatch]);
 
   const signInWithGoogle = async () => {

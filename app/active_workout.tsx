@@ -85,6 +85,7 @@ import MusicPlayerMini from '../components/MusicPlayerMini';
 import PartynetAudioPlayer from '../components/PartynetAudioPlayer';
 import { useAuth } from '../contexts/AuthContext';
 import { useMicrophonePermission } from '../hooks/useMicrophonePermission';
+import { loadUserProfileFromDatabase } from '../services/userProfileService';
 
 
 interface ProgressSegment {
@@ -3051,9 +3052,27 @@ export default function ActiveWorkoutScreen() {
         }
       }
 
-      // Get current music state for dynamic variables
+      // Get current state for dynamic variables - ALWAYS get fresh data
       const currentState = store.getState();
       const musicState = currentState.music;
+      const workoutState = currentState.workout;
+
+      // Load fresh user profile from database
+      const userProfile = await loadUserProfileFromDatabase(store.dispatch);
+
+      // Get fresh current exercise data from workout state
+      const currentExercise = workoutState.activeWorkout?.currentExercise;
+      const exerciseProgressionRules = currentExercise ? {
+        rep_limitations_progression_rules: currentExercise.repLimitationsProgressionRules || '',
+        progression_by_client_feedback: currentExercise.progressionByClientFeedback || '',
+        pain_injury_protocol: currentExercise.painInjuryProtocol || '',
+        trainer_notes: currentExercise.trainerNotes || '',
+      } : {
+        rep_limitations_progression_rules: '',
+        progression_by_client_feedback: '',
+        pain_injury_protocol: '',
+        trainer_notes: '',
+      };
 
       await conversation.startSession({
         agentId: agentId,
@@ -3063,7 +3082,11 @@ export default function ActiveWorkoutScreen() {
           user_activity: "starting_workout_session",
           app_context: "fitness_workout_assistant",
           selected_playlist: musicState.selectedPlaylist?.name || "No playlist selected",
-          
+          user_profile: userProfile?.profileText || '',
+          rep_limitations_progression_rules: exerciseProgressionRules.rep_limitations_progression_rules,
+          progression_by_client_feedback: exerciseProgressionRules.progression_by_client_feedback,
+          pain_injury_protocol: exerciseProgressionRules.pain_injury_protocol,
+          trainer_notes: exerciseProgressionRules.trainer_notes,
         }
       });
     } catch (error) {
