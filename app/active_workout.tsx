@@ -69,6 +69,7 @@ import {
   selectActiveWorkout,
   selectCurrentExercise,
   selectCurrentSet,
+  selectSessionId,
   selectTimers,
   selectVoiceAgentStatus,
   selectWorkoutSession,
@@ -531,8 +532,13 @@ const VideoContainer: React.FC<VideoContainerProps> = ({
             <TouchableOpacity 
               style={styles.finishButtonInner}
               onPress={() => {
+                // Capture sessionId before completeWorkout clears Redux state
+                const currentSessionId = selectSessionId(store.getState());
                 dispatch(completeWorkout());
-                router.push('/');
+                router.replace({
+                  pathname: '/workout-completed',
+                  params: { sessionId: currentSessionId || '' }
+                });
               }}
             >
               <Text style={styles.finishButtonText}>DONE</Text>
@@ -676,9 +682,37 @@ const WorkoutProgress: React.FC<WorkoutProgressProps> = ({
     const latestSet = currentSetRef.current;
     const parsed = parseWeight(latestWeight);
     
-    if (!parsed || !latestSet) return;
+    if (!latestSet) return;
     
-    const newValue = Math.max(0, parsed.value + delta);
+    // Special case: if weight is "Body" and incrementing, set to 1kg
+    if (!parsed && delta > 0) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      dispatch(adjustWeight({ 
+        newWeight: 1, 
+        reason: 'User adjustment' 
+      }));
+      return;
+    }
+    
+    // Special case: if weight is "Body" and decrementing, do nothing
+    if (!parsed && delta < 0) {
+      return;
+    }
+    
+    // Special case: if weight is 1kg and decrementing, set to "Body" (0)
+    if (parsed && parsed.value === 1 && delta < 0) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      dispatch(adjustWeight({ 
+        newWeight: 0, 
+        reason: 'User adjustment' 
+      }));
+      return;
+    }
+    
+    // Normal case: increment/decrement numeric weight
+    if (!parsed) return; // Safety check
+    
+    const newValue = Math.max(1, parsed.value + delta); // Minimum 1kg (not 0)
     
     // Only dispatch if value actually changed
     if (newValue === parsed.value) return;
@@ -952,40 +986,38 @@ const WorkoutProgress: React.FC<WorkoutProgressProps> = ({
       <View style={styles.infoContainer}>
         {/* Weight - Centered in Left Section with Adjusters */}
         <View style={styles.infoItemLeft}>
-          {parseWeight(currentWeight) ? (
-            <TouchableOpacity 
-              style={styles.adjusterButton}
-              onPressIn={() => startHoldIncrement(() => adjustWeightValue(1), weightHoldIntervalRef, weightHoldTimeoutRef)}
-              onPressOut={() => stopHoldIncrement(weightHoldIntervalRef, weightHoldTimeoutRef)}
-              activeOpacity={0.5}
-            >
-              <Image
-                source={require('../assets/icons/back.svg')}
-                style={[styles.adjusterIcon, { transform: [{ rotate: '90deg' }] }]}
-                contentFit="contain"
-              />
-            </TouchableOpacity>
-          ) : null}
+          {/* Always show up arrow */}
+          <TouchableOpacity 
+            style={styles.adjusterButton}
+            onPressIn={() => startHoldIncrement(() => adjustWeightValue(1), weightHoldIntervalRef, weightHoldTimeoutRef)}
+            onPressOut={() => stopHoldIncrement(weightHoldIntervalRef, weightHoldTimeoutRef)}
+            activeOpacity={0.5}
+          >
+            <Image
+              source={require('../assets/icons/back.svg')}
+              style={[styles.adjusterIcon, { transform: [{ rotate: '90deg' }] }]}
+              contentFit="contain"
+            />
+          </TouchableOpacity>
           <Text style={[styles.infoValue, { color: nucleus.light.global.blue["60"] }]}>
-            {parseWeight(currentWeight)?.value || currentWeight}
+            {parseWeight(currentWeight) ? `${parseWeight(currentWeight)?.value}kg` : currentWeight}
           </Text>
           <Text style={[styles.infoLabel, { color: nucleus.light.global.grey["90"] }]}>
             WEIGHT
           </Text>
-          {parseWeight(currentWeight) ? (
-            <TouchableOpacity 
-              style={styles.adjusterButton}
-              onPressIn={() => startHoldIncrement(() => adjustWeightValue(-1), weightHoldIntervalRef, weightHoldTimeoutRef)}
-              onPressOut={() => stopHoldIncrement(weightHoldIntervalRef, weightHoldTimeoutRef)}
-              activeOpacity={0.5}
-            >
-              <Image
-                source={require('../assets/icons/back.svg')}
-                style={[styles.adjusterIcon, { transform: [{ rotate: '-90deg' }] }]}
-                contentFit="contain"
-              />
-            </TouchableOpacity>
-          ) : null}
+          {/* Always show down arrow */}
+          <TouchableOpacity 
+            style={styles.adjusterButton}
+            onPressIn={() => startHoldIncrement(() => adjustWeightValue(-1), weightHoldIntervalRef, weightHoldTimeoutRef)}
+            onPressOut={() => stopHoldIncrement(weightHoldIntervalRef, weightHoldTimeoutRef)}
+            activeOpacity={0.5}
+          >
+            <Image
+              source={require('../assets/icons/back.svg')}
+              style={[styles.adjusterIcon, { transform: [{ rotate: '-90deg' }] }]}
+              contentFit="contain"
+            />
+          </TouchableOpacity>
         </View>
 
         {/* Separator */}
@@ -1193,12 +1225,17 @@ const WorkoutControls: React.FC<WorkoutControlsProps> = ({ onShowFinishAlert }) 
           console.log('Start rest result:', restData);
           break;
         case 'workout-completed':
-          // FINISH - Complete workout properly and navigate home
-          console.log('Workout completed! Finalizing workout and navigating home.');
+          // FINISH - Complete workout properly and navigate to summary screen
+          console.log('Workout completed! Finalizing workout and navigating to summary.');
+          // Capture sessionId before completeWorkout clears Redux state
+          const currentSessionId = selectSessionId(store.getState());
           const finishResult = await dispatch(completeWorkout());
           const finishData = unwrapResult(finishResult);
           console.log('Complete workout result:', finishData);
-          router.back();
+          router.replace({
+            pathname: '/workout-completed',
+            params: { sessionId: currentSessionId || '' }
+          });
           break;
       }
     } catch (error) {
@@ -2180,6 +2217,7 @@ export default function ActiveWorkoutScreen() {
   const currentExercise = useSelector(selectCurrentExercise);
   const status = useSelector(selectWorkoutStatus);
   const session = useSelector(selectWorkoutSession);
+  const sessionId = useSelector(selectSessionId);
   const timers = useSelector(selectTimers);
   const voiceAgent = useSelector(selectVoiceAgentStatus);
   const workoutEntries = useSelector((state: any) => state.workout.workoutEntries);
@@ -2388,9 +2426,14 @@ export default function ActiveWorkoutScreen() {
     useCallback(() => {
       const handleBackPress = () => {
         if (status === 'workout-completed') {
-          // Auto complete workout and go home, no alert
+          // Auto complete workout and navigate to summary screen, no alert
+          // Capture sessionId before completeWorkout clears Redux state
+          const currentSessionId = sessionId;
           dispatch(completeWorkout());
-          router.push('/');
+          router.replace({
+            pathname: '/workout-completed',
+            params: { sessionId: currentSessionId || '' }
+          });
           return true;
         } else {
           // Show finish early alert for other states
@@ -2401,7 +2444,7 @@ export default function ActiveWorkoutScreen() {
 
       const backHandler = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
       return () => backHandler.remove();
-    }, [status, dispatch])
+    }, [status, dispatch, sessionId])
   );
 
   // // Sync selected playlist to Spotify when screen is first shown
@@ -3194,14 +3237,20 @@ export default function ActiveWorkoutScreen() {
 
   const handleFinishWorkout = async () => {
     try {
+      // Capture sessionId before finishWorkoutEarly clears Redux state
+      const currentSessionId = selectSessionId(store.getState());
+      
       // Dispatch finish workout early action
       const finishResult = await dispatch(finishWorkoutEarly());
       const finishData = unwrapResult(finishResult);
       console.log('Finish workout early result:', finishData);
       setShowFinishAlert(false);
       
-      // Navigate back immediately
-      router.back();
+      // Navigate to workout-completed screen (same as normal completion)
+      router.replace({
+        pathname: '/workout-completed',
+        params: { sessionId: currentSessionId || '' }
+      });
     } catch (error) {
       console.error('Finish workout failed:', error);
       setShowFinishAlert(false);

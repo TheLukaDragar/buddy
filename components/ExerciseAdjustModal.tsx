@@ -331,10 +331,64 @@ const ExerciseInfoModal = React.memo<ExerciseInfoModalProps>(function ExerciseIn
   const adjustWeightValue = (delta: number) => {
     setAdjustedWeight((currentWeight) => {
       const parsed = parseWeight(currentWeight);
-      if (!parsed) return currentWeight;
       
-      const newValue = Math.max(0, parsed.value + delta);
-      const newWeight = `${newValue}${parsed.unit}`;
+      // Special case: if weight is "Body" and incrementing, set to "1kg"
+      if (!parsed && delta > 0) {
+        const newWeight = '1kg';
+        
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        
+        // Clear existing debounce timer
+        if (weightDebounceRef.current) {
+          clearTimeout(weightDebounceRef.current);
+        }
+        
+        // Save to database after 500ms of inactivity
+        weightDebounceRef.current = setTimeout(() => {
+          updateWorkoutEntry({
+            id: workoutEntryId,
+            weight: newWeight,
+            isAdjusted: true,
+            adjustmentReason: 'User adjusted weight'
+          });
+        }, 500);
+        
+        return newWeight;
+      }
+      
+      // Special case: if weight is "Body" and decrementing, do nothing
+      if (!parsed && delta < 0) {
+        return currentWeight;
+      }
+      
+      // Special case: if weight is 1kg and decrementing, set to "Body"
+      if (parsed && parsed.value === 1 && delta < 0) {
+        const newWeight = 'Body';
+        
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        
+        // Clear existing debounce timer
+        if (weightDebounceRef.current) {
+          clearTimeout(weightDebounceRef.current);
+        }
+        
+        // Save to database after 500ms of inactivity
+        weightDebounceRef.current = setTimeout(() => {
+          updateWorkoutEntry({
+            id: workoutEntryId,
+            weight: newWeight,
+            isAdjusted: true,
+            adjustmentReason: 'User adjusted weight'
+          });
+        }, 500);
+        
+        return newWeight;
+      }
+      
+      // Normal case: increment/decrement numeric weight
+      const newValue = Math.max(1, parsed.value + delta); // Minimum 1kg (not 0)
+      const unit = parsed.unit || 'kg';
+      const newWeight = `${newValue}${unit}`;
       
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       
@@ -696,40 +750,38 @@ const ExerciseInfoModal = React.memo<ExerciseInfoModalProps>(function ExerciseIn
                   <View style={styles.infoContainer}>
                     {/* Weight - Centered in Left Section with Adjusters */}
                     <View style={styles.infoItemLeft}>
-                      {parseWeight(adjustedWeight) ? (
-                        <TouchableOpacity 
-                          style={styles.adjusterButton}
-                          onPressIn={() => startHoldIncrement(() => adjustWeightValue(1), weightHoldIntervalRef, weightHoldTimeoutRef)}
-                          onPressOut={() => stopHoldIncrement(weightHoldIntervalRef, weightHoldTimeoutRef)}
-                          activeOpacity={0.5}
-                        >
-                          <Image
-                            source={require('../assets/icons/back.svg')}
-                            style={[styles.adjusterIcon, { transform: [{ rotate: '90deg' }] }]}
-                            contentFit="contain"
-                          />
-                        </TouchableOpacity>
-                      ) : null}
+                      {/* Always show up arrow */}
+                      <TouchableOpacity 
+                        style={styles.adjusterButton}
+                        onPressIn={() => startHoldIncrement(() => adjustWeightValue(1), weightHoldIntervalRef, weightHoldTimeoutRef)}
+                        onPressOut={() => stopHoldIncrement(weightHoldIntervalRef, weightHoldTimeoutRef)}
+                        activeOpacity={0.5}
+                      >
+                        <Image
+                          source={require('../assets/icons/back.svg')}
+                          style={[styles.adjusterIcon, { transform: [{ rotate: '90deg' }] }]}
+                          contentFit="contain"
+                        />
+                      </TouchableOpacity>
                       <Text style={[styles.infoValue, { color: nucleus.light.global.blue["60"] }]}>
-                        {parseWeight(adjustedWeight)?.value || adjustedWeight}
+                        {parseWeight(adjustedWeight) ? `${parseWeight(adjustedWeight)?.value}kg` : adjustedWeight}
                       </Text>
                       <Text style={[styles.infoLabel, { color: nucleus.light.global.grey["90"] }]}>
                         WEIGHT
                       </Text>
-                      {parseWeight(adjustedWeight) ? (
-                        <TouchableOpacity 
-                          style={styles.adjusterButton}
-                          onPressIn={() => startHoldIncrement(() => adjustWeightValue(-1), weightHoldIntervalRef, weightHoldTimeoutRef)}
-                          onPressOut={() => stopHoldIncrement(weightHoldIntervalRef, weightHoldTimeoutRef)}
-                          activeOpacity={0.5}
-                        >
-                          <Image
-                            source={require('../assets/icons/back.svg')}
-                            style={[styles.adjusterIcon, { transform: [{ rotate: '-90deg' }] }]}
-                            contentFit="contain"
-                          />
-                        </TouchableOpacity>
-                      ) : null}
+                      {/* Always show down arrow */}
+                      <TouchableOpacity 
+                        style={styles.adjusterButton}
+                        onPressIn={() => startHoldIncrement(() => adjustWeightValue(-1), weightHoldIntervalRef, weightHoldTimeoutRef)}
+                        onPressOut={() => stopHoldIncrement(weightHoldIntervalRef, weightHoldTimeoutRef)}
+                        activeOpacity={0.5}
+                      >
+                        <Image
+                          source={require('../assets/icons/back.svg')}
+                          style={[styles.adjusterIcon, { transform: [{ rotate: '-90deg' }] }]}
+                          contentFit="contain"
+                        />
+                      </TouchableOpacity>
                     </View>
 
                     {/* Separator */}

@@ -296,6 +296,10 @@ const workoutSlice = createSlice({
           // Start set timer
           const targetTime = state.activeWorkout!.currentSet?.targetTime || 45;
           const startTime = Date.now();
+          // Store start timestamp in set object (survives navigation)
+          if (state.activeWorkout!.currentSet) {
+            state.activeWorkout!.currentSet.setStartTimestamp = startTime;
+          }
           state.timers.setTimer = {
             active: true,
             startTime,
@@ -350,6 +354,11 @@ const workoutSlice = createSlice({
       const setDuration = state.activeWorkout!.currentSet?.targetTime || 45;
       const timestamp = Date.now();
 
+      // Store start timestamp in set object (survives navigation)
+      if (state.activeWorkout!.currentSet) {
+        state.activeWorkout!.currentSet.setStartTimestamp = timestamp;
+      }
+
       // Set up set timer
       state.timers.setTimer = {
         active: true,
@@ -367,15 +376,26 @@ const workoutSlice = createSlice({
       reducer: (state, action: PayloadAction<{ actualReps?: number; timestamp: number }>) => {
         const { actualReps, timestamp } = action.payload;
 
+        // Capture pause time BEFORE clearing timer/resetting state
+        const finalPauseTime = state.activeWorkout!.totalPauseTime ?? 0;
+
+        // Store completion metadata in set object (survives navigation)
+        if (state.activeWorkout!.currentSet) {
+          state.activeWorkout!.currentSet.setCompletedAt = timestamp;
+          state.activeWorkout!.currentSet.setPauseTimeMs = finalPauseTime;
+        }
+
         // Clear set timer
         state.timers.setTimer = null;
         state.userActivityPingActive = false;
 
         // Update set data
         state.activeWorkout!.currentSet!.actualReps = actualReps || state.activeWorkout!.currentSet!.targetReps;
+        // Set actualWeight to targetWeight when set is completed (for weight tracking)
+        state.activeWorkout!.currentSet!.actualWeight = state.activeWorkout!.currentSet!.targetWeight;
         state.activeWorkout!.currentSet!.isCompleted = true;
 
-        // Reset pause state
+        // Reset pause state (but we've already captured it above)
         state.activeWorkout!.isPaused = false;
         state.activeWorkout!.totalPauseTime = 0;
 
@@ -399,7 +419,11 @@ const workoutSlice = createSlice({
 
       },
       prepare: (actualReps?: number) => ({
-        payload: { actualReps, timestamp: Date.now() }
+        payload: { 
+          actualReps, 
+          timestamp: Date.now(),
+          // pauseTimeMs will be captured in reducer from state before reset
+        }
       })
     },
 
@@ -447,20 +471,28 @@ const workoutSlice = createSlice({
         ? state.workoutEntries!.length 
         : (state.session?.exercises.length || 0);
 
-      // Check if workout is complete
-      if (state.activeWorkout!.currentExerciseIndex >= totalExercises - 1) {
+      if (!state.activeWorkout) {
+        console.warn('⚠️ completeExercise called but activeWorkout is null');
+        return;
+      }
+
+      // We're completing the current exercise, so increment completedExercises
+      // This represents "how many exercises have been fully completed"
+      state.activeWorkout.completedExercises++;
+
+      // Check if this was the last exercise
+      if (state.activeWorkout.currentExerciseIndex >= totalExercises - 1) {
         // Workout is complete - transition to workout-completed state (final state)
+        // completedExercises has already been incremented above, so it should equal totalExercises now
         state.status = 'workout-completed';
-        state.activeWorkout!.completedExercises++;
         
         // Middleware will handle context message generation
         return;
       }
 
-      // Move to next exercise
-      state.activeWorkout!.currentExerciseIndex++;
-      state.activeWorkout!.currentSetIndex = 0;
-      state.activeWorkout!.completedExercises++;
+      // Move to next exercise (not the last one)
+      state.activeWorkout.currentExerciseIndex++;
+      state.activeWorkout.currentSetIndex = 0;
 
       if (usingWorkoutEntries) {
         // Get next entry from workout entries

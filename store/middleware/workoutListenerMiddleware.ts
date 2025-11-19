@@ -5,34 +5,34 @@ import { getWorkoutStatus } from '../actions/workoutActions';
 import { enhancedApi } from '../api/enhancedApi';
 import type { AppDispatch, RootState } from '../index';
 import {
-    addContextMessage,
-    adjustReps,
-    adjustRestTime,
-    adjustWeight,
-    clearProcessedContextMessages,
-    completeExercise,
-    completeSet,
-    completeWorkout,
-    confirmReadyAndStartSet,
-    extendRest,
-    finishWorkoutEarly,
-    jumpToSet,
-    nextSet,
-    pauseSet,
-    previousSet,
-    restTimerExpired,
-    resumeSet,
-    selectSessionId,
-    selectWorkout,
-    setTimerExpired,
-    setVoiceAgentStatus,
-    startExercisePreparation,
-    startRest,
-    syncWorkoutEntryUpdate,
-    trackConversation,
-    triggerRestEnding,
-    updateRestTimer,
-    updateSetTimer,
+  addContextMessage,
+  adjustReps,
+  adjustRestTime,
+  adjustWeight,
+  clearProcessedContextMessages,
+  completeExercise,
+  completeSet,
+  completeWorkout,
+  confirmReadyAndStartSet,
+  extendRest,
+  finishWorkoutEarly,
+  jumpToSet,
+  nextSet,
+  pauseSet,
+  previousSet,
+  restTimerExpired,
+  resumeSet,
+  selectSessionId,
+  selectWorkout,
+  setTimerExpired,
+  setVoiceAgentStatus,
+  startExercisePreparation,
+  startRest,
+  syncWorkoutEntryUpdate,
+  trackConversation,
+  triggerRestEnding,
+  updateRestTimer,
+  updateSetTimer,
 } from '../slices/workoutSlice';
 
 // Create the listener middleware with proper typing
@@ -54,6 +54,10 @@ let activeTimers: {
 // Debounce timers for adjustments to prevent rapid database updates
 const adjustmentDebounceTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
 const adjustmentUpdateFunctions: Map<string, () => Promise<void>> = new Map();
+
+// Track which sets have been written to DB (prevents duplicate writes)
+// Key format: `${sessionId}:${workoutEntryId}:${setNumber}`
+const writtenSets = new Set<string>();
 
 // Helper to debounce database updates for adjustments
 const debounceAdjustmentUpdate = (
@@ -216,6 +220,9 @@ startAppListening({
     const { dispatch, getState } = listenerApi;
     const state = getState() as RootState;
     const workoutState = state.workout;
+    
+    // Clear written sets tracking for new workout
+    writtenSets.clear();
     
     console.log('🏋️ [Workout Middleware] Workout selected, starting preparation');
     
@@ -683,6 +690,79 @@ startAppListening({
       if (activeTimers.setUpdateInterval) {
         clearInterval(activeTimers.setUpdateInterval);
         activeTimers.setUpdateInterval = undefined;
+      }
+      
+      // ✅ IMMEDIATELY sync workout completion to database
+      const sessionId = selectSessionId(state);
+      const activeWorkout = workoutState.activeWorkout;
+      
+      console.log('🔍 [COMPLETE-EXERCISE] Checking workout completion:', {
+        sessionId,
+        hasActiveWorkout: !!activeWorkout,
+        status: workoutState.status,
+        completedExercises: activeWorkout?.completedExercises,
+        totalExercises: activeWorkout?.totalExercises,
+      });
+      
+      if (sessionId && !sessionId.startsWith('temp-') && activeWorkout) {
+        // Calculate if workout was fully completed
+        const isFullyCompleted = activeWorkout.completedExercises === activeWorkout.totalExercises;
+        
+        // Calculate total workout time (elapsed time minus pause time)
+        const now = Date.now();
+        const totalElapsedMs = now - activeWorkout.startTime.getTime();
+        const totalTimeMs = Math.max(0, totalElapsedMs - (activeWorkout.totalPauseTime || 0));
+        const totalPauseTimeMs = activeWorkout.totalPauseTime || 0;
+        
+        console.log('⏱️ [COMPLETE-EXERCISE] Calculating workout time:', {
+          now,
+          startTime: activeWorkout.startTime.getTime(),
+          totalElapsedMs,
+          totalPauseTimeMs,
+          calculatedTotalTimeMs: totalTimeMs,
+        });
+        
+        // Flush any pending adjustment updates before completing
+        await flushPendingAdjustments();
+        
+        try {
+          const result = await dispatch(
+            enhancedApi.endpoints.CompleteWorkoutSession.initiate({
+              id: sessionId,
+              status: 'completed',
+              completedAt: new Date().toISOString(),
+              isFullyCompleted: isFullyCompleted,
+              finishedEarly: false,
+              completedExercises: activeWorkout.completedExercises,
+              completedSets: activeWorkout.completedSets,
+              totalTimeMs: totalTimeMs.toString(),
+              totalPauseTimeMs: totalPauseTimeMs.toString(),
+            })
+          ).unwrap();
+          
+          console.log('✅ Synced workout completion to database (from last set):', {
+            isFullyCompleted,
+            completedExercises: activeWorkout.completedExercises,
+            totalExercises: activeWorkout.totalExercises,
+            totalTimeMs,
+            totalPauseTimeMs,
+            totalElapsedMs,
+            result: result?.updateworkout_sessionsCollection?.records?.[0],
+          });
+        } catch (error: any) {
+          console.error('❌ Failed to sync workout completion to database:', error);
+          console.error('❌ Error details:', {
+            message: error?.message,
+            data: error?.data,
+            status: error?.status,
+          });
+        }
+      } else {
+        console.warn('⚠️ [COMPLETE-EXERCISE] Skipping database sync:', {
+          hasSessionId: !!sessionId,
+          isTempSession: sessionId?.startsWith('temp-'),
+          hasActiveWorkout: !!activeWorkout,
+        });
       }
       
       // Generate context message for workout completion
@@ -1223,7 +1303,9 @@ startAppListening({
     }
     
     const activeWorkout = state.workout.activeWorkout;
-    if (!activeWorkout?.currentExercise || !activeWorkout.currentSet) {
+    const currentSet = activeWorkout?.currentSet;
+    
+    if (!activeWorkout?.currentExercise || !currentSet) {
       return;
     }
     
@@ -1232,29 +1314,166 @@ startAppListening({
       return;
     }
     
+    // ✅ VALIDATION: Ensure we're using the CURRENT set's actualReps, not stale data
+    // If actualReps is not set, use targetReps from the CURRENT entry (not stale state)
+    let actualRepsToSave = currentSet.actualReps;
+    if (actualRepsToSave === undefined || actualRepsToSave === null) {
+      // Parse reps from current entry to ensure we're not using stale data
+      const parseReps = (repsStr: string): number => {
+        const match = repsStr.match(/(\d+)/);
+        return match ? parseInt(match[1], 10) : currentSet.targetReps || 0;
+      };
+      actualRepsToSave = parseReps(currentEntry.reps);
+      console.warn('⚠️ [completeSet] actualReps was not set, using parsed value from current entry:', {
+        actualRepsToSave,
+        currentEntryReps: currentEntry.reps,
+        currentSetTargetReps: currentSet.targetReps,
+        setNumber: activeWorkout.currentSetIndex + 1,
+        exerciseName: activeWorkout.currentExercise.name,
+      });
+    }
+    
+    // ✅ VALIDATION: Check if set already written (prevents duplicate writes)
+    const setKey = `${sessionId}:${currentEntry.id}:${activeWorkout.currentSetIndex + 1}`;
+    if (writtenSets.has(setKey)) {
+      console.warn('⚠️ Set already written to DB, skipping duplicate write');
+      return;
+    }
+    
+    // ✅ VALIDATION: Use stored start timestamp from set object (survives navigation)
+    const setStartTimestamp = currentSet.setStartTimestamp;
+    if (!setStartTimestamp) {
+      console.warn('⚠️ No set start timestamp found, cannot calculate duration');
+      // Still write the set completion, just without timing data
+    }
+    
+    // Calculate actual set duration
+    let actualTimeSeconds: number | null = null;
+    let startedAt: string | null = null;
+    // Get pause time from set object (captured in reducer before reset)
+    const pauseTimeMs = currentSet.setPauseTimeMs ?? 0;
+    
+    if (setStartTimestamp) {
+      startedAt = new Date(setStartTimestamp).toISOString();
+      const completionTime = action.payload.timestamp;
+      const elapsedMs = completionTime - setStartTimestamp;
+      
+      // Subtract pause time to get actual exercise time
+      const actualMs = Math.max(0, elapsedMs - pauseTimeMs);
+      actualTimeSeconds = Math.floor(actualMs / 1000);
+      
+      // ✅ VALIDATION: Sanity check - duration should be reasonable
+      if (actualTimeSeconds < 0 || actualTimeSeconds > 3600) {
+        console.warn(`⚠️ Suspicious set duration: ${actualTimeSeconds}s (elapsed: ${elapsedMs}ms, pause: ${pauseTimeMs}ms), setting to null`);
+        actualTimeSeconds = null;
+      }
+    }
+    
     try {
-      // Sync set completion to database
-      // Note: This will work once codegen is run and CompleteWorkoutSet mutation is available
+      // Sync set completion to database with timer data
+      // Convert weight values to strings for BigFloat type
+      const targetWeightStr = currentSet.targetWeight != null ? currentSet.targetWeight.toString() : null;
+      const actualWeightStr = currentSet.actualWeight != null ? currentSet.actualWeight.toString() : null;
+      
       await dispatch(
         enhancedApi.endpoints.CompleteWorkoutSet.initiate({
           sessionId,
           workoutEntryId: currentEntry.id,
           exerciseId: activeWorkout.currentExercise.id,
           setNumber: activeWorkout.currentSetIndex + 1,
-          targetReps: activeWorkout.currentSet.targetReps,
-          targetWeight: activeWorkout.currentSet.targetWeight || null,
-          targetTime: activeWorkout.currentSet.targetTime || null,
-          actualReps: activeWorkout.currentSet.actualReps || null,
-          actualWeight: activeWorkout.currentSet.actualWeight || null,
-          actualTime: null, // Not tracked in Redux state, set to null
-          startedAt: null, // Not tracked in Redux state, set to null
+          targetReps: currentSet.targetReps,
+          targetWeight: targetWeightStr,
+          targetTime: currentSet.targetTime || null,
+          actualReps: actualRepsToSave,
+          actualWeight: actualWeightStr,
+          actualTime: actualTimeSeconds,
+          startedAt: startedAt,
+          pauseTimeMs: pauseTimeMs > 0 ? pauseTimeMs : null,
         })
       ).unwrap();
       
-      console.log('✅ Synced set completion to database');
+      // Mark as written to prevent duplicates
+      writtenSets.add(setKey);
+      
+      console.log('✅ Synced set completion with timer data:', {
+        actualTime: actualTimeSeconds,
+        startedAt,
+        pauseTimeMs,
+      });
     } catch (error: any) {
       console.error('Failed to sync set completion to database:', error);
       // Don't throw - allow workout to continue even if sync fails
+    }
+  },
+});
+
+// Listener for rest duration tracking - store rest data when rest ends
+startAppListening({
+  matcher: isAnyOf(confirmReadyAndStartSet, restTimerExpired),
+  effect: async (action, listenerApi) => {
+    const { dispatch, getState, getOriginalState } = listenerApi;
+    const state = getState() as RootState;
+    const sessionId = selectSessionId(state);
+    
+    if (!sessionId || sessionId.startsWith('temp-')) {
+      return;
+    }
+    
+    // Get the PREVIOUS state to capture rest timer before it's cleared
+    const previousState = getOriginalState() as RootState;
+    const restTimer = previousState.workout.timers.restTimer;
+    
+    if (!restTimer) {
+      return; // No rest was happening
+    }
+    
+    const activeWorkout = previousState.workout.activeWorkout;
+    if (!activeWorkout) {
+      return;
+    }
+    
+    // Calculate actual rest duration (accounts for extensions)
+    const restEndTime = Date.now();
+    const restStartTime = restTimer.startTime;
+    const elapsedMs = restEndTime - restStartTime;
+    
+    // Use final duration (accounts for extendRest)
+    const targetDurationMs = restTimer.duration;
+    const actualRestSeconds = Math.floor(elapsedMs / 1000);
+    const targetRestSeconds = Math.floor(targetDurationMs / 1000);
+    const restExtended = actualRestSeconds > targetRestSeconds;
+    
+    // Get previous set info (before increment)
+    const previousSetIndex = activeWorkout.currentSetIndex;
+    const previousEntry = previousState.workout.workoutEntries?.[activeWorkout.currentExerciseIndex];
+    
+    if (!previousEntry) {
+      return;
+    }
+    
+    try {
+      // Store rest duration for previous set
+      await dispatch(
+        enhancedApi.endpoints.UpdateSetRestDuration.initiate({
+          sessionId,
+          workoutEntryId: previousEntry.id,
+          setNumber: previousSetIndex + 1,
+          restStartedAt: new Date(restStartTime).toISOString(),
+          restCompletedAt: new Date(restEndTime).toISOString(),
+          restDurationSeconds: actualRestSeconds,
+          restExtended: restExtended,
+        })
+      ).unwrap();
+      
+      console.log('✅ Stored rest duration:', {
+        setNumber: previousSetIndex + 1,
+        actualRestSeconds,
+        targetRestSeconds,
+        extended: restExtended,
+      });
+    } catch (error: any) {
+      console.error('Failed to store rest duration:', error);
+      // Don't throw - allow workout to continue even if rest tracking fails
     }
   },
 });
@@ -1616,6 +1835,7 @@ startAppListening({
 });
 
 // Listener for status changes - sync to workout_sessions
+// NOTE: completeWorkout and finishWorkoutEarly are excluded - they have dedicated listeners
 startAppListening({
   matcher: isAnyOf(
     startExercisePreparation,
@@ -1624,8 +1844,6 @@ startAppListening({
     startRest,
     triggerRestEnding,
     completeExercise,
-    completeWorkout,
-    finishWorkoutEarly,
     pauseSet,
     resumeSet
   ),
@@ -1640,6 +1858,11 @@ startAppListening({
     
     const status = state.workout.status;
     const activeWorkout = state.workout.activeWorkout;
+    
+    // Skip if workout is completed - handled by dedicated completion listeners
+    if (status === 'workout-completed') {
+      return;
+    }
     
     if (!activeWorkout) {
       return;
@@ -1665,9 +1888,6 @@ startAppListening({
       case 'rest-ending':
         // These are all part of the exercising phase - keep as 'exercising'
         dbStatus = 'exercising';
-        break;
-      case 'workout-completed':
-        dbStatus = 'completed';
         break;
       case 'inactive':
         // Don't sync inactive status
@@ -1719,26 +1939,58 @@ startAppListening({
 });
 
 // Listener for workout completion - mark session as completed
+// NOTE: This is a fallback - workout should already be marked as completed when status becomes 'workout-completed'
+// This listener handles cases where completeWorkout is dispatched directly (e.g., user presses "done" button)
 startAppListening({
   actionCreator: completeWorkout,
   effect: async (action, listenerApi) => {
-    const { dispatch, getState } = listenerApi;
+    const { dispatch, getState, getOriginalState } = listenerApi;
     
-    // Flush any pending adjustment updates before completing
-    await flushPendingAdjustments();
-    
-    const state = getState() as RootState;
-    const sessionId = selectSessionId(state);
+    // ✅ CRITICAL: getOriginalState() MUST be called synchronously (before any async operations)
+    const originalState = getOriginalState() as RootState;
+    const sessionId = selectSessionId(originalState);
     
     if (!sessionId || sessionId.startsWith('temp-')) {
       return;
     }
     
-    const activeWorkout = state.workout.activeWorkout;
-    const isFullyCompleted = activeWorkout?.completedExercises === activeWorkout?.totalExercises;
+    // Get activeWorkout from ORIGINAL state (before it was cleared)
+    const activeWorkout = originalState.workout.activeWorkout;
+    if (!activeWorkout) {
+      console.warn('⚠️ No activeWorkout found in original state, cannot determine completion status');
+      return;
+    }
+    
+    // Check if workout was already completed (status was 'workout-completed')
+    // If so, database was already updated in completeExercise listener - skip duplicate update
+    if (originalState.workout.status === 'workout-completed') {
+      console.log('ℹ️ Workout already marked as completed in database, skipping duplicate update');
+      return;
+    }
+    
+    // Calculate if workout was fully completed
+    const isFullyCompleted = activeWorkout.completedExercises === activeWorkout.totalExercises;
+    
+    // Calculate total workout time (elapsed time minus pause time)
+    const now = Date.now();
+    const totalElapsedMs = now - activeWorkout.startTime.getTime();
+    const totalTimeMs = Math.max(0, totalElapsedMs - (activeWorkout.totalPauseTime || 0));
+    const totalPauseTimeMs = activeWorkout.totalPauseTime || 0;
+    
+    // Flush any pending adjustment updates before completing (after capturing state)
+    await flushPendingAdjustments();
     
     // Compute status based on completion state
     const dbStatus = 'completed'; // Always completed for completeWorkout action
+    
+    console.log('📊 Workout completion check (fallback):', {
+      completedExercises: activeWorkout.completedExercises,
+      totalExercises: activeWorkout.totalExercises,
+      isFullyCompleted,
+      totalTimeMs,
+      totalPauseTimeMs,
+      totalElapsedMs,
+    });
     
     try {
       await dispatch(
@@ -1746,12 +1998,20 @@ startAppListening({
           id: sessionId,
           status: dbStatus,
           completedAt: new Date().toISOString(),
-          isFullyCompleted: !!isFullyCompleted,
+          isFullyCompleted: isFullyCompleted,
           finishedEarly: false,
+          completedExercises: activeWorkout.completedExercises,
+          completedSets: activeWorkout.completedSets,
+          totalTimeMs: totalTimeMs.toString(),
+          totalPauseTimeMs: totalPauseTimeMs.toString(),
         })
       ).unwrap();
       
-      console.log('✅ Synced workout completion to database');
+      console.log('✅ Synced workout completion to database (fallback):', {
+        isFullyCompleted,
+        completedExercises: activeWorkout.completedExercises,
+        totalExercises: activeWorkout.totalExercises,
+      });
     } catch (error: any) {
       console.error('Failed to sync workout completion to database:', error);
     }
@@ -1762,23 +2022,36 @@ startAppListening({
 startAppListening({
   actionCreator: finishWorkoutEarly,
   effect: async (action, listenerApi) => {
-    const { dispatch, getState } = listenerApi;
+    const { dispatch, getState, getOriginalState } = listenerApi;
     
-    // Flush any pending adjustment updates before finishing early
-    await flushPendingAdjustments();
-    
-    const state = getState() as RootState;
-    const sessionId = selectSessionId(state);
+    // ✅ CRITICAL: getOriginalState() MUST be called synchronously (before any async operations)
+    const originalState = getOriginalState() as RootState;
+    const sessionId = selectSessionId(originalState);
     
     if (!sessionId || sessionId.startsWith('temp-')) {
       return;
     }
     
-    const activeWorkout = state.workout.activeWorkout;
-    const isFullyCompleted = activeWorkout?.completedExercises === activeWorkout?.totalExercises;
+    // Get activeWorkout from ORIGINAL state (before it was cleared)
+    const activeWorkout = originalState.workout.activeWorkout;
+    if (!activeWorkout) {
+      console.warn('⚠️ No activeWorkout found in original state, cannot determine completion status');
+      return;
+    }
+    
+    const isFullyCompleted = activeWorkout.completedExercises === activeWorkout.totalExercises;
+    
+    // Flush any pending adjustment updates before finishing early (after capturing state)
+    await flushPendingAdjustments();
     
     // Compute status - always finished_early in this listener
     const dbStatus = 'finished_early';
+    
+    // Calculate total workout time (elapsed time minus pause time)
+    const now = Date.now();
+    const totalElapsedMs = now - activeWorkout.startTime.getTime();
+    const totalTimeMs = Math.max(0, totalElapsedMs - (activeWorkout.totalPauseTime || 0));
+    const totalPauseTimeMs = activeWorkout.totalPauseTime || 0;
     
     try {
       await dispatch(
@@ -1788,6 +2061,10 @@ startAppListening({
           completedAt: new Date().toISOString(),
           isFullyCompleted: !!isFullyCompleted,
           finishedEarly: true,
+          completedExercises: activeWorkout.completedExercises,
+          completedSets: activeWorkout.completedSets,
+          totalTimeMs: totalTimeMs.toString(),
+          totalPauseTimeMs: totalPauseTimeMs.toString(),
         })
       ).unwrap();
       

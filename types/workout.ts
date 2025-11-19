@@ -34,6 +34,11 @@ export interface WorkoutSet {
   actualReps?: number;
   actualWeight?: number;
   difficulty?: 'easy' | 'medium' | 'hard' | 'impossible';
+  // Timer tracking metadata (persists through navigation)
+  setStartTimestamp?: number; // Timestamp when set started (for DB storage)
+  setCompletedAt?: number; // Timestamp when set completed
+  setPauseTimeMs?: number; // Total pause time during set (captured before timer reset)
+  setWrittenToDb?: boolean; // Flag to prevent duplicate writes
 }
 
 export interface Exercise {

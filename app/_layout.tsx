@@ -256,6 +256,14 @@ function RootNavigator() {
             gestureEnabled: false, // Prevent dismissing during progress
           }}
         />
+        <Stack.Screen
+          name="workout-completed"
+          options={{
+            headerShown: false,
+            presentation: 'modal',
+            animation: 'slide_from_bottom',
+          }}
+        />
       </Stack.Protected>
 
       {/* Public routes - accessible without authentication */}

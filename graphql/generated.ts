@@ -2191,6 +2191,11 @@ export type Workout_Session_Sets = Node & {
   is_completed?: Maybe<Scalars["Boolean"]["output"]>;
   /** Globally Unique Record Identifier */
   nodeId: Scalars["ID"]["output"];
+  pause_time_ms?: Maybe<Scalars["BigInt"]["output"]>;
+  rest_completed_at?: Maybe<Scalars["Datetime"]["output"]>;
+  rest_duration_seconds?: Maybe<Scalars["Int"]["output"]>;
+  rest_extended?: Maybe<Scalars["Boolean"]["output"]>;
+  rest_started_at?: Maybe<Scalars["Datetime"]["output"]>;
   session_id: Scalars["UUID"]["output"];
   set_number: Scalars["Int"]["output"];
   skipped?: Maybe<Scalars["Boolean"]["output"]>;
@@ -2241,6 +2246,11 @@ export type Workout_Session_SetsFilter = {
   not?: InputMaybe<Workout_Session_SetsFilter>;
   /** Returns true if at least one of its inner filters is true, otherwise returns false */
   or?: InputMaybe<Array<Workout_Session_SetsFilter>>;
+  pause_time_ms?: InputMaybe<BigIntFilter>;
+  rest_completed_at?: InputMaybe<DatetimeFilter>;
+  rest_duration_seconds?: InputMaybe<IntFilter>;
+  rest_extended?: InputMaybe<BooleanFilter>;
+  rest_started_at?: InputMaybe<DatetimeFilter>;
   session_id?: InputMaybe<UuidFilter>;
   set_number?: InputMaybe<IntFilter>;
   skipped?: InputMaybe<BooleanFilter>;
@@ -2262,6 +2272,11 @@ export type Workout_Session_SetsInsertInput = {
   exercise_id?: InputMaybe<Scalars["UUID"]["input"]>;
   id?: InputMaybe<Scalars["UUID"]["input"]>;
   is_completed?: InputMaybe<Scalars["Boolean"]["input"]>;
+  pause_time_ms?: InputMaybe<Scalars["BigInt"]["input"]>;
+  rest_completed_at?: InputMaybe<Scalars["Datetime"]["input"]>;
+  rest_duration_seconds?: InputMaybe<Scalars["Int"]["input"]>;
+  rest_extended?: InputMaybe<Scalars["Boolean"]["input"]>;
+  rest_started_at?: InputMaybe<Scalars["Datetime"]["input"]>;
   session_id?: InputMaybe<Scalars["UUID"]["input"]>;
   set_number?: InputMaybe<Scalars["Int"]["input"]>;
   skipped?: InputMaybe<Scalars["Boolean"]["input"]>;
@@ -2291,6 +2306,11 @@ export type Workout_Session_SetsOrderBy = {
   exercise_id?: InputMaybe<OrderByDirection>;
   id?: InputMaybe<OrderByDirection>;
   is_completed?: InputMaybe<OrderByDirection>;
+  pause_time_ms?: InputMaybe<OrderByDirection>;
+  rest_completed_at?: InputMaybe<OrderByDirection>;
+  rest_duration_seconds?: InputMaybe<OrderByDirection>;
+  rest_extended?: InputMaybe<OrderByDirection>;
+  rest_started_at?: InputMaybe<OrderByDirection>;
   session_id?: InputMaybe<OrderByDirection>;
   set_number?: InputMaybe<OrderByDirection>;
   skipped?: InputMaybe<OrderByDirection>;
@@ -2312,6 +2332,11 @@ export type Workout_Session_SetsUpdateInput = {
   exercise_id?: InputMaybe<Scalars["UUID"]["input"]>;
   id?: InputMaybe<Scalars["UUID"]["input"]>;
   is_completed?: InputMaybe<Scalars["Boolean"]["input"]>;
+  pause_time_ms?: InputMaybe<Scalars["BigInt"]["input"]>;
+  rest_completed_at?: InputMaybe<Scalars["Datetime"]["input"]>;
+  rest_duration_seconds?: InputMaybe<Scalars["Int"]["input"]>;
+  rest_extended?: InputMaybe<Scalars["Boolean"]["input"]>;
+  rest_started_at?: InputMaybe<Scalars["Datetime"]["input"]>;
   session_id?: InputMaybe<Scalars["UUID"]["input"]>;
   set_number?: InputMaybe<Scalars["Int"]["input"]>;
   skipped?: InputMaybe<Scalars["Boolean"]["input"]>;
@@ -3560,6 +3585,35 @@ export type GetWorkoutSessionSetsQuery = {
   } | null;
 };
 
+export type GetWorkoutSessionAdjustmentsQueryVariables = Exact<{
+  sessionId: Scalars["UUID"]["input"];
+}>;
+
+export type GetWorkoutSessionAdjustmentsQuery = {
+  __typename?: "Query";
+  workout_session_adjustmentsCollection?: {
+    __typename?: "workout_session_adjustmentsConnection";
+    edges: Array<{
+      __typename?: "workout_session_adjustmentsEdge";
+      node: {
+        __typename?: "workout_session_adjustments";
+        id: any;
+        session_id: any;
+        type: string;
+        workout_entry_id?: any | null;
+        exercise_id?: any | null;
+        from_value: string;
+        to_value: string;
+        reason: string;
+        affected_set_numbers?: Array<number | null> | null;
+        affects_future_sets?: boolean | null;
+        created_at: any;
+        exercises?: { __typename?: "exercises"; id: any; name: string } | null;
+      };
+    }>;
+  } | null;
+};
+
 export type GetWorkoutSessionChatQueryVariables = Exact<{
   sessionId: Scalars["UUID"]["input"];
 }>;
@@ -3708,6 +3762,7 @@ export type CompleteWorkoutSetMutationVariables = Exact<{
   difficulty?: InputMaybe<Scalars["String"]["input"]>;
   userNotes?: InputMaybe<Scalars["String"]["input"]>;
   startedAt?: InputMaybe<Scalars["Datetime"]["input"]>;
+  pauseTimeMs?: InputMaybe<Scalars["BigInt"]["input"]>;
 }>;
 
 export type CompleteWorkoutSetMutation = {
@@ -3725,10 +3780,41 @@ export type CompleteWorkoutSetMutation = {
       actual_reps?: number | null;
       actual_weight?: any | null;
       actual_time?: number | null;
+      started_at?: any | null;
+      pause_time_ms?: any | null;
       difficulty?: string | null;
       completed_at: any;
     }>;
   } | null;
+};
+
+export type UpdateSetRestDurationMutationVariables = Exact<{
+  sessionId: Scalars["UUID"]["input"];
+  workoutEntryId: Scalars["UUID"]["input"];
+  setNumber: Scalars["Int"]["input"];
+  restStartedAt: Scalars["Datetime"]["input"];
+  restCompletedAt: Scalars["Datetime"]["input"];
+  restDurationSeconds: Scalars["Int"]["input"];
+  restExtended: Scalars["Boolean"]["input"];
+}>;
+
+export type UpdateSetRestDurationMutation = {
+  __typename?: "Mutation";
+  updateworkout_session_setsCollection: {
+    __typename?: "workout_session_setsUpdateResponse";
+    affectedCount: number;
+    records: Array<{
+      __typename?: "workout_session_sets";
+      id: any;
+      session_id: any;
+      workout_entry_id: any;
+      set_number: number;
+      rest_started_at?: any | null;
+      rest_completed_at?: any | null;
+      rest_duration_seconds?: number | null;
+      rest_extended?: boolean | null;
+    }>;
+  };
 };
 
 export type AddWorkoutAdjustmentMutationVariables = Exact<{
@@ -3796,6 +3882,10 @@ export type CompleteWorkoutSessionMutationVariables = Exact<{
   completedAt: Scalars["Datetime"]["input"];
   isFullyCompleted: Scalars["Boolean"]["input"];
   finishedEarly: Scalars["Boolean"]["input"];
+  completedExercises?: InputMaybe<Scalars["Int"]["input"]>;
+  completedSets?: InputMaybe<Scalars["Int"]["input"]>;
+  totalTimeMs?: InputMaybe<Scalars["BigInt"]["input"]>;
+  totalPauseTimeMs?: InputMaybe<Scalars["BigInt"]["input"]>;
 }>;
 
 export type CompleteWorkoutSessionMutation = {
@@ -3810,6 +3900,10 @@ export type CompleteWorkoutSessionMutation = {
       completed_at?: any | null;
       is_fully_completed?: boolean | null;
       finished_early?: boolean | null;
+      completed_exercises?: number | null;
+      completed_sets?: number | null;
+      total_time_ms?: any | null;
+      total_pause_time_ms?: any | null;
     }>;
   };
 };
@@ -4633,6 +4727,34 @@ export const GetWorkoutSessionSetsDocument = `
   }
 }
     `;
+export const GetWorkoutSessionAdjustmentsDocument = `
+    query GetWorkoutSessionAdjustments($sessionId: UUID!) {
+  workout_session_adjustmentsCollection(
+    filter: {session_id: {eq: $sessionId}}
+    orderBy: [{created_at: AscNullsLast}]
+  ) {
+    edges {
+      node {
+        id
+        session_id
+        type
+        workout_entry_id
+        exercise_id
+        from_value
+        to_value
+        reason
+        affected_set_numbers
+        affects_future_sets
+        created_at
+        exercises {
+          id
+          name
+        }
+      }
+    }
+  }
+}
+    `;
 export const GetWorkoutSessionChatDocument = `
     query GetWorkoutSessionChat($sessionId: UUID!) {
   workout_session_chatCollection(
@@ -4732,9 +4854,9 @@ export const UpdateWorkoutSessionPauseDocument = `
 }
     `;
 export const CompleteWorkoutSetDocument = `
-    mutation CompleteWorkoutSet($sessionId: UUID!, $workoutEntryId: UUID!, $exerciseId: UUID!, $setNumber: Int!, $targetReps: Int, $targetWeight: BigFloat, $targetTime: Int, $actualReps: Int, $actualWeight: BigFloat, $actualTime: Int, $difficulty: String, $userNotes: String, $startedAt: Datetime) {
+    mutation CompleteWorkoutSet($sessionId: UUID!, $workoutEntryId: UUID!, $exerciseId: UUID!, $setNumber: Int!, $targetReps: Int, $targetWeight: BigFloat, $targetTime: Int, $actualReps: Int, $actualWeight: BigFloat, $actualTime: Int, $difficulty: String, $userNotes: String, $startedAt: Datetime, $pauseTimeMs: BigInt) {
   insertIntoworkout_session_setsCollection(
-    objects: [{session_id: $sessionId, workout_entry_id: $workoutEntryId, exercise_id: $exerciseId, set_number: $setNumber, target_reps: $targetReps, target_weight: $targetWeight, target_time: $targetTime, actual_reps: $actualReps, actual_weight: $actualWeight, actual_time: $actualTime, difficulty: $difficulty, user_notes: $userNotes, started_at: $startedAt, is_completed: true}]
+    objects: [{session_id: $sessionId, workout_entry_id: $workoutEntryId, exercise_id: $exerciseId, set_number: $setNumber, target_reps: $targetReps, target_weight: $targetWeight, target_time: $targetTime, actual_reps: $actualReps, actual_weight: $actualWeight, actual_time: $actualTime, difficulty: $difficulty, user_notes: $userNotes, started_at: $startedAt, pause_time_ms: $pauseTimeMs, is_completed: true}]
   ) {
     records {
       id
@@ -4745,8 +4867,30 @@ export const CompleteWorkoutSetDocument = `
       actual_reps
       actual_weight
       actual_time
+      started_at
+      pause_time_ms
       difficulty
       completed_at
+    }
+    affectedCount
+  }
+}
+    `;
+export const UpdateSetRestDurationDocument = `
+    mutation UpdateSetRestDuration($sessionId: UUID!, $workoutEntryId: UUID!, $setNumber: Int!, $restStartedAt: Datetime!, $restCompletedAt: Datetime!, $restDurationSeconds: Int!, $restExtended: Boolean!) {
+  updateworkout_session_setsCollection(
+    filter: {session_id: {eq: $sessionId}, workout_entry_id: {eq: $workoutEntryId}, set_number: {eq: $setNumber}}
+    set: {rest_started_at: $restStartedAt, rest_completed_at: $restCompletedAt, rest_duration_seconds: $restDurationSeconds, rest_extended: $restExtended}
+  ) {
+    records {
+      id
+      session_id
+      workout_entry_id
+      set_number
+      rest_started_at
+      rest_completed_at
+      rest_duration_seconds
+      rest_extended
     }
     affectedCount
   }
@@ -4790,10 +4934,10 @@ export const TrackWorkoutConversationDocument = `
 }
     `;
 export const CompleteWorkoutSessionDocument = `
-    mutation CompleteWorkoutSession($id: UUID!, $status: String!, $completedAt: Datetime!, $isFullyCompleted: Boolean!, $finishedEarly: Boolean!) {
+    mutation CompleteWorkoutSession($id: UUID!, $status: String!, $completedAt: Datetime!, $isFullyCompleted: Boolean!, $finishedEarly: Boolean!, $completedExercises: Int, $completedSets: Int, $totalTimeMs: BigInt, $totalPauseTimeMs: BigInt) {
   updateworkout_sessionsCollection(
     filter: {id: {eq: $id}}
-    set: {status: $status, completed_at: $completedAt, is_fully_completed: $isFullyCompleted, finished_early: $finishedEarly}
+    set: {status: $status, completed_at: $completedAt, is_fully_completed: $isFullyCompleted, finished_early: $finishedEarly, completed_exercises: $completedExercises, completed_sets: $completedSets, total_time_ms: $totalTimeMs, total_pause_time_ms: $totalPauseTimeMs}
   ) {
     records {
       id
@@ -4801,6 +4945,10 @@ export const CompleteWorkoutSessionDocument = `
       completed_at
       is_fully_completed
       finished_early
+      completed_exercises
+      completed_sets
+      total_time_ms
+      total_pause_time_ms
     }
     affectedCount
   }
@@ -4997,6 +5145,15 @@ const injectedRtkApi = api.injectEndpoints({
         variables,
       }),
     }),
+    GetWorkoutSessionAdjustments: build.query<
+      GetWorkoutSessionAdjustmentsQuery,
+      GetWorkoutSessionAdjustmentsQueryVariables
+    >({
+      query: (variables) => ({
+        document: GetWorkoutSessionAdjustmentsDocument,
+        variables,
+      }),
+    }),
     GetWorkoutSessionChat: build.query<
       GetWorkoutSessionChatQuery,
       GetWorkoutSessionChatQueryVariables
@@ -5048,6 +5205,15 @@ const injectedRtkApi = api.injectEndpoints({
     >({
       query: (variables) => ({
         document: CompleteWorkoutSetDocument,
+        variables,
+      }),
+    }),
+    UpdateSetRestDuration: build.mutation<
+      UpdateSetRestDurationMutation,
+      UpdateSetRestDurationMutationVariables
+    >({
+      query: (variables) => ({
+        document: UpdateSetRestDurationDocument,
         variables,
       }),
     }),
@@ -5124,6 +5290,8 @@ export const {
   useLazyGetActiveWorkoutSessionQuery,
   useGetWorkoutSessionSetsQuery,
   useLazyGetWorkoutSessionSetsQuery,
+  useGetWorkoutSessionAdjustmentsQuery,
+  useLazyGetWorkoutSessionAdjustmentsQuery,
   useGetWorkoutSessionChatQuery,
   useLazyGetWorkoutSessionChatQuery,
   useCreateWorkoutSessionMutation,
@@ -5131,6 +5299,7 @@ export const {
   useUpdateWorkoutSessionProgressMutation,
   useUpdateWorkoutSessionPauseMutation,
   useCompleteWorkoutSetMutation,
+  useUpdateSetRestDurationMutation,
   useAddWorkoutAdjustmentMutation,
   useTrackWorkoutConversationMutation,
   useCompleteWorkoutSessionMutation,

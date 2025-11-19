@@ -108,6 +108,34 @@ query GetWorkoutSessionSets($sessionId: UUID!) {
   }
 }
 
+# Query to get all adjustments for a workout session
+query GetWorkoutSessionAdjustments($sessionId: UUID!) {
+  workout_session_adjustmentsCollection(
+    filter: { session_id: { eq: $sessionId } }
+    orderBy: [{ created_at: AscNullsLast }]
+  ) {
+    edges {
+      node {
+        id
+        session_id
+        type
+        workout_entry_id
+        exercise_id
+        from_value
+        to_value
+        reason
+        affected_set_numbers
+        affects_future_sets
+        created_at
+        exercises {
+          id
+          name
+        }
+      }
+    }
+  }
+}
+
 # Query to get conversation IDs for a workout session
 query GetWorkoutSessionChat($sessionId: UUID!) {
   workout_session_chatCollection(
@@ -273,6 +301,7 @@ mutation CompleteWorkoutSet(
   $difficulty: String
   $userNotes: String
   $startedAt: Datetime
+  $pauseTimeMs: BigInt
 ) {
   insertIntoworkout_session_setsCollection(
     objects: [{
@@ -289,6 +318,7 @@ mutation CompleteWorkoutSet(
       difficulty: $difficulty
       user_notes: $userNotes
       started_at: $startedAt
+      pause_time_ms: $pauseTimeMs
       is_completed: true
     }]
   ) {
@@ -301,8 +331,47 @@ mutation CompleteWorkoutSet(
       actual_reps
       actual_weight
       actual_time
+      started_at
+      pause_time_ms
       difficulty
       completed_at
+    }
+    affectedCount
+  }
+}
+
+# Mutation to update rest duration for a completed set
+mutation UpdateSetRestDuration(
+  $sessionId: UUID!
+  $workoutEntryId: UUID!
+  $setNumber: Int!
+  $restStartedAt: Datetime!
+  $restCompletedAt: Datetime!
+  $restDurationSeconds: Int!
+  $restExtended: Boolean!
+) {
+  updateworkout_session_setsCollection(
+    filter: {
+      session_id: { eq: $sessionId }
+      workout_entry_id: { eq: $workoutEntryId }
+      set_number: { eq: $setNumber }
+    }
+    set: {
+      rest_started_at: $restStartedAt
+      rest_completed_at: $restCompletedAt
+      rest_duration_seconds: $restDurationSeconds
+      rest_extended: $restExtended
+    }
+  ) {
+    records {
+      id
+      session_id
+      workout_entry_id
+      set_number
+      rest_started_at
+      rest_completed_at
+      rest_duration_seconds
+      rest_extended
     }
     affectedCount
   }
@@ -384,6 +453,10 @@ mutation CompleteWorkoutSession(
   $completedAt: Datetime!
   $isFullyCompleted: Boolean!
   $finishedEarly: Boolean!
+  $completedExercises: Int
+  $completedSets: Int
+  $totalTimeMs: BigInt
+  $totalPauseTimeMs: BigInt
 ) {
   updateworkout_sessionsCollection(
     filter: { id: { eq: $id } }
@@ -392,6 +465,10 @@ mutation CompleteWorkoutSession(
       completed_at: $completedAt
       is_fully_completed: $isFullyCompleted
       finished_early: $finishedEarly
+      completed_exercises: $completedExercises
+      completed_sets: $completedSets
+      total_time_ms: $totalTimeMs
+      total_pause_time_ms: $totalPauseTimeMs
     }
   ) {
     records {
@@ -400,6 +477,10 @@ mutation CompleteWorkoutSession(
       completed_at
       is_fully_completed
       finished_early
+      completed_exercises
+      completed_sets
+      total_time_ms
+      total_pause_time_ms
     }
     affectedCount
   }

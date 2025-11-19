@@ -388,7 +388,7 @@ const ExerciseInfoModal = React.memo<ExerciseInfoModalProps>(function ExerciseIn
             <ScrollView 
               style={styles.scrollView}
               showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.scrollContent}
+              contentContainerStyle={styles.contentContainer}
             >
               {/* Title Section */}
               <View style={styles.titleSection}>
@@ -396,13 +396,8 @@ const ExerciseInfoModal = React.memo<ExerciseInfoModalProps>(function ExerciseIn
                 <Text style={styles.titleText}>{exerciseData.name}</Text>
               </View>
 
-              {/* Instructions Section - Scrollable with fixed height */}
-              <ScrollView 
-                style={styles.instructionsScrollView}
-                contentContainerStyle={styles.instructionsScrollContent}
-                showsVerticalScrollIndicator={true}
-                nestedScrollEnabled={true}
-              >
+              {/* Instructions Section */}
+              <View style={styles.instructionsSection}>
                 {(exerciseData.instructions || []).map((instruction, index) => (
                   <View key={index} style={styles.instructionItem}>
                     <View style={styles.instructionBullet} />
@@ -420,7 +415,7 @@ const ExerciseInfoModal = React.memo<ExerciseInfoModalProps>(function ExerciseIn
                     </Text>
                   ))}
                 </View>
-              </ScrollView>
+              </View>
 
               {/* Equipment Section - Unified UI with smart layout */}
               <View style={styles.equipmentSection}>
@@ -564,17 +559,6 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
-  scrollContent: {
-    padding: 24,
-    paddingTop: 16,
-  },
-  instructionsScrollView: {
-    maxHeight: 300, // Fixed height for scrollable instructions
-    marginVertical: 16,
-  },
-  instructionsScrollContent: {
-    paddingBottom: 8,
-  },
   heroContainer: {
     height: 393,
     width: '100%',
@@ -612,7 +596,8 @@ const styles = StyleSheet.create({
   },
   
   contentContainer: {
-    padding: 32,
+    padding: 24,
+    paddingTop: 16,
     gap: 24,
   },
   titleSection: {
@@ -637,7 +622,8 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   instructionsSection: {
-    gap: 16,
+    gap: 8,
+    marginVertical: 16,
   },
   instructionItem: {
     flexDirection: 'row',
