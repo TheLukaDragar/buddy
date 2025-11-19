@@ -436,6 +436,8 @@ export default function ChatComponent({
   // Conversation events state
   const [processedEvents, setProcessedEvents] = useState<ExtendedChatMessage[]>([]);
   const [lastProcessedCount, setLastProcessedCount] = useState(0);
+  const previousEventsRef = useRef<ConversationEvent[]>([]);
+  const isUpdatingRef = useRef(false);
 
   // Function to handle message corrections by replacing the original message
   const handleMessageCorrection = (correctionEvent: AgentResponseCorrectionEvent) => {
@@ -490,9 +492,12 @@ export default function ChatComponent({
     },
   });
 
-  // Process only NEW conversation events when they change
+  // Process NEW conversation events
   useEffect(() => {
-    if (conversationEvents && conversationEvents.length > lastProcessedCount) {
+    if (!conversationEvents) return;
+    
+    // Check for new events
+    if (conversationEvents.length > lastProcessedCount) {
       const newProcessedEvents: ExtendedChatMessage[] = [];
       
       // Only process events from the last processed count onwards
@@ -538,8 +543,83 @@ export default function ChatComponent({
       
       // Update the count of processed events
       setLastProcessedCount(conversationEvents.length);
+      // Update ref when new events are added
+      previousEventsRef.current = conversationEvents.map(e => {
+        if (e.type === 'agent_response') {
+          return {
+            ...e,
+            agent_response_event: {
+              agent_response: (e as AgentResponseEvent).agent_response_event.agent_response
+            }
+          };
+        }
+        return e;
+      });
     }
   }, [conversationEvents, onEventReceived, lastProcessedCount]);
+
+  // Separate effect for streaming updates to existing events (throttled for smoothness)
+  useEffect(() => {
+    if (!conversationEvents || conversationEvents.length === 0) return;
+    if (isUpdatingRef.current) return; // Prevent concurrent updates
+    
+    // Only check for streaming updates if we have the same number of events
+    if (conversationEvents.length !== previousEventsRef.current.length) return;
+    
+    // Check for content changes and collect updates
+    const updates: Array<{ index: number; content: string }> = [];
+    conversationEvents.forEach((event, index) => {
+      const prevEvent = previousEventsRef.current[index];
+      if (prevEvent && event.type === 'agent_response' && prevEvent.type === 'agent_response') {
+        const currentContent = (event as AgentResponseEvent).agent_response_event.agent_response;
+        const prevContent = (prevEvent as AgentResponseEvent).agent_response_event.agent_response;
+        
+        // Content changed and is longer (streaming progress)
+        if (currentContent !== prevContent && currentContent.length > prevContent.length && currentContent.startsWith(prevContent)) {
+          updates.push({ index, content: currentContent });
+        }
+      }
+    });
+    
+    // Apply all updates at once (only if there are actual changes)
+    if (updates.length > 0) {
+      isUpdatingRef.current = true;
+      
+      // Use requestAnimationFrame for smoother updates
+      requestAnimationFrame(() => {
+        setProcessedEvents(prev => {
+          const updated = [...prev];
+          let hasChanges = false;
+          updates.forEach(({ index, content }) => {
+            // Find the processed event at the same index (events are processed in order)
+            if (index < updated.length && updated[index].role === 'assistant' && updated[index].content !== content) {
+              updated[index] = {
+                ...updated[index],
+                content: content,
+              };
+              hasChanges = true;
+            }
+          });
+          // Only return new array if there were actual changes
+          return hasChanges ? updated : prev;
+        });
+        
+        // Update ref after processing updates (only the content, not the whole structure)
+        updates.forEach(({ index }) => {
+          if (index < previousEventsRef.current.length && conversationEvents[index].type === 'agent_response') {
+            previousEventsRef.current[index] = conversationEvents[index];
+          }
+        });
+        
+        // Reset flag and scroll after a short delay
+        setTimeout(() => {
+          isUpdatingRef.current = false;
+          // Auto scroll when streaming updates occur (throttled)
+          scrollViewRef.current?.scrollToEnd({ animated: true });
+        }, 50);
+      });
+    }
+  }, [conversationEvents]);
 
   // Auto-scroll when messages change
   useEffect(() => {

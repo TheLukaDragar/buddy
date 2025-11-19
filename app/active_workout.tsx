@@ -2329,7 +2329,7 @@ export default function ActiveWorkoutScreen() {
   // Note: Auto-selection removed to prevent loops when finishing workout early
   // Users should start workouts from the workout selection screen instead
 
-  // Add welcome message when status becomes 'selected'
+  // Add welcome message when status becomes 'selected' with streaming effect
   useEffect(() => {
     if (status === 'selected' && !welcomeMessageShownRef.current) {
       const currentState = store.getState() as any;
@@ -2340,19 +2340,100 @@ export default function ActiveWorkoutScreen() {
                            workoutState.workoutEntries?.length || 
                            0;
       
-      // Create welcome message
-      const welcomeMessage: ConversationEvent = {
-        type: 'agent_response',
-        agent_response_event: {
-          agent_response: `Welcome! We have ${exerciseCount} exercise${exerciseCount !== 1 ? 's' : ''} today. When you are warmed up, let me know when you're ready for the first exercise!`
-        }
-      } as any;
+      // Full welcome message text
+      const fullMessage = `Welcome! We have ${exerciseCount} exercise${exerciseCount !== 1 ? 's' : ''} today. When you are warmed up, let me know when you're ready for the first exercise!`;
       
-      // Add welcome message to conversation events
-      setConversationEvents(prev => [...prev, welcomeMessage]);
+      // Mark as shown immediately to prevent duplicate messages
       welcomeMessageShownRef.current = true;
       
-      console.log('👋 Welcome message added:', welcomeMessage);
+      // Store timeout ID for cleanup (using setTimeout for word-by-word streaming)
+      let streamInterval: ReturnType<typeof setTimeout> | null = null;
+      
+      // Small delay before starting stream for more natural feel
+      const startDelay = setTimeout(() => {
+        // Create initial empty message
+        const initialMessage: ConversationEvent = {
+          type: 'agent_response',
+          agent_response_event: {
+            agent_response: ''
+          }
+        } as any;
+        
+        // Add empty message first
+        setConversationEvents(prev => [...prev, initialMessage]);
+        
+        // Stream the message word by word for smoother effect
+        const words = fullMessage.split(' ');
+        let currentWordIndex = 0;
+        let accumulatedText = '';
+        
+        const streamNextWord = () => {
+          if (currentWordIndex < words.length) {
+            // Add next word with space (except for first word)
+            if (currentWordIndex > 0) {
+              accumulatedText += ' ';
+            }
+            accumulatedText += words[currentWordIndex];
+            currentWordIndex++;
+            
+            // Update the last message (the welcome message) with streaming content
+            setConversationEvents(prev => {
+              const updated = [...prev];
+              const lastIndex = updated.length - 1;
+              
+              if (lastIndex >= 0 && updated[lastIndex].type === 'agent_response') {
+                // Create a new object to ensure React detects the change
+                updated[lastIndex] = {
+                  type: 'agent_response',
+                  agent_response_event: {
+                    agent_response: accumulatedText
+                  }
+                } as any;
+              }
+              
+              return updated;
+            });
+            
+            // Schedule next word (vary timing slightly for natural feel)
+            const baseDelay = 80; // Base delay in ms
+            const randomVariation = Math.random() * 40 - 20; // ±20ms variation
+            const delay = Math.max(50, baseDelay + randomVariation);
+            
+            streamInterval = setTimeout(streamNextWord, delay) as any;
+          } else {
+            // Streaming complete - ensure full message is set
+            setConversationEvents(prev => {
+              const updated = [...prev];
+              const lastIndex = updated.length - 1;
+              
+              if (lastIndex >= 0 && updated[lastIndex].type === 'agent_response') {
+                updated[lastIndex] = {
+                  type: 'agent_response',
+                  agent_response_event: {
+                    agent_response: fullMessage
+                  }
+                } as any;
+              }
+              
+              return updated;
+            });
+            
+            streamInterval = null;
+            console.log('👋 Welcome message streamed completely');
+          }
+        };
+        
+        // Start streaming
+        streamNextWord();
+      }, 500); // Start streaming after 500ms delay
+      
+      // Cleanup timeout and interval on unmount or status change
+      return () => {
+        clearTimeout(startDelay);
+        if (streamInterval) {
+          clearTimeout(streamInterval);
+        }
+      };
     }
     
     // Reset welcome message flag when workout is completed or finished early
