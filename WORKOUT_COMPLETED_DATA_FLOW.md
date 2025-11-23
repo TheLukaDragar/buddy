@@ -314,3 +314,5 @@ sessionId (route param)
 - **Time calculation**: `total_time_ms` is stored in database, calculated from `started_at` and `completed_at` minus pause time
 - **Future**: AI summary will be added later (currently placeholder)
 
+
+

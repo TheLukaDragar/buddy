@@ -30,21 +30,62 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     console.log('🔐 [AUTH] AuthProvider useEffect - initializing auth');
-    
+
     // Reset initial session flag on mount
     initialSessionHandledRef.current = false;
-    
-    // Add timeout to prevent infinite hanging
-    const timeoutId = setTimeout(() => {
-      console.error('🔐 [AUTH] TIMEOUT: Auth initialization took longer than 10 seconds, forcing loading to false');
-      setLoading(false);
-    }, 10000);
-    
-    // Listen for auth changes - this will fire INITIAL_SESSION event when ready
-    // This is more reliable than calling getSession() directly, especially on first launch
+
+    // Best practice: Call getSession() first, then set up onAuthStateChange listener
+    // This ensures we get the session immediately without waiting for INITIAL_SESSION event
+    const initializeAuth = async () => {
+      try {
+        console.log('🔐 [AUTH] Getting initial session...');
+        const { data: { session: initialSession }, error } = await authService.getSession();
+
+        if (error) {
+          console.error('🔐 [AUTH] Error getting initial session:', error);
+        }
+
+        console.log('🔐 [AUTH] Initial session retrieved - user ID:', initialSession?.user?.id || 'null');
+
+        // Set initial state
+        setSession(initialSession);
+        setUser(initialSession?.user ?? null);
+        previousUserIdRef.current = initialSession?.user?.id ?? null;
+
+        // Set loading to false BEFORE syncing profile (don't block on network calls)
+        console.log('🔐 [AUTH] Setting loading to false (initial session loaded)');
+        setLoading(false);
+
+        // Sync user profile in background (don't block auth initialization)
+        if (initialSession?.user) {
+          console.log('🔐 [AUTH] Syncing user profile in background (initial session)');
+          syncUserProfileWithDatabase(dispatch).then(() => {
+            console.log('🔐 [AUTH] User profile sync completed (initial session)');
+          }).catch((error) => {
+            console.error('🔐 [AUTH] Failed to sync user profile on initial session:', error);
+          });
+        }
+
+        initialSessionHandledRef.current = true;
+      } catch (error) {
+        console.error('🔐 [AUTH] Error during auth initialization:', error);
+        setLoading(false);
+      }
+    };
+
+    initializeAuth();
+
+    // Listen for auth changes after initial session is loaded
     console.log('🔐 [AUTH] Setting up auth state change listener');
     const { data: { subscription } } = authService.onAuthStateChange(async (_event: string, session: Session | null) => {
       console.log('🔐 [AUTH] Auth state changed - event:', _event, 'session:', session ? 'exists' : 'null');
+
+      // Skip INITIAL_SESSION since we already handled it above
+      if (_event === 'INITIAL_SESSION') {
+        console.log('🔐 [AUTH] Skipping INITIAL_SESSION event (already handled)');
+        return;
+      }
+
       try {
         const currentUserId = session?.user?.id ?? null;
         const previousUserId = previousUserIdRef.current;
@@ -52,33 +93,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         setSession(session);
         setUser(session?.user ?? null);
-
-        // Handle initial session - this is fired when Supabase is ready
-        if (_event === 'INITIAL_SESSION' && !initialSessionHandledRef.current) {
-          initialSessionHandledRef.current = true;
-          clearTimeout(timeoutId);
-          console.log('🔐 [AUTH] Initial session received - user ID:', currentUserId || 'null');
-          
-          previousUserIdRef.current = currentUserId;
-
-          // Sync user profile from database when session is restored
-          if (session?.user) {
-            console.log('🔐 [AUTH] Syncing user profile with database (initial session)');
-            try {
-              await syncUserProfileWithDatabase(dispatch);
-              console.log('🔐 [AUTH] User profile sync completed (initial session)');
-            } catch (error) {
-              console.error('🔐 [AUTH] Failed to sync user profile on initial session:', error);
-            }
-          } else {
-            console.log('🔐 [AUTH] No user session on initial load, skipping profile sync');
-          }
-
-          // Set loading to false after initial session is handled
-          console.log('🔐 [AUTH] Setting loading to false (initial session handled)');
-          setLoading(false);
-          return;
-        }
 
         // Clear API cache ONLY when switching between different authenticated users
         // Don't clear on initial load (previousUserId = null) to prevent race conditions
@@ -93,26 +107,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Sync user profile from database when user signs in OR clear on sign out
         if (session?.user) {
           console.log('🔐 [AUTH] Syncing user profile on auth change');
-          try {
-            await syncUserProfileWithDatabase(dispatch);
+          // Don't await - sync in background to avoid blocking UI
+          syncUserProfileWithDatabase(dispatch).then(() => {
             console.log('🔐 [AUTH] User profile sync on auth change completed');
-          } catch (error) {
+          }).catch((error) => {
             console.error('🔐 [AUTH] Failed to sync user profile on auth change:', error);
-          }
+          });
         } else if (!session?.user && previousUserId) {
           // User signed out, clear Redux state
           console.log('🧹 [AUTH] User signed out, clearing Redux state');
           dispatch(clearUserData());
         }
 
-        // Only set loading to false after sync completes (for non-initial events)
-        if (_event !== 'INITIAL_SESSION') {
-          console.log('🔐 [AUTH] Setting loading to false after auth change');
-          setLoading(false);
-        }
+        // Set loading to false for sign-in/sign-out events
+        console.log('🔐 [AUTH] Setting loading to false after auth change');
+        setLoading(false);
       } catch (error) {
         console.error('🔐 [AUTH] Error during auth state change:', error);
-        clearTimeout(timeoutId);
         setLoading(false);
       }
     });
