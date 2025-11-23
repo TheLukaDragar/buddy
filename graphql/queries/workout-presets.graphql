@@ -1,0 +1,124 @@
+# ============================================================================
+# Workout Presets GraphQL Queries
+# For the Train Now feature
+# ============================================================================
+
+# Query to get all active workout presets
+query GetWorkoutPresets {
+  workout_presetsCollection(
+    filter: { is_active: { eq: true } }
+    orderBy: [{ sort_order: AscNullsLast }]
+  ) {
+    edges {
+      node {
+        id
+        name
+        description
+        day_name
+        image_key
+        difficulty
+        estimated_duration
+        sort_order
+      }
+    }
+  }
+}
+
+# Query to get a single preset with all its exercises
+query GetWorkoutPreset($id: UUID!) {
+  workout_presetsCollection(filter: { id: { eq: $id } }) {
+    edges {
+      node {
+        id
+        name
+        description
+        day_name
+        image_key
+        difficulty
+        estimated_duration
+        workout_preset_entriesCollection(orderBy: [{ position: AscNullsLast }]) {
+          edges {
+            node {
+              id
+              exercise_id
+              position
+              sets
+              reps
+              weight
+              time
+              notes
+              streak_exercise_id
+              streak_exercise_notes
+              exercises {
+                id
+                name
+                slug
+                icon_description
+                instructions
+                video_description
+                equipment_text
+                equipment_groups
+                muscle_categories
+              }
+              workout_preset_entry_alternativesCollection(orderBy: [{ position: AscNullsLast }]) {
+                edges {
+                  node {
+                    id
+                    alternative_exercise_id
+                    note
+                    position
+                    exercises {
+                      id
+                      name
+                      slug
+                      instructions
+                      equipment_text
+                      equipment_groups
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+# Query to get preset with exercise count (for cards)
+query GetWorkoutPresetsWithCounts {
+  workout_presetsCollection(
+    filter: { is_active: { eq: true } }
+    orderBy: [{ sort_order: AscNullsLast }]
+  ) {
+    edges {
+      node {
+        id
+        name
+        description
+        day_name
+        image_key
+        difficulty
+        estimated_duration
+        workout_preset_entriesCollection {
+          edges {
+            node {
+              id
+              sets
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+# Note: To copy a preset to user's plan, use Supabase RPC:
+# supabase.rpc('copy_preset_to_plan', {
+#   p_preset_id: presetId,
+#   p_workout_plan_id: userPlanId,
+#   p_date: today,
+#   p_week_number: currentWeek,
+#   p_day: dayOfWeek
+# })

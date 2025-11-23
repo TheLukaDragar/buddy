@@ -10,11 +10,13 @@ import Animated, {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { nucleus } from '../../Buddy_variables.js';
 import Statistics from '../../components/Statistics';
+import { supabase } from '../../lib/supabase';
+import TrainNowCard, { PresetData } from '../../components/TrainNowCard';
 import WorkoutItem, { WorkoutItemData } from '../../components/WorkoutItem';
 import { useBuddyTheme } from '../../constants/BuddyTheme';
 import { useAuth } from '../../contexts/AuthContext';
 import type { RootState } from '../../store';
-import { useGetUserWorkoutPlansQuery, useGetWorkoutPlanByWeekQuery } from '../../store/api/enhancedApi';
+import { useGetUserWorkoutPlansQuery, useGetWorkoutPlanByWeekQuery, useGetWorkoutPresetsWithCountsQuery } from '../../store/api/enhancedApi';
 import { useAppSelector } from '../../store/hooks';
 import { getDayNameImage } from '../../utils';
 import { useIntro } from '../_layout';
@@ -471,6 +473,103 @@ export default function ExploreScreen() {
     }
   }, [refetchWorkoutPlans, refetchWorkoutPlan]);
 
+  // Fetch workout presets
+  const { data: presetsData, isLoading: isLoadingPresets } = useGetWorkoutPresetsWithCountsQuery();
+
+  // Transform preset data to PresetData format
+  const presets: PresetData[] = useMemo(() => {
+    if (!presetsData?.workout_presetsCollection?.edges) return [];
+
+    return presetsData.workout_presetsCollection.edges.map((edge: any) => {
+      const preset = edge.node;
+      const entries = preset.workout_preset_entriesCollection?.edges || [];
+      const exerciseCount = entries.length;
+      const totalSets = entries.reduce((sum: number, e: any) => sum + (e.node.sets || 0), 0);
+
+      return {
+        id: preset.id,
+        name: preset.name,
+        description: preset.description,
+        day_name: preset.day_name,
+        image_key: preset.image_key,
+        difficulty: preset.difficulty as 'easy' | 'medium' | 'hard',
+        estimated_duration: preset.estimated_duration,
+        exercise_count: exerciseCount,
+        total_sets: totalSets
+      };
+    });
+  }, [presetsData]);
+
+  // Handle preset selection
+  const handlePresetPress = async (preset: PresetData) => {
+    console.log('Selected preset:', preset.name);
+
+    // Check if user has an active workout plan
+    if (!activeWorkoutPlan?.id) {
+      console.error('No active workout plan found');
+      // TODO: Show alert or prompt user to create a plan first
+      return;
+    }
+
+    try {
+      // Get today's date and day info
+      const today = new Date();
+      const dateString = today.toISOString().split('T')[0];
+
+      // Calculate week number based on plan start date
+      const planStartDate = new Date(activeWorkoutPlan.start_date);
+      const daysDiff = Math.floor((today.getTime() - planStartDate.getTime()) / (1000 * 60 * 60 * 24));
+      const weekNumber = Math.min(8, Math.max(1, Math.floor(daysDiff / 7) + 1));
+
+      // Get day of week as weekday enum
+      const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+      const dayOfWeek = dayNames[today.getDay()];
+
+      console.log('Copying preset to plan:', {
+        presetId: preset.id,
+        planId: activeWorkoutPlan.id,
+        date: dateString,
+        weekNumber,
+        dayOfWeek
+      });
+
+      // Call the RPC function to copy preset entries to user's plan
+      const { data, error } = await supabase.rpc('copy_preset_to_plan', {
+        p_preset_id: preset.id,
+        p_workout_plan_id: activeWorkoutPlan.id,
+        p_date: dateString,
+        p_week_number: weekNumber,
+        p_day: dayOfWeek
+      });
+
+      if (error) {
+        console.error('Error copying preset:', error);
+        // TODO: Show error alert
+        return;
+      }
+
+      console.log('Preset copied successfully:', data);
+
+      // Refetch workout data to show the new entries
+      await refetchWorkoutPlan();
+
+      // Navigate to the workout
+      router.push({
+        pathname: '/workout',
+        params: {
+          planId: activeWorkoutPlan.id,
+          weekNumber: weekNumber.toString(),
+          day: dayOfWeek,
+          dayName: preset.day_name,
+          date: dateString,
+        }
+      });
+    } catch (err) {
+      console.error('Failed to copy preset:', err);
+      // TODO: Show error alert
+    }
+  };
+
   // Sample statistics data
   const statisticsData = {
     allTime: {
@@ -648,6 +747,17 @@ export default function ExploreScreen() {
               </View>
             )}
           </View>
+
+          {/* Train Now Card - Shows preset workouts */}
+          <TrainNowCard
+            presets={presets}
+            onPresetPress={handlePresetPress}
+            onViewAllPress={() => {
+              // TODO: Navigate to full preset list screen
+              console.log('View all presets');
+            }}
+            isLoading={isLoadingPresets}
+          />
         </Animated.View>
 
         {/* Activities Section */}

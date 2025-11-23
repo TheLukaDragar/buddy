@@ -613,6 +613,41 @@ export const enhancedApi = generatedApi.enhanceEndpoints({
       }
     },
 
+    // Enhance GetWorkoutPresets query with cache tags
+    GetWorkoutPresets: {
+      providesTags: (result) =>
+        result?.workout_presetsCollection?.edges
+          ? [
+              ...result.workout_presetsCollection.edges.map((edge: any) => ({
+                type: 'WorkoutPreset' as const,
+                id: edge.node.id
+              })),
+              { type: 'WorkoutPreset' as const, id: 'LIST' },
+            ]
+          : [{ type: 'WorkoutPreset' as const, id: 'LIST' }],
+    },
+
+    // Enhance GetWorkoutPresetsWithCounts query with cache tags
+    GetWorkoutPresetsWithCounts: {
+      providesTags: (result) =>
+        result?.workout_presetsCollection?.edges
+          ? [
+              ...result.workout_presetsCollection.edges.map((edge: any) => ({
+                type: 'WorkoutPreset' as const,
+                id: edge.node.id
+              })),
+              { type: 'WorkoutPreset' as const, id: 'LIST' },
+            ]
+          : [{ type: 'WorkoutPreset' as const, id: 'LIST' }],
+    },
+
+    // Enhance GetWorkoutPreset query with cache tags
+    GetWorkoutPreset: {
+      providesTags: (result, error, arg) => [
+        { type: 'WorkoutPreset' as const, id: arg.id }
+      ],
+    },
+
     // Enhance SwapExerciseWithAlternative mutation with optimistic updates
     SwapExerciseWithAlternative: {
       invalidatesTags: (result, error, arg) => {
@@ -778,6 +813,13 @@ export const {
   useSwapExerciseWithAlternativeMutation,
   useAddWorkoutEntryMutation,
   useDeleteWorkoutEntryMutation,
+  // Preset hooks (will be available after codegen)
+  useGetWorkoutPresetsQuery,
+  useLazyGetWorkoutPresetsQuery,
+  useGetWorkoutPresetsWithCountsQuery,
+  useLazyGetWorkoutPresetsWithCountsQuery,
+  useGetWorkoutPresetQuery,
+  useLazyGetWorkoutPresetQuery,
 } = enhancedApi
 
 // Export the enhanced API as default
