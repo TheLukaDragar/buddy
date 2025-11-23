@@ -4,6 +4,67 @@
 # GraphQL queries and mutations for workout session tracking
 # ============================================================================
 
+# Query to get workout session by plan and date (for card completion status)
+query GetWorkoutSessionByDate($workoutPlanId: UUID!, $date: Date!) {
+  workout_sessionsCollection(
+    filter: {
+      workout_plan_id: { eq: $workoutPlanId }
+      date: { eq: $date }
+    }
+    first: 1
+    orderBy: [{ created_at: DescNullsLast }]
+  ) {
+    edges {
+      node {
+        id
+        status
+        completed_exercises
+        completed_sets
+        total_exercises
+        total_sets
+        total_time_ms
+        is_fully_completed
+        finished_early
+      }
+    }
+  }
+}
+
+# Query to get user workout statistics (all completed sessions with sets)
+query GetUserWorkoutStatistics($userId: UUID!) {
+  workout_sessionsCollection(
+    filter: {
+      user_id: { eq: $userId }
+      status: { in: ["completed", "finished_early"] }
+    }
+    orderBy: [{ completed_at: DescNullsLast }]
+  ) {
+    edges {
+      node {
+        id
+        status
+        completed_at
+        completed_exercises
+        completed_sets
+        total_exercises
+        total_sets
+        total_time_ms
+        is_fully_completed
+        workout_session_setsCollection {
+          edges {
+            node {
+              id
+              actual_reps
+              actual_weight
+              is_completed
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
 # Query to get a single workout session with all related data
 query GetWorkoutSession($id: UUID!) {
   workout_sessionsCollection(filter: { id: { eq: $id } }) {

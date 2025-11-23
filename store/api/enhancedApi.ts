@@ -820,6 +820,12 @@ export const {
   useLazyGetWorkoutPresetsWithCountsQuery,
   useGetWorkoutPresetQuery,
   useLazyGetWorkoutPresetQuery,
+  // Session hooks for completion tracking
+  useGetWorkoutSessionByDateQuery,
+  useLazyGetWorkoutSessionByDateQuery,
+  // Statistics hooks
+  useGetUserWorkoutStatisticsQuery,
+  useLazyGetUserWorkoutStatisticsQuery,
 } = enhancedApi
 
 // Export the enhanced API as default

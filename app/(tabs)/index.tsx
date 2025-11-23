@@ -570,21 +570,6 @@ export default function ExploreScreen() {
     }
   };
 
-  // Sample statistics data
-  const statisticsData = {
-    allTime: {
-      completedWorkouts: 33,
-      averageWorkoutTime: "1:02:21",
-      totalLiftedWeight: 12204,
-      burnedCalories: 5249
-    },
-    thisWeek: {
-      completedWorkouts: 3,
-      averageWorkoutTime: "0:45:12",
-      totalLiftedWeight: 385,
-      burnedCalories: 1247
-    }
-  };
 
   // Animated styles
   const greetingAnimatedStyle = useAnimatedStyle(() => ({
@@ -722,6 +707,7 @@ export default function ExploreScreen() {
                     key={workout.id}
                     workout={workout}
                     index={chronologicalIndex}
+                    planId={activeWorkoutPlan?.id}
                     onPress={() => router.push({
                       pathname: '/workout',
                       params: {
@@ -873,7 +859,7 @@ export default function ExploreScreen() {
 
         {/* Statistics Section */}
         <Animated.View style={[styles.sectionContainer, statsAnimatedStyle]}>
-          <Statistics data={statisticsData} />
+          <Statistics userId={user?.id} />
         </Animated.View>
 
         {/* Bottom padding for tab bar */}

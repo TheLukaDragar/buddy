@@ -1,9 +1,11 @@
 import { Image } from "expo-image";
-import React from 'react';
+import { router } from "expo-router";
+import React, { useMemo } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import Svg, { Circle } from "react-native-svg";
 import { nucleus } from '../Buddy_variables.js';
+import { useGetWorkoutSessionByDateQuery } from '../store/api/enhancedApi';
 import { getDayNameImage } from '../utils';
 
 export interface WorkoutItemData {
@@ -26,6 +28,7 @@ interface WorkoutItemProps {
   workout: WorkoutItemData;
   index?: number; // Optional index for auto-generating workout number
   onPress?: () => void;
+  planId?: string; // Optional plan ID for fetching session completion data
 }
 
 // Function to get the appropriate image source based on day name
@@ -64,14 +67,99 @@ const getWorkoutImageSource = (workoutTitle: string, fallbackImage?: string) => 
   return require('../assets/dayname/full-body.png');
 };
 
-export default function WorkoutItem({ workout, index, onPress }: WorkoutItemProps) {
+export default function WorkoutItem({ workout, index, onPress, planId }: WorkoutItemProps) {
+  // Fetch session data for this workout if planId is provided
+  const { data: sessionData } = useGetWorkoutSessionByDateQuery(
+    { workoutPlanId: planId || '', date: workout.date },
+    {
+      skip: !planId,
+      refetchOnMountOrArgChange: true // Always fetch fresh data
+    }
+  );
 
+  // Calculate completion status from session data
+  const { isCompleted, isFullyCompleted, progress, hasSession } = useMemo(() => {
+    const session = sessionData?.workout_sessionsCollection?.edges?.[0]?.node;
+
+    console.log('[WorkoutItem] Session query for date:', workout.date, 'planId:', planId);
+    console.log('[WorkoutItem] Session data:', session ? {
+      id: session.id,
+      status: session.status,
+      completed_sets: session.completed_sets,
+      total_sets: session.total_sets,
+      is_fully_completed: session.is_fully_completed,
+      finished_early: session.finished_early
+    } : 'no session');
+
+    if (!session) {
+      // No session data - use original workout values
+      console.log('[WorkoutItem] No session - using workout defaults:', {
+        isCompleted: workout.isCompleted,
+        progress: workout.progress || 0
+      });
+      return {
+        isCompleted: workout.isCompleted,
+        isFullyCompleted: workout.isCompleted,
+        progress: workout.progress || 0,
+        hasSession: false
+      };
+    }
+
+    // Session exists - use session data
+    // Calculate progress from completed sets / total sets
+    let sessionProgress = 0;
+    if (session.total_sets && session.total_sets > 0) {
+      sessionProgress = Math.round((session.completed_sets || 0) / session.total_sets * 100);
+      console.log('[WorkoutItem] Progress calc:', session.completed_sets, '/', session.total_sets, '=', sessionProgress, '%');
+    }
+
+    // Show checkmark only for fully completed OR finished early with >= 80%
+    const showCheckmark = session.is_fully_completed || (session.finished_early && sessionProgress >= 80);
+
+    // Only show "Completed" status if fully completed OR progress >= 80%
+    const sessionIsCompleted = session.is_fully_completed || sessionProgress >= 80;
+
+    // If session is in progress but not completed, ensure we show some progress
+    if (!showCheckmark && session.status && ['exercising', 'preparing', 'resting', 'paused'].includes(session.status)) {
+      sessionProgress = Math.max(sessionProgress, 1); // At least 1% if started
+    }
+
+    const result = {
+      isCompleted: sessionIsCompleted,
+      isFullyCompleted: showCheckmark,
+      progress: session.is_fully_completed ? 100 : sessionProgress,
+      hasSession: true
+    };
+
+    console.log('[WorkoutItem] Final result for', workout.date, ':', result);
+
+    return result;
+  }, [sessionData, workout.isCompleted, workout.progress, workout.date, planId]);
+
+  // Get sessionId for navigation
+  const sessionId = sessionData?.workout_sessionsCollection?.edges?.[0]?.node?.id;
+
+  // Handle press - navigate to completed screen if workout is done
+  const handlePress = () => {
+    // Navigate to completed screen if workout has session and is completed (>= 80% or fully done)
+    if (hasSession && (isCompleted || isFullyCompleted) && sessionId) {
+      // Navigate to workout completed summary
+      console.log('[WorkoutItem] Navigating to workout-completed with sessionId:', sessionId);
+      router.push({
+        pathname: '/workout-completed',
+        params: { sessionId }
+      });
+    } else if (onPress) {
+      // Navigate to workout screen
+      onPress();
+    }
+  };
 
   const getStatusInfo = () => {
-    if (workout.isCompleted) {
+    if (isCompleted) {
       const workoutDate = new Date(workout.date);
       const today = new Date();
-      
+
       // Reset time to compare only dates
       const workoutDateOnly = new Date(workoutDate.getFullYear(), workoutDate.getMonth(), workoutDate.getDate());
       const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
@@ -103,9 +191,29 @@ export default function WorkoutItem({ workout, index, onPress }: WorkoutItemProp
     const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const yesterdayOnly = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
 
+    // If there's session data, show encouraging message instead of missed
+    if (hasSession && workoutDateOnly.getTime() < todayOnly.getTime()) {
+      // Encouraging message based on progress
+      let text = "Started";
+      if (progress >= 50) {
+        text = "Almost there!";
+      } else if (progress >= 25) {
+        text = "Good effort!";
+      } else if (progress > 0) {
+        text = "Good start!";
+      }
+
+      return {
+        text,
+        backgroundColor: nucleus.light.global.blue["20"],
+        textColor: nucleus.light.global.blue["80"],
+        icon: "partial"
+      };
+    }
+
     if (workoutDateOnly.getTime() === yesterdayOnly.getTime()) {
       return {
-        text: "Yesterday 😱",
+        text: "Yesterday",
         backgroundColor: nucleus.light.global.orange["30"],
         textColor: nucleus.light.global.orange["90"],
         icon: "warning"
@@ -114,7 +222,7 @@ export default function WorkoutItem({ workout, index, onPress }: WorkoutItemProp
 
     if (workoutDateOnly.getTime() < todayOnly.getTime()) {
       return {
-        text: "Missed 😱",
+        text: "Missed",
         backgroundColor: nucleus.light.global.orange["30"],
         textColor: nucleus.light.global.orange["90"],
         icon: "warning"
@@ -185,38 +293,38 @@ export default function WorkoutItem({ workout, index, onPress }: WorkoutItemProp
   const statusInfo = getStatusInfo();
 
   const getBorderStyle = () => {
-    if (workout.isCompleted) return null;
-    
+    if (isCompleted) return null;
+
     const workoutDate = new Date(workout.date);
     const today = new Date();
-    
+
     // Reset time to compare only dates
     const workoutDateOnly = new Date(workoutDate.getFullYear(), workoutDate.getMonth(), workoutDate.getDate());
     const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    
+
     // Show brand border if workout is today
     if (workoutDateOnly.getTime() === todayOnly.getTime()) {
       return 'brand';
     }
-    
+
     // // Show orange border if workout date is in the past (missed workout)
     // if (workoutDateOnly.getTime() < todayOnly.getTime()) {
     //   return 'orange';
     // }
-    
+
     // No border for future workouts
     return null;
   };
 
   return (
     <Animated.View entering={FadeInUp.delay((index || 0) * 100).duration(600).springify()}>
-      <TouchableOpacity 
+      <TouchableOpacity
         style={[
           styles.workoutCard,
           // getBorderStyle() === 'orange' && styles.missedWorkoutBorder,
           getBorderStyle() === 'brand' && styles.todayWorkoutBorder
         ]}
-        onPress={onPress}
+        onPress={handlePress}
         activeOpacity={0.8}
       >
       <View style={styles.workoutContent}>
@@ -255,12 +363,12 @@ export default function WorkoutItem({ workout, index, onPress }: WorkoutItemProp
         
         {/* Progress Circle back to original position */}
         <View style={[
-          styles.progressCircle, 
-          { backgroundColor: workout.isCompleted ? nucleus.light.semantic.accent.moderate : "#F1F3E8" }
+          styles.progressCircle,
+          { backgroundColor: isFullyCompleted ? nucleus.light.semantic.accent.moderate : "#F1F3E8" }
         ]}>
           {/* HeroUI-style Circular Progress Ring */}
-          {/* Progress ring for in-progress workouts */}
-          {!workout.isCompleted && (workout.progress || 0) > 0 && (
+          {/* Progress ring for in-progress or partially completed workouts */}
+          {!isFullyCompleted && progress > 0 && (
             <View style={styles.progressRingContainer}>
               <Svg width="48" height="48" viewBox="0 0 48 48" fill="none" style={styles.progressSvg}>
                 {/* Background track circle */}
@@ -286,16 +394,16 @@ export default function WorkoutItem({ workout, index, onPress }: WorkoutItemProp
                   strokeWidth="6"
                   fill="transparent"
                   strokeDasharray={`${2 * Math.PI * 20} ${2 * Math.PI * 20}`}
-                  strokeDashoffset={`${2 * Math.PI * 20 * (1 - (workout.progress || 0) / 100)}`}
+                  strokeDashoffset={`${2 * Math.PI * 20 * (1 - progress / 100)}`}
                   transform="rotate(-90 24 24)"
                   strokeLinecap="round"
                 />
               </Svg>
             </View>
           )}
-          
-          {/* Completion ring for completed workouts */}
-          {workout.isCompleted && (
+
+          {/* Completion ring for fully completed workouts */}
+          {isFullyCompleted && (
             <View style={styles.progressRingContainer}>
               <Svg width="48" height="48" viewBox="0 0 48 48" fill="none" style={styles.progressSvg}>
                 <Circle
@@ -311,7 +419,7 @@ export default function WorkoutItem({ workout, index, onPress }: WorkoutItemProp
             </View>
           )}
           <View style={styles.progressCircleInner}>
-            {workout.isCompleted ? (
+            {isFullyCompleted ? (
               <Image
                 source={require('../assets/icons/check.svg')}
                 style={styles.checkIcon}
@@ -320,9 +428,9 @@ export default function WorkoutItem({ workout, index, onPress }: WorkoutItemProp
             ) : (
               <Text style={[
                 styles.progressText,
-                { color: workout.isCompleted ? nucleus.light.global.white : nucleus.light.global.blue["80"] }
+                { color: nucleus.light.global.blue["80"] }
               ]}>
-                {workout.progress || 0}%
+                {progress}%
               </Text>
             )}
           </View>

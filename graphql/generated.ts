@@ -4117,6 +4117,72 @@ export type GetWorkoutPresetsWithCountsQuery = {
   } | null;
 };
 
+export type GetWorkoutSessionByDateQueryVariables = Exact<{
+  workoutPlanId: Scalars["UUID"]["input"];
+  date: Scalars["Date"]["input"];
+}>;
+
+export type GetWorkoutSessionByDateQuery = {
+  __typename?: "Query";
+  workout_sessionsCollection?: {
+    __typename?: "workout_sessionsConnection";
+    edges: Array<{
+      __typename?: "workout_sessionsEdge";
+      node: {
+        __typename?: "workout_sessions";
+        id: any;
+        status: string;
+        completed_exercises?: number | null;
+        completed_sets?: number | null;
+        total_exercises: number;
+        total_sets: number;
+        total_time_ms?: any | null;
+        is_fully_completed?: boolean | null;
+        finished_early?: boolean | null;
+      };
+    }>;
+  } | null;
+};
+
+export type GetUserWorkoutStatisticsQueryVariables = Exact<{
+  userId: Scalars["UUID"]["input"];
+}>;
+
+export type GetUserWorkoutStatisticsQuery = {
+  __typename?: "Query";
+  workout_sessionsCollection?: {
+    __typename?: "workout_sessionsConnection";
+    edges: Array<{
+      __typename?: "workout_sessionsEdge";
+      node: {
+        __typename?: "workout_sessions";
+        id: any;
+        status: string;
+        completed_at?: any | null;
+        completed_exercises?: number | null;
+        completed_sets?: number | null;
+        total_exercises: number;
+        total_sets: number;
+        total_time_ms?: any | null;
+        is_fully_completed?: boolean | null;
+        workout_session_setsCollection?: {
+          __typename?: "workout_session_setsConnection";
+          edges: Array<{
+            __typename?: "workout_session_setsEdge";
+            node: {
+              __typename?: "workout_session_sets";
+              id: any;
+              actual_reps?: number | null;
+              actual_weight?: any | null;
+              is_completed?: boolean | null;
+            };
+          }>;
+        } | null;
+      };
+    }>;
+  } | null;
+};
+
 export type GetWorkoutSessionQueryVariables = Exact<{
   id: Scalars["UUID"]["input"];
 }>;
@@ -5384,6 +5450,61 @@ export const GetWorkoutPresetsWithCountsDocument = `
   }
 }
     `;
+export const GetWorkoutSessionByDateDocument = `
+    query GetWorkoutSessionByDate($workoutPlanId: UUID!, $date: Date!) {
+  workout_sessionsCollection(
+    filter: {workout_plan_id: {eq: $workoutPlanId}, date: {eq: $date}}
+    first: 1
+    orderBy: [{created_at: DescNullsLast}]
+  ) {
+    edges {
+      node {
+        id
+        status
+        completed_exercises
+        completed_sets
+        total_exercises
+        total_sets
+        total_time_ms
+        is_fully_completed
+        finished_early
+      }
+    }
+  }
+}
+    `;
+export const GetUserWorkoutStatisticsDocument = `
+    query GetUserWorkoutStatistics($userId: UUID!) {
+  workout_sessionsCollection(
+    filter: {user_id: {eq: $userId}, status: {in: ["completed", "finished_early"]}}
+    orderBy: [{completed_at: DescNullsLast}]
+  ) {
+    edges {
+      node {
+        id
+        status
+        completed_at
+        completed_exercises
+        completed_sets
+        total_exercises
+        total_sets
+        total_time_ms
+        is_fully_completed
+        workout_session_setsCollection {
+          edges {
+            node {
+              id
+              actual_reps
+              actual_weight
+              is_completed
+            }
+          }
+        }
+      }
+    }
+  }
+}
+    `;
 export const GetWorkoutSessionDocument = `
     query GetWorkoutSession($id: UUID!) {
   workout_sessionsCollection(filter: {id: {eq: $id}}) {
@@ -5900,6 +6021,24 @@ const injectedRtkApi = api.injectEndpoints({
         variables,
       }),
     }),
+    GetWorkoutSessionByDate: build.query<
+      GetWorkoutSessionByDateQuery,
+      GetWorkoutSessionByDateQueryVariables
+    >({
+      query: (variables) => ({
+        document: GetWorkoutSessionByDateDocument,
+        variables,
+      }),
+    }),
+    GetUserWorkoutStatistics: build.query<
+      GetUserWorkoutStatisticsQuery,
+      GetUserWorkoutStatisticsQueryVariables
+    >({
+      query: (variables) => ({
+        document: GetUserWorkoutStatisticsDocument,
+        variables,
+      }),
+    }),
     GetWorkoutSession: build.query<
       GetWorkoutSessionQuery,
       GetWorkoutSessionQueryVariables
@@ -6072,6 +6211,10 @@ export const {
   useLazyGetWorkoutPresetQuery,
   useGetWorkoutPresetsWithCountsQuery,
   useLazyGetWorkoutPresetsWithCountsQuery,
+  useGetWorkoutSessionByDateQuery,
+  useLazyGetWorkoutSessionByDateQuery,
+  useGetUserWorkoutStatisticsQuery,
+  useLazyGetUserWorkoutStatisticsQuery,
   useGetWorkoutSessionQuery,
   useLazyGetWorkoutSessionQuery,
   useGetActiveWorkoutSessionQuery,

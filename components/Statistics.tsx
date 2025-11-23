@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
@@ -7,6 +7,7 @@ import Animated, {
   withTiming
 } from 'react-native-reanimated';
 import { nucleus } from '../Buddy_variables.js';
+import { useGetUserWorkoutStatisticsQuery } from '../store/api/enhancedApi';
 
 export interface StatisticsData {
   completedWorkouts: number;
@@ -21,15 +22,92 @@ export interface StatisticsDataSets {
 }
 
 interface StatisticsProps {
-  data: StatisticsDataSets;
+  userId?: string;
 }
 
 type TimeRange = 'alltime' | 'thisweek';
 
-export default function Statistics({ data }: StatisticsProps) {
+export default function Statistics({ userId }: StatisticsProps) {
+  // Fetch user workout statistics
+  const { data: statsData } = useGetUserWorkoutStatisticsQuery(
+    { userId: userId || '' },
+    {
+      skip: !userId,
+      refetchOnMountOrArgChange: true
+    }
+  );
+
+  // Calculate real statistics from session data
+  const data = useMemo(() => {
+    const sessions = statsData?.workout_sessionsCollection?.edges?.map(e => e.node) || [];
+
+    // Get start of current week (Monday)
+    const now = new Date();
+    const dayOfWeek = now.getDay();
+    const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() - daysToMonday);
+    weekStart.setHours(0, 0, 0, 0);
+
+    // Filter sessions for this week
+    const thisWeekSessions = sessions.filter(s => {
+      if (!s.completed_at) return false;
+      const completedAt = new Date(s.completed_at);
+      return completedAt >= weekStart;
+    });
+
+    // Helper function to calculate stats for a set of sessions
+    const calculateStats = (sessionList: typeof sessions): StatisticsData => {
+      const completedWorkouts = sessionList.length;
+
+      // Calculate total and average time
+      const totalTimeMs = sessionList.reduce((sum, s) => sum + (parseInt(s.total_time_ms || '0') || 0), 0);
+      const avgTimeMs = completedWorkouts > 0 ? totalTimeMs / completedWorkouts : 0;
+
+      // Format time as H:MM:SS
+      const hours = Math.floor(avgTimeMs / 3600000);
+      const minutes = Math.floor((avgTimeMs % 3600000) / 60000);
+      const seconds = Math.floor((avgTimeMs % 60000) / 1000);
+      const averageWorkoutTime = `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
+      // Calculate total lifted weight from sets
+      let totalLiftedWeight = 0;
+      sessionList.forEach(s => {
+        const sets = s.workout_session_setsCollection?.edges || [];
+        sets.forEach(setEdge => {
+          const set = setEdge.node;
+          if (set.is_completed && set.actual_weight && set.actual_reps) {
+            totalLiftedWeight += (parseFloat(set.actual_weight as string) || 0) * (set.actual_reps || 0);
+          }
+        });
+      });
+
+      // Estimate burned calories (rough estimate: ~5 kcal per minute of workout)
+      const totalMinutes = totalTimeMs / 60000;
+      const burnedCalories = Math.round(totalMinutes * 5);
+
+      return {
+        completedWorkouts,
+        averageWorkoutTime,
+        totalLiftedWeight: Math.round(totalLiftedWeight),
+        burnedCalories
+      };
+    };
+
+    return {
+      allTime: calculateStats(sessions),
+      thisWeek: calculateStats(thisWeekSessions)
+    };
+  }, [statsData]);
+
   const [activeTimeRange, setActiveTimeRange] = useState<TimeRange>('alltime');
   const [currentData, setCurrentData] = useState<StatisticsData>(data.allTime);
-  
+
+  // Update currentData when data changes
+  useEffect(() => {
+    setCurrentData(activeTimeRange === 'alltime' ? data.allTime : data.thisWeek);
+  }, [data, activeTimeRange]);
+
   // Animation values
   const fadeAnim = useSharedValue(1);
   
