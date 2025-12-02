@@ -534,9 +534,11 @@ const VideoContainer: React.FC<VideoContainerProps> = ({
             <TouchableOpacity 
               style={styles.finishButtonInner}
               onPress={async () => {
-                // Disconnect voice agent before navigation
+                // Disconnect voice agent before navigation (with small delay to allow final messages)
                 if (onEndConversation) {
-                  await onEndConversation();
+                  setTimeout(() => {
+                    onEndConversation().catch((err: any) => console.error('Error disconnecting on done:', err));
+                  }, 300);
                 }
                 // Capture sessionId before completeWorkout clears Redux state
                 const currentSessionId = selectSessionId(store.getState());
@@ -1237,9 +1239,11 @@ const WorkoutControls: React.FC<WorkoutControlsProps> = ({ onShowFinishAlert, on
         case 'workout-completed':
           // FINISH - Complete workout properly and navigate to summary screen
           console.log('Workout completed! Finalizing workout and navigating to summary.');
-          // Disconnect voice agent before navigation
+          // Disconnect voice agent before navigation (with small delay to allow final messages)
           if (onEndConversation) {
-            await onEndConversation();
+            setTimeout(() => {
+              onEndConversation().catch((err: any) => console.error('Error disconnecting on center button:', err));
+            }, 300);
           }
           // Capture sessionId before completeWorkout clears Redux state
           const currentSessionId = selectSessionId(store.getState());
@@ -2264,6 +2268,12 @@ export default function ActiveWorkoutScreen() {
   
   // Track if welcome message has been shown
   const welcomeMessageShownRef = useRef(false);
+  
+  // Track if we're currently disconnecting to prevent multiple simultaneous calls
+  const isDisconnectingRef = useRef(false);
+  
+  // Track when we connected to prevent immediate disconnection on remount
+  const connectionTimeRef = useRef<number | null>(null);
 
   // Resume active workout session on mount (if exists)
   useEffect(() => {
@@ -3212,9 +3222,16 @@ export default function ActiveWorkoutScreen() {
   // Function to safely end conversation with proper error handling
   // Wrapped in useCallback to use in effects and callbacks
   const endConversation = useCallback(async () => {
+    // Prevent multiple simultaneous disconnection calls
+    if (isDisconnectingRef.current) {
+      console.log('Disconnection already in progress, skipping...');
+      return;
+    }
+
     try {
       // Only end if actually connected or connecting
       if (conversation.status === 'connected' || conversation.status === 'connecting') {
+        isDisconnectingRef.current = true;
         console.log('Disconnecting voice agent...');
         await conversation.endSession();
         console.log('Voice agent disconnected successfully');
@@ -3225,6 +3242,11 @@ export default function ActiveWorkoutScreen() {
       console.error('Failed to end ElevenLabs conversation:', error);
       // Even if endSession fails, unregister callbacks to prevent further communication
       contextBridgeService.unregisterCallbacks();
+    } finally {
+      // Reset flag after a delay to allow for cleanup
+      setTimeout(() => {
+        isDisconnectingRef.current = false;
+      }, 1000);
     }
   }, [conversation]);
 
@@ -3259,35 +3281,12 @@ export default function ActiveWorkoutScreen() {
     }
   }, [conversationStatus, conversation]);
 
-  // Disconnect voice agent when workout completes
-  useEffect(() => {
-    if (status === 'workout-completed') {
-      console.log('Workout completed - disconnecting voice agent');
-      endConversation();
-    }
-  }, [status, endConversation]);
-
-  // Cleanup: Disconnect voice agent when component unmounts or screen loses focus
-  useFocusEffect(
-    useCallback(() => {
-      // On focus: component is mounted and visible
-      return () => {
-        // On blur/unmount: disconnect voice agent safely
-        console.log('Screen losing focus or unmounting - disconnecting voice agent');
-        endConversation();
-        contextBridgeService.unregisterCallbacks();
-      };
-    }, [endConversation])
-  );
-
-  // Backup cleanup on component unmount (runs if useFocusEffect cleanup doesn't)
-  useEffect(() => {
-    return () => {
-      console.log('Component unmounting - cleaning up voice agent');
-      endConversation();
-      contextBridgeService.unregisterCallbacks();
-    };
-  }, [endConversation]);
+  // Don't disconnect immediately when workout completes - let user see completion screen
+  // Disconnection will happen when navigating away (in navigation handlers)
+  
+  // REMOVED: Component unmount cleanup - it was causing premature disconnection
+  // Navigation handlers handle all disconnections properly
+  // If component unmounts without navigation, the connection will naturally timeout
 
   // Handle back press - must be after endConversation is defined
   useFocusEffect(
@@ -3295,8 +3294,10 @@ export default function ActiveWorkoutScreen() {
       const handleBackPress = () => {
         if (status === 'workout-completed') {
           // Auto complete workout and navigate to summary screen, no alert
-          // Disconnect voice agent before navigation (fire and forget)
-          endConversation().catch(err => console.error('Error disconnecting on back press:', err));
+          // Disconnect voice agent before navigation (with small delay)
+          setTimeout(() => {
+            endConversation().catch(err => console.error('Error disconnecting on back press:', err));
+          }, 300);
           // Capture sessionId before completeWorkout clears Redux state
           const currentSessionId = sessionId;
           dispatch(completeWorkout());
@@ -3370,8 +3371,11 @@ export default function ActiveWorkoutScreen() {
 
   const handleFinishWorkout = async () => {
     try {
-      // Disconnect voice agent before navigation
-      await endConversation();
+      // Disconnect voice agent before navigation (with small delay to allow final messages)
+      setTimeout(() => {
+        endConversation().catch(err => console.error('Error disconnecting on finish:', err));
+      }, 300);
+      
       // Capture sessionId before finishWorkoutEarly clears Redux state
       const currentSessionId = selectSessionId(store.getState());
       
