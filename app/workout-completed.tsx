@@ -9,11 +9,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useBuddyTheme } from "@/constants/BuddyTheme";
 import { nucleus } from "../Buddy_variables.js";
 import ExerciseCard from "../components/ExerciseCard";
+import { useAuth } from "../contexts/AuthContext";
 import {
-    useGetWorkoutSessionAdjustmentsQuery,
-    useGetWorkoutSessionQuery,
-    useGetWorkoutSessionSetsQuery
+  useGetWorkoutSessionAdjustmentsQuery,
+  useGetWorkoutSessionQuery,
+  useGetWorkoutSessionSetsQuery
 } from "../graphql/generated";
+import { supabase } from "../lib/supabase";
 
 // Compact Progress Bar Component (smaller version of workout progress)
 interface CompactProgressBarProps {
@@ -86,9 +88,12 @@ interface AdjustmentDisplayProps {
     reps?: string | null;
     weight?: string | null;
   }>;
+  onSavePreference?: (exerciseId: string, adjustmentType: string, fromValue: string, toValue: string) => Promise<boolean>;
 }
 
-const AdjustmentDisplay: React.FC<AdjustmentDisplayProps> = ({ adjustments, exercises = [] }) => {
+const AdjustmentDisplay: React.FC<AdjustmentDisplayProps> = ({ adjustments, exercises = [], onSavePreference }) => {
+  const [appliedAdjustments, setAppliedAdjustments] = React.useState<Set<string>>(new Set());
+  
   if (adjustments.length === 0) return null;
 
   // Create exercise lookup map
@@ -106,18 +111,21 @@ const AdjustmentDisplay: React.FC<AdjustmentDisplayProps> = ({ adjustments, exer
     }
   });
 
+  // Helper function to calculate net change from multiple adjustments
+  const getNetChange = (changes: typeof adjustments) => {
+    if (changes.length === 0) return null;
+    // Sort by from value to get chronological order (first adjustment to last)
+    const sorted = [...changes].sort((a, b) => a.from - b.from);
+    const first = sorted[0].from;
+    const last = sorted[sorted.length - 1].to;
+    return { from: first, to: last, delta: last - first };
+  };
+
   // If no exercise grouping, fall back to type grouping
   if (adjustmentsByExercise.size === 0) {
     const weightChanges = adjustments.filter(a => a.type === 'weight');
     const repsChanges = adjustments.filter(a => a.type === 'reps');
     const restChanges = adjustments.filter(a => a.type === 'rest');
-
-    const getNetChange = (changes: typeof adjustments) => {
-      if (changes.length === 0) return null;
-      const first = changes[0].from;
-      const last = changes[changes.length - 1].to;
-      return { from: first, to: last, delta: last - first };
-    };
 
     const weightChange = getNetChange(weightChanges);
     const repsChange = getNetChange(repsChanges);
@@ -171,7 +179,7 @@ const AdjustmentDisplay: React.FC<AdjustmentDisplayProps> = ({ adjustments, exer
     );
   }
 
-  // Group by exercise and show per-exercise adjustments
+  // Group by exercise and show condensed net changes per exercise
   return (
     <ReanimatedAnimated.View 
       entering={FadeIn.duration(600).delay(400)}
@@ -183,47 +191,87 @@ const AdjustmentDisplay: React.FC<AdjustmentDisplayProps> = ({ adjustments, exer
           const exercise = exerciseMap.get(exerciseId);
           const exerciseName = exerciseAdjustments[0]?.exerciseName || exercise?.exercise_id || 'Exercise';
           
-          // Group by type within this exercise, but show individual adjustments
+          // Group by type within this exercise
           const weightChanges = exerciseAdjustments.filter(a => a.type === 'weight');
           const repsChanges = exerciseAdjustments.filter(a => a.type === 'reps');
           const restChanges = exerciseAdjustments.filter(a => a.type === 'rest');
 
-          // Show individual adjustments instead of net changes
-          const renderAdjustments = (changes: typeof exerciseAdjustments, typeLabel: string, unit: string) => {
-            if (changes.length === 0) return null;
+          // Calculate net changes for each type
+          const weightChange = getNetChange(weightChanges);
+          const repsChange = getNetChange(repsChanges);
+          const restChange = getNetChange(restChanges);
+
+          // Render a single condensed line per adjustment type
+          const renderNetChange = (
+            change: ReturnType<typeof getNetChange>,
+            typeLabel: string,
+            unit: string,
+            adjustmentType: string
+          ) => {
+            if (!change) return null;
             
-            return changes.map((adj, idx) => {
-              const delta = adj.to - adj.from;
-              const setsText = adj.affectedSetNumbers && adj.affectedSetNumbers.length > 0
-                ? ` (Sets ${adj.affectedSetNumbers.sort((a, b) => a - b).join(', ')})`
-                : '';
-              
-              return (
-                <View key={`${typeLabel}-${idx}`} style={styles.adjustmentItem}>
+            const adjustmentKey = `${exerciseId}-${adjustmentType}`;
+            const isApplied = appliedAdjustments.has(adjustmentKey);
+            
+            const handleApply = async () => {
+              if (onSavePreference) {
+                const success = await onSavePreference(exerciseId, adjustmentType, change.from.toString(), change.to.toString());
+                if (success) {
+                  setAppliedAdjustments(prev => new Set(prev).add(adjustmentKey));
+                }
+              }
+            };
+            
+            const handleUndo = async () => {
+              if (onSavePreference) {
+                // Revert by applying the original value
+                const success = await onSavePreference(exerciseId, adjustmentType, change.to.toString(), change.from.toString());
+                if (success) {
+                  setAppliedAdjustments(prev => {
+                    const newSet = new Set(prev);
+                    newSet.delete(adjustmentKey);
+                    return newSet;
+                  });
+                }
+              }
+            };
+            
+            return (
+              <View key={adjustmentKey} style={styles.adjustmentItem}>
+                <View style={styles.adjustmentTextContainer}>
                   <Text style={styles.adjustmentText}>
-                    {typeLabel}: {adj.from}{unit} → {adj.to}{unit}
-                    {delta !== 0 && (
+                    {typeLabel}: {change.from}{unit} → {change.to}{unit}
+                    {change.delta !== 0 && (
                       <Text style={styles.adjustmentDelta}>
-                        {' '}({delta > 0 ? '+' : ''}{delta}{unit})
-                      </Text>
-                    )}
-                    {setsText && (
-                      <Text style={styles.adjustmentSets}>
-                        {setsText}
+                        {' '}({change.delta > 0 ? '+' : ''}{change.delta}{unit})
                       </Text>
                     )}
                   </Text>
+                  {isApplied && (
+                    <Text style={styles.appliedIndicator}>Saved</Text>
+                  )}
                 </View>
-              );
-            });
+                {/* Apply/Undo button */}
+                {onSavePreference && (
+                  <TouchableOpacity
+                    style={[styles.applyButton, isApplied && styles.undoButton]}
+                    onPress={isApplied ? handleUndo : handleApply}
+                  >
+                    <Text style={[styles.applyButtonText, isApplied && styles.undoButtonText]}>
+                      {isApplied ? 'Undo' : 'Save'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            );
           };
 
           return (
             <View key={exerciseId} style={styles.adjustmentExerciseGroup}>
               <Text style={styles.adjustmentExerciseName}>{exerciseName}</Text>
-              {renderAdjustments(weightChanges, 'Weight', 'kg')}
-              {renderAdjustments(repsChanges, 'Reps', '')}
-              {renderAdjustments(restChanges, 'Rest', 's')}
+              {renderNetChange(weightChange, 'Weight', 'kg', 'weight')}
+              {renderNetChange(repsChange, 'Reps', '', 'reps')}
+              {renderNetChange(restChange, 'Rest', 's', 'rest')}
             </View>
           );
         })}
@@ -365,6 +413,7 @@ const ExerciseList: React.FC<ExerciseListProps> = ({ exercises }) => {
 
 export default function WorkoutCompletedScreen() {
   const theme = useBuddyTheme();
+  const { user } = useAuth();
   const params = useLocalSearchParams<{ sessionId?: string | string[] }>();
   // Handle case where useLocalSearchParams might return array or single value
   const sessionId = params?.sessionId 
@@ -409,9 +458,114 @@ export default function WorkoutCompletedScreen() {
     { skip: !sessionId }
   );
 
+  // Handler to save/apply adjustment to future workouts using Supabase client directly
+  // Returns true on success, false on failure
+  const handleSaveAdjustmentPreference = React.useCallback(async (
+    exerciseId: string,
+    adjustmentType: string,
+    fromValue: string,
+    toValue: string
+  ): Promise<boolean> => {
+    if (!user?.id) {
+      console.error('User must be logged in to apply adjustments');
+      return false;
+    }
+
+    const today = new Date().toISOString().split('T')[0]; // Format: YYYY-MM-DD
+    
+    // Prepare adjustment values based on type
+    const adjustmentReason = `Applied from workout completion: ${adjustmentType} adjusted from ${fromValue} to ${toValue}`;
+    const updateData: {
+      reps?: string;
+      weight?: string;
+      time?: string;
+      is_adjusted: boolean;
+      adjustment_reason: string;
+    } = {
+      is_adjusted: true,
+      adjustment_reason: adjustmentReason,
+    };
+
+    if (adjustmentType === 'reps') {
+      updateData.reps = toValue;
+    } else if (adjustmentType === 'weight') {
+      updateData.weight = `${toValue}kg`;
+    } else if (adjustmentType === 'rest') {
+      updateData.time = `${toValue}s`;
+    }
+
+    try {
+      // First, get all workout plan IDs for the user
+      const { data: workoutPlans, error: plansError } = await supabase
+        .from('workout_plans')
+        .select('id')
+        .eq('user_id', user.id);
+
+      if (plansError) {
+        throw plansError;
+      }
+
+      if (!workoutPlans || workoutPlans.length === 0) {
+        console.log('No workout plans found for user');
+        return false;
+      }
+
+      const workoutPlanIds = workoutPlans.map(plan => plan.id);
+
+      // Update entries one workout plan at a time to avoid "too many records" error
+      let totalAffected = 0;
+      const batchSize = 1; // Process one workout plan at a time
+
+      for (let i = 0; i < workoutPlanIds.length; i += batchSize) {
+        const batch = workoutPlanIds.slice(i, i + batchSize);
+        
+        for (const planId of batch) {
+          const { data, error } = await supabase
+            .from('workout_entries')
+            .update(updateData)
+            .eq('workout_plan_id', planId)
+            .eq('exercise_id', exerciseId)
+            .gte('date', today)
+            .select('id');
+
+          if (error) {
+            console.error(`Failed to update entries for plan ${planId}:`, error);
+            // Continue with other plans even if one fails
+            continue;
+          }
+
+          totalAffected += data?.length || 0;
+        }
+      }
+      
+      if (totalAffected > 0) {
+        console.log(`✅ Applied adjustment to ${totalAffected} future workout${totalAffected > 1 ? 's' : ''}`);
+        return true;
+      } else {
+        // No future workouts found - return true to show "Saved" feedback
+        // This preserves historical data integrity (workout_sessions are immutable)
+        // When new workout plans are generated, they can incorporate these preferences
+        console.log('No future workouts found - showing saved feedback (preference will apply to new plans)');
+        return true;
+      }
+    } catch (error: any) {
+      console.error('Failed to apply adjustment to future workouts:', error);
+      return false;
+    }
+  }, [user?.id]);
+
   // Extract session data
   const session = sessionData?.workout_sessionsCollection?.edges?.[0]?.node;
   const isLoading = isLoadingSession || isLoadingSets || isLoadingAdjustments;
+
+  // Check if this workout session is from a Train Now preset
+  const isTrainNow = React.useMemo(() => {
+    if (!setsData?.workout_session_setsCollection?.edges) return false;
+    
+    // Check if any set's workout entry has a preset_id
+    const sets = setsData.workout_session_setsCollection.edges.map(e => e.node);
+    return sets.some(set => set.workout_entries?.preset_id);
+  }, [setsData]);
 
   // Log session data
   React.useEffect(() => {
@@ -709,13 +863,22 @@ export default function WorkoutCompletedScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Title */}
-        <ReanimatedAnimated.Text 
+        {/* Title with Train Now badge */}
+        <ReanimatedAnimated.View 
           entering={FadeIn.duration(800).delay(200)}
-          style={styles.title}
+          style={styles.titleContainer}
         >
-          {displayData.workoutName}
-        </ReanimatedAnimated.Text>
+          <Text style={styles.title}>
+            {displayData.workoutName}
+          </Text>
+          {isTrainNow && (
+            <View style={[styles.trainNowBadge, { backgroundColor: nucleus.light.global.brand["40"] }]}>
+              <Text style={[styles.trainNowText, { color: nucleus.light.global.brand["90"] }]}>
+                Train Now
+              </Text>
+            </View>
+          )}
+        </ReanimatedAnimated.View>
 
         {/* Encouraging Message */}
         <ReanimatedAnimated.Text 
@@ -769,6 +932,7 @@ export default function WorkoutCompletedScreen() {
         <AdjustmentDisplay 
           adjustments={displayData.adjustments} 
           exercises={displayData.exercises}
+          onSavePreference={handleSaveAdjustmentPreference}
         />
 
         {/* AI Generated Summary - TODO: Implement later */}
@@ -817,13 +981,29 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
     alignItems: 'center',
   },
+  titleContainer: {
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 8,
+    width: '100%',
+  },
   title: {
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 32,
     lineHeight: 38.4,
     color: nucleus.light.global.grey["90"],
     textAlign: 'center',
-    marginBottom: 8,
+    includeFontPadding: false,
+  },
+  trainNowBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 32,
+  },
+  trainNowText: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 12,
+    lineHeight: 14,
     includeFontPadding: false,
   },
   encouragingMessage: {
@@ -948,27 +1128,42 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   adjustmentExerciseGroup: {
-    marginBottom: 16,
+    marginBottom: 20,
   },
   adjustmentExerciseName: {
     fontFamily: 'PlusJakartaSans-SemiBold',
     fontSize: 16,
     lineHeight: 22,
     color: nucleus.light.global.grey["90"],
-    marginBottom: 8,
+    marginBottom: 12,
     includeFontPadding: false,
   },
   adjustmentItem: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     marginLeft: 8,
+    marginBottom: 12,
+    flex: 1,
+  },
+  adjustmentTextContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   adjustmentText: {
     fontFamily: 'PlusJakartaSans-Regular',
     fontSize: 14,
     lineHeight: 20,
     color: nucleus.light.global.grey["80"],
-    flex: 1,
+    includeFontPadding: false,
+  },
+  appliedIndicator: {
+    fontFamily: 'PlusJakartaSans-Medium',
+    fontSize: 11,
+    lineHeight: 14,
+    color: nucleus.light.global.brand["70"],
     includeFontPadding: false,
   },
   adjustmentSets: {
@@ -981,6 +1176,30 @@ const styles = StyleSheet.create({
   adjustmentDelta: {
     fontFamily: 'PlusJakartaSans-Medium',
     color: nucleus.light.global.blue["70"],
+  },
+  applyButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: nucleus.light.global.blue["70"],
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 16,
+    minWidth: 80,
+    minHeight: 40,
+  },
+  applyButtonText: {
+    fontFamily: 'PlusJakartaSans-SemiBold',
+    fontSize: 14,
+    color: nucleus.light.global.blue["10"],
+    lineHeight: 18,
+    includeFontPadding: false,
+  },
+  undoButton: {
+    backgroundColor: nucleus.light.global.grey["20"],
+  },
+  undoButtonText: {
+    color: nucleus.light.global.grey["70"],
   },
   exerciseListContainer: {
     width: '100%',

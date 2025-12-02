@@ -5,7 +5,7 @@ import { Text, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import Svg, { Circle } from "react-native-svg";
 import { nucleus } from '../Buddy_variables.js';
-import { useGetWorkoutSessionByDateQuery } from '../store/api/enhancedApi';
+import { useGetWorkoutSessionByDateQuery, useGetWorkoutEntriesPresetIdQuery } from '../store/api/enhancedApi';
 import { getDayNameImage } from '../utils';
 
 export interface WorkoutItemData {
@@ -76,6 +76,21 @@ export default function WorkoutItem({ workout, index, onPress, planId }: Workout
       refetchOnMountOrArgChange: true // Always fetch fresh data
     }
   );
+
+  // Check if this workout is from a Train Now preset
+  const { data: presetData } = useGetWorkoutEntriesPresetIdQuery(
+    { workoutPlanId: planId || '', date: workout.date },
+    {
+      skip: !planId,
+      refetchOnMountOrArgChange: true
+    }
+  );
+
+  // Determine if this is a Train Now workout
+  const isTrainNow = useMemo(() => {
+    const presetId = presetData?.workout_entriesCollection?.edges?.[0]?.node?.preset_id;
+    return !!presetId;
+  }, [presetData]);
 
   // Calculate completion status from session data
   const { isCompleted, isFullyCompleted, progress, hasSession } = useMemo(() => {
@@ -329,10 +344,19 @@ export default function WorkoutItem({ workout, index, onPress, planId }: Workout
       >
       <View style={styles.workoutContent}>
         <View style={styles.workoutInfo}>
-          <View style={[styles.statusBadge, { backgroundColor: statusInfo.backgroundColor }]}>
-            <Text style={[styles.statusText, { color: statusInfo.textColor }]}>
-              {statusInfo.text}
-            </Text>
+          <View style={styles.badgesRow}>
+            <View style={[styles.statusBadge, { backgroundColor: statusInfo.backgroundColor }]}>
+              <Text style={[styles.statusText, { color: statusInfo.textColor }]}>
+                {statusInfo.text}
+              </Text>
+            </View>
+            {isTrainNow && (
+              <View style={[styles.trainNowBadge, { backgroundColor: nucleus.light.global.brand["40"] }]}>
+                <Text style={[styles.trainNowText, { color: nucleus.light.global.brand["90"] }]}>
+                  Train Now
+                </Text>
+              </View>
+            )}
           </View>
           <View style={styles.workoutDetails}>
             <View style={styles.titleSection}>
@@ -483,11 +507,29 @@ const styles = {
     flex: 1,
     gap: 16, // Changed from 24 to 16 to match new design
   },
+  badgesRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+    flexWrap: 'wrap' as const,
+  },
   statusBadge: {
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 32,
     alignSelf: 'flex-start' as const,
+  },
+  trainNowBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 32,
+    alignSelf: 'flex-start' as const,
+  },
+  trainNowText: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 12,
+    fontWeight: '700' as const,
+    lineHeight: 14,
   },
   statusText: {
     fontFamily: 'PlusJakartaSans-Bold',

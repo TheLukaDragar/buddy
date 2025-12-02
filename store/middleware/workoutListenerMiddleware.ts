@@ -1479,7 +1479,7 @@ startAppListening({
 });
 
 // Listener for reps adjustment - sync to workout_session_adjustments AND workout_entries table
-// Debounced to prevent rapid database updates during hold-to-increment
+// Record each adjustment immediately, but debounce the workout_entry update
 startAppListening({
   actionCreator: adjustReps,
   effect: async (action, listenerApi) => {
@@ -1501,8 +1501,31 @@ startAppListening({
       return;
     }
     
-    // Debounce the database update - only execute after user stops adjusting for 800ms
-    const debounceKey = `reps-${currentEntry.id}`;
+    // Record each individual adjustment immediately (not debounced)
+    // This ensures all adjustments are tracked, even during rapid changes
+    try {
+      await dispatch(
+        enhancedApi.endpoints.AddWorkoutAdjustment.initiate({
+          sessionId,
+          type: 'reps',
+          workoutEntryId: currentEntry.id,
+          exerciseId: activeWorkout.currentExercise?.id,
+          fromValue: oldReps.toString(),
+          toValue: newReps.toString(),
+          reason: reason || 'User adjusted reps',
+          affectedSetNumbers: [activeWorkout.currentSetIndex + 1],
+          affectsFutureSets: true,
+        })
+      ).unwrap();
+      
+      console.log(`✅ Recorded reps adjustment: ${oldReps} → ${newReps}`);
+    } catch (error: any) {
+      console.error('Failed to record reps adjustment:', error);
+    }
+    
+    // Debounce the workout_entry update - only execute after user stops adjusting for 800ms
+    // This prevents excessive database writes during hold-to-increment
+    const debounceKey = `reps-entry-${currentEntry.id}`;
     debounceAdjustmentUpdate(debounceKey, async () => {
       try {
         // Get latest state at the time of execution
@@ -1528,31 +1551,16 @@ startAppListening({
           })
         ).unwrap();
         
-        // Also log to workout_session_adjustments for tracking
-        await dispatch(
-          enhancedApi.endpoints.AddWorkoutAdjustment.initiate({
-            sessionId,
-            type: 'reps',
-            workoutEntryId: latestEntry.id,
-            exerciseId: latestWorkout.currentExercise?.id,
-            fromValue: oldReps.toString(),
-            toValue: latestReps.toString(),
-            reason: reason || 'User adjusted reps',
-            affectedSetNumbers: [latestWorkout.currentSetIndex + 1],
-            affectsFutureSets: true,
-          })
-        ).unwrap();
-        
-        console.log('✅ Synced reps adjustment to database (workout_entry + session_adjustments)');
+        console.log('✅ Synced workout_entry with final reps value:', latestReps);
       } catch (error: any) {
-        console.error('Failed to sync reps adjustment to database:', error);
+        console.error('Failed to sync workout_entry reps:', error);
       }
     }, 800);
   },
 });
 
 // Listener for weight adjustment - sync to workout_session_adjustments AND workout_entries table
-// Debounced to prevent rapid database updates during hold-to-increment
+// Record each adjustment immediately, but debounce the workout_entry update
 startAppListening({
   actionCreator: adjustWeight,
   effect: async (action, listenerApi) => {
@@ -1574,8 +1582,31 @@ startAppListening({
       return;
     }
     
-    // Debounce the database update - only execute after user stops adjusting for 800ms
-    const debounceKey = `weight-${currentEntry.id}`;
+    // Record each individual adjustment immediately (not debounced)
+    // This ensures all adjustments are tracked, even during rapid changes
+    try {
+      await dispatch(
+        enhancedApi.endpoints.AddWorkoutAdjustment.initiate({
+          sessionId,
+          type: 'weight',
+          workoutEntryId: currentEntry.id,
+          exerciseId: activeWorkout.currentExercise?.id,
+          fromValue: oldWeight.toString(),
+          toValue: newWeight.toString(),
+          reason: reason || 'User adjusted weight',
+          affectedSetNumbers: [activeWorkout.currentSetIndex + 1],
+          affectsFutureSets: true,
+        })
+      ).unwrap();
+      
+      console.log(`✅ Recorded weight adjustment: ${oldWeight}kg → ${newWeight}kg`);
+    } catch (error: any) {
+      console.error('Failed to record weight adjustment:', error);
+    }
+    
+    // Debounce the workout_entry update - only execute after user stops adjusting for 800ms
+    // This prevents excessive database writes during hold-to-increment
+    const debounceKey = `weight-entry-${currentEntry.id}`;
     debounceAdjustmentUpdate(debounceKey, async () => {
       try {
         // Get latest state at the time of execution
@@ -1601,24 +1632,9 @@ startAppListening({
           })
         ).unwrap();
         
-        // Also log to workout_session_adjustments for tracking
-        await dispatch(
-          enhancedApi.endpoints.AddWorkoutAdjustment.initiate({
-            sessionId,
-            type: 'weight',
-            workoutEntryId: latestEntry.id,
-            exerciseId: latestWorkout.currentExercise?.id,
-            fromValue: oldWeight.toString(),
-            toValue: latestWeight.toString(),
-            reason: reason || 'User adjusted weight',
-            affectedSetNumbers: [latestWorkout.currentSetIndex + 1],
-            affectsFutureSets: true,
-          })
-        ).unwrap();
-        
-        console.log('✅ Synced weight adjustment to database (workout_entry + session_adjustments)');
+        console.log('✅ Synced workout_entry with final weight value:', latestWeight);
       } catch (error: any) {
-        console.error('Failed to sync weight adjustment to database:', error);
+        console.error('Failed to sync workout_entry weight:', error);
       }
     }, 800);
   },

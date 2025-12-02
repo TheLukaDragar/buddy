@@ -823,6 +823,8 @@ export const {
   // Session hooks for completion tracking
   useGetWorkoutSessionByDateQuery,
   useLazyGetWorkoutSessionByDateQuery,
+  useGetWorkoutEntriesPresetIdQuery,
+  useLazyGetWorkoutEntriesPresetIdQuery,
   // Statistics hooks
   useGetUserWorkoutStatisticsQuery,
   useLazyGetUserWorkoutStatisticsQuery,

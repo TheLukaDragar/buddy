@@ -17,11 +17,11 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { nucleus } from '../Buddy_variables';
 import { useSpotifyAuth } from '../hooks/useSpotifyAuth';
 import { syncPlaylistToSpotify } from '../store/actions/musicActions';
-import { useGetAvailableDevicesQuery, useGetUserPlaylistsQuery, useTransferPlaybackMutation } from '../store/api/spotifyApi';
 import { useGetMixMutation } from '../store/api/fitnessApi';
+import { useGetAvailableDevicesQuery, useGetUserPlaylistsQuery, useTransferPlaybackMutation } from '../store/api/spotifyApi';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
-import { SelectedPlaylist, setMusicOption, setSelectedAppMusic, setSelectedPlaylist, setSelectedPartynetMix, type PartynetMix } from '../store/slices/musicSlice';
-import { setPlaylist as setPartynetPlaylist, setIsPlaying as setPartynetIsPlaying, setLastMixRequest } from '../store/slices/fitnessPlayerSlice';
+import { setLastMixRequest, setIsPlaying as setPartynetIsPlaying, setPlaylist as setPartynetPlaylist } from '../store/slices/fitnessPlayerSlice';
+import { SelectedPlaylist, setMusicOption, setSelectedAppMusic, setSelectedPartynetMix, setSelectedPlaylist, type PartynetMix } from '../store/slices/musicSlice';
 import SpotifyConnectModal from './SpotifyConnectModal';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -132,6 +132,7 @@ export default function MusicModal({ visible, onClose }: MusicModalProps) {
   const [previousPlaylistId, setPreviousPlaylistId] = useState<string | null>(null);
   const [selectedPartynetMixId, setSelectedPartynetMixId] = useState<string | null>(null);
   const [isGeneratingMix, setIsGeneratingMix] = useState(false);
+  const [hasAttemptedAutoSelect, setHasAttemptedAutoSelect] = useState(false);
 
   // Redux state
   const { selectedMusicOption, selectedPlaylist, selectedAppMusic, selectedPartynetMix } = useAppSelector(state => state.music);
@@ -192,13 +193,25 @@ export default function MusicModal({ visible, onClose }: MusicModalProps) {
     }
   }, [isAuthenticated, showSpotifyConnect, dispatch]);
 
-  // Auto-select and generate first Partynet mix when user selects Partynet
+  // Reset auto-select attempt flag when music option changes
   useEffect(() => {
-    if (selectedMusicOption === 'partynet' && partynetPlaylist.length === 0 && !isGeneratingMix) {
+    if (selectedMusicOption !== 'partynet') {
+      setHasAttemptedAutoSelect(false);
+    }
+  }, [selectedMusicOption]);
+
+  // Auto-select and generate first Partynet mix when user selects Partynet
+  // Only attempt once - don't retry if it fails
+  useEffect(() => {
+    if (selectedMusicOption === 'partynet' && 
+        partynetPlaylist.length === 0 && 
+        !isGeneratingMix && 
+        !hasAttemptedAutoSelect) {
       console.log('🎵 [MusicModal] Auto-selecting first Partynet mix');
+      setHasAttemptedAutoSelect(true);
       handlePartynetMixSelect(PARTYNET_MIXES[0]);
     }
-  }, [selectedMusicOption, partynetPlaylist.length, isGeneratingMix]);
+  }, [selectedMusicOption, partynetPlaylist.length, isGeneratingMix, hasAttemptedAutoSelect]);
 
   // Auto-select first playlist when playlists load and none is selected
   useEffect(() => {
@@ -309,8 +322,11 @@ export default function MusicModal({ visible, onClose }: MusicModalProps) {
       }
 
       console.log('🎵 [MusicModal] Partynet playlist stored successfully:', tracks.length, 'tracks');
-    } catch (error) {
+    } catch (error: any) {
       console.error('🎵 [MusicModal] Failed to generate Partynet mix:', error);
+      // Don't retry - user can manually select again if needed
+      // Reset selected mix ID on error so UI doesn't show it as selected
+      setSelectedPartynetMixId(null);
     } finally {
       setIsGeneratingMix(false);
     }

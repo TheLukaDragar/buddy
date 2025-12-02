@@ -30,6 +30,23 @@ query GetWorkoutSessionByDate($workoutPlanId: UUID!, $date: Date!) {
   }
 }
 
+# Query to check if workout entries for a plan/date have preset_id (Train Now indicator)
+query GetWorkoutEntriesPresetId($workoutPlanId: UUID!, $date: Date!) {
+  workout_entriesCollection(
+    filter: {
+      workout_plan_id: { eq: $workoutPlanId }
+      date: { eq: $date }
+    }
+    first: 1
+  ) {
+    edges {
+      node {
+        preset_id
+      }
+    }
+  }
+}
+
 # Query to get user workout statistics (all completed sessions with sets)
 query GetUserWorkoutStatistics($userId: UUID!) {
   workout_sessionsCollection(
@@ -164,6 +181,9 @@ query GetWorkoutSessionSets($sessionId: UUID!) {
         is_completed
         skipped
         created_at
+        workout_entries {
+          preset_id
+        }
       }
     }
   }
@@ -502,6 +522,96 @@ mutation TrackWorkoutConversation(
       event_type
       details
       timestamp
+    }
+    affectedCount
+  }
+}
+
+# Query to get workout plan IDs for a user
+# This is a helper query to get workout_plan_ids first, then we can filter entries
+query GetUserWorkoutPlanIds($userId: UUID!) {
+  workout_plansCollection(
+    filter: {
+      user_id: { eq: $userId }
+    }
+  ) {
+    edges {
+      node {
+        id
+        status
+      }
+    }
+  }
+}
+
+# Query to get future workout entries for specific workout plans and exercise
+# Returns workout entries that haven't been completed yet (date >= today)
+# Note: Client should first call GetUserWorkoutPlanIds, then pass workout_plan_ids array here
+query GetFutureWorkoutEntries(
+  $workoutPlanIds: [UUID!]!
+  $exerciseId: UUID!
+  $today: Date!
+) {
+  workout_entriesCollection(
+    filter: {
+      workout_plan_id: { in: $workoutPlanIds }
+      exercise_id: { eq: $exerciseId }
+      date: { gte: $today }
+    }
+    orderBy: [{ date: AscNullsLast }]
+  ) {
+    edges {
+      node {
+        id
+        workout_plan_id
+        exercise_id
+        date
+        reps
+        weight
+        time
+        sets
+        is_adjusted
+        adjustment_reason
+      }
+    }
+  }
+}
+
+# Mutation to bulk update workout entries with adjusted values
+# Updates all future workout entries for specific workout plans and exercise
+# Note: Client should first call GetUserWorkoutPlanIds, then pass workout_plan_ids array here
+mutation ApplyAdjustmentToFutureWorkouts(
+  $workoutPlanIds: [UUID!]!
+  $exerciseId: UUID!
+  $today: Date!
+  $reps: String
+  $weight: String
+  $time: String
+  $adjustmentReason: String
+) {
+  updateworkout_entriesCollection(
+    filter: {
+      workout_plan_id: { in: $workoutPlanIds }
+      exercise_id: { eq: $exerciseId }
+      date: { gte: $today }
+    }
+    set: {
+      reps: $reps
+      weight: $weight
+      time: $time
+      is_adjusted: true
+      adjustment_reason: $adjustmentReason
+    }
+  ) {
+    records {
+      id
+      exercise_id
+      date
+      reps
+      weight
+      time
+      is_adjusted
+      adjustment_reason
     }
     affectedCount
   }

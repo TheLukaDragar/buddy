@@ -4144,6 +4144,22 @@ export type GetWorkoutSessionByDateQuery = {
   } | null;
 };
 
+export type GetWorkoutEntriesPresetIdQueryVariables = Exact<{
+  workoutPlanId: Scalars["UUID"]["input"];
+  date: Scalars["Date"]["input"];
+}>;
+
+export type GetWorkoutEntriesPresetIdQuery = {
+  __typename?: "Query";
+  workout_entriesCollection?: {
+    __typename?: "workout_entriesConnection";
+    edges: Array<{
+      __typename?: "workout_entriesEdge";
+      node: { __typename?: "workout_entries"; preset_id?: any | null };
+    }>;
+  } | null;
+};
+
 export type GetUserWorkoutStatisticsQueryVariables = Exact<{
   userId: Scalars["UUID"]["input"];
 }>;
@@ -4293,6 +4309,10 @@ export type GetWorkoutSessionSetsQuery = {
         is_completed?: boolean | null;
         skipped?: boolean | null;
         created_at: any;
+        workout_entries?: {
+          __typename?: "workout_entries";
+          preset_id?: any | null;
+        } | null;
       };
     }>;
   } | null;
@@ -4587,6 +4607,83 @@ export type TrackWorkoutConversationMutation = {
       timestamp: any;
     }>;
   } | null;
+};
+
+export type GetUserWorkoutPlanIdsQueryVariables = Exact<{
+  userId: Scalars["UUID"]["input"];
+}>;
+
+export type GetUserWorkoutPlanIdsQuery = {
+  __typename?: "Query";
+  workout_plansCollection?: {
+    __typename?: "workout_plansConnection";
+    edges: Array<{
+      __typename?: "workout_plansEdge";
+      node: {
+        __typename?: "workout_plans";
+        id: any;
+        status?: Workout_Plan_Status | null;
+      };
+    }>;
+  } | null;
+};
+
+export type GetFutureWorkoutEntriesQueryVariables = Exact<{
+  workoutPlanIds: Array<Scalars["UUID"]["input"]> | Scalars["UUID"]["input"];
+  exerciseId: Scalars["UUID"]["input"];
+  today: Scalars["Date"]["input"];
+}>;
+
+export type GetFutureWorkoutEntriesQuery = {
+  __typename?: "Query";
+  workout_entriesCollection?: {
+    __typename?: "workout_entriesConnection";
+    edges: Array<{
+      __typename?: "workout_entriesEdge";
+      node: {
+        __typename?: "workout_entries";
+        id: any;
+        workout_plan_id: any;
+        exercise_id: any;
+        date: any;
+        reps: string;
+        weight?: string | null;
+        time?: string | null;
+        sets: number;
+        is_adjusted?: boolean | null;
+        adjustment_reason?: string | null;
+      };
+    }>;
+  } | null;
+};
+
+export type ApplyAdjustmentToFutureWorkoutsMutationVariables = Exact<{
+  workoutPlanIds: Array<Scalars["UUID"]["input"]> | Scalars["UUID"]["input"];
+  exerciseId: Scalars["UUID"]["input"];
+  today: Scalars["Date"]["input"];
+  reps?: InputMaybe<Scalars["String"]["input"]>;
+  weight?: InputMaybe<Scalars["String"]["input"]>;
+  time?: InputMaybe<Scalars["String"]["input"]>;
+  adjustmentReason?: InputMaybe<Scalars["String"]["input"]>;
+}>;
+
+export type ApplyAdjustmentToFutureWorkoutsMutation = {
+  __typename?: "Mutation";
+  updateworkout_entriesCollection: {
+    __typename?: "workout_entriesUpdateResponse";
+    affectedCount: number;
+    records: Array<{
+      __typename?: "workout_entries";
+      id: any;
+      exercise_id: any;
+      date: any;
+      reps: string;
+      weight?: string | null;
+      time?: string | null;
+      is_adjusted?: boolean | null;
+      adjustment_reason?: string | null;
+    }>;
+  };
 };
 
 export type CompleteWorkoutSessionMutationVariables = Exact<{
@@ -5473,6 +5570,20 @@ export const GetWorkoutSessionByDateDocument = `
   }
 }
     `;
+export const GetWorkoutEntriesPresetIdDocument = `
+    query GetWorkoutEntriesPresetId($workoutPlanId: UUID!, $date: Date!) {
+  workout_entriesCollection(
+    filter: {workout_plan_id: {eq: $workoutPlanId}, date: {eq: $date}}
+    first: 1
+  ) {
+    edges {
+      node {
+        preset_id
+      }
+    }
+  }
+}
+    `;
 export const GetUserWorkoutStatisticsDocument = `
     query GetUserWorkoutStatistics($userId: UUID!) {
   workout_sessionsCollection(
@@ -5601,6 +5712,9 @@ export const GetWorkoutSessionSetsDocument = `
         is_completed
         skipped
         created_at
+        workout_entries {
+          preset_id
+        }
       }
     }
   }
@@ -5807,6 +5921,61 @@ export const TrackWorkoutConversationDocument = `
       event_type
       details
       timestamp
+    }
+    affectedCount
+  }
+}
+    `;
+export const GetUserWorkoutPlanIdsDocument = `
+    query GetUserWorkoutPlanIds($userId: UUID!) {
+  workout_plansCollection(filter: {user_id: {eq: $userId}}) {
+    edges {
+      node {
+        id
+        status
+      }
+    }
+  }
+}
+    `;
+export const GetFutureWorkoutEntriesDocument = `
+    query GetFutureWorkoutEntries($workoutPlanIds: [UUID!]!, $exerciseId: UUID!, $today: Date!) {
+  workout_entriesCollection(
+    filter: {workout_plan_id: {in: $workoutPlanIds}, exercise_id: {eq: $exerciseId}, date: {gte: $today}}
+    orderBy: [{date: AscNullsLast}]
+  ) {
+    edges {
+      node {
+        id
+        workout_plan_id
+        exercise_id
+        date
+        reps
+        weight
+        time
+        sets
+        is_adjusted
+        adjustment_reason
+      }
+    }
+  }
+}
+    `;
+export const ApplyAdjustmentToFutureWorkoutsDocument = `
+    mutation ApplyAdjustmentToFutureWorkouts($workoutPlanIds: [UUID!]!, $exerciseId: UUID!, $today: Date!, $reps: String, $weight: String, $time: String, $adjustmentReason: String) {
+  updateworkout_entriesCollection(
+    filter: {workout_plan_id: {in: $workoutPlanIds}, exercise_id: {eq: $exerciseId}, date: {gte: $today}}
+    set: {reps: $reps, weight: $weight, time: $time, is_adjusted: true, adjustment_reason: $adjustmentReason}
+  ) {
+    records {
+      id
+      exercise_id
+      date
+      reps
+      weight
+      time
+      is_adjusted
+      adjustment_reason
     }
     affectedCount
   }
@@ -6030,6 +6199,15 @@ const injectedRtkApi = api.injectEndpoints({
         variables,
       }),
     }),
+    GetWorkoutEntriesPresetId: build.query<
+      GetWorkoutEntriesPresetIdQuery,
+      GetWorkoutEntriesPresetIdQueryVariables
+    >({
+      query: (variables) => ({
+        document: GetWorkoutEntriesPresetIdDocument,
+        variables,
+      }),
+    }),
     GetUserWorkoutStatistics: build.query<
       GetUserWorkoutStatisticsQuery,
       GetUserWorkoutStatisticsQueryVariables
@@ -6156,6 +6334,33 @@ const injectedRtkApi = api.injectEndpoints({
         variables,
       }),
     }),
+    GetUserWorkoutPlanIds: build.query<
+      GetUserWorkoutPlanIdsQuery,
+      GetUserWorkoutPlanIdsQueryVariables
+    >({
+      query: (variables) => ({
+        document: GetUserWorkoutPlanIdsDocument,
+        variables,
+      }),
+    }),
+    GetFutureWorkoutEntries: build.query<
+      GetFutureWorkoutEntriesQuery,
+      GetFutureWorkoutEntriesQueryVariables
+    >({
+      query: (variables) => ({
+        document: GetFutureWorkoutEntriesDocument,
+        variables,
+      }),
+    }),
+    ApplyAdjustmentToFutureWorkouts: build.mutation<
+      ApplyAdjustmentToFutureWorkoutsMutation,
+      ApplyAdjustmentToFutureWorkoutsMutationVariables
+    >({
+      query: (variables) => ({
+        document: ApplyAdjustmentToFutureWorkoutsDocument,
+        variables,
+      }),
+    }),
     CompleteWorkoutSession: build.mutation<
       CompleteWorkoutSessionMutation,
       CompleteWorkoutSessionMutationVariables
@@ -6213,6 +6418,8 @@ export const {
   useLazyGetWorkoutPresetsWithCountsQuery,
   useGetWorkoutSessionByDateQuery,
   useLazyGetWorkoutSessionByDateQuery,
+  useGetWorkoutEntriesPresetIdQuery,
+  useLazyGetWorkoutEntriesPresetIdQuery,
   useGetUserWorkoutStatisticsQuery,
   useLazyGetUserWorkoutStatisticsQuery,
   useGetWorkoutSessionQuery,
@@ -6233,5 +6440,10 @@ export const {
   useUpdateSetRestDurationMutation,
   useAddWorkoutAdjustmentMutation,
   useTrackWorkoutConversationMutation,
+  useGetUserWorkoutPlanIdsQuery,
+  useLazyGetUserWorkoutPlanIdsQuery,
+  useGetFutureWorkoutEntriesQuery,
+  useLazyGetFutureWorkoutEntriesQuery,
+  useApplyAdjustmentToFutureWorkoutsMutation,
   useCompleteWorkoutSessionMutation,
 } = injectedRtkApi;
