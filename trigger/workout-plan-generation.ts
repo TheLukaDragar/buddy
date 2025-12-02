@@ -9072,6 +9072,28 @@ Isolation Work	10–15
 
 ➡️ Increase weight once max reps are achieved for a given range.
 
+⚖️ 6b. BASELINE WEIGHTS
+
+When generating workout plans, baseline weights must be set appropriately for exercises that require external load.
+
+✅ Machine-Based Exercises (Leg Press, Chest Press Machine, Cable Machines, etc.):
+- Set appropriate starting weight based on exercise difficulty and user level
+
+✅ Small Weights / Dumbbells (Dumbbell exercises, Kettlebells):
+- Baseline: 2kg per hand
+- Note: Information is per hand/arm (e.g., "2kg" means 2kg in each hand)
+
+✅ Barbell Exercises:
+- Set appropriate starting weight based on exercise difficulty and user level
+
+✅ Bodyweight Exercises:
+- No baseline weight needed
+
+Important Notes:
+- Baseline weights should be conservative for beginners and adjusted based on user experience level
+- Always consider user's current strength level and training history when setting baseline weights
+- For unilateral exercises (single-arm/leg), baseline is per limb
+
 🧩 7. PROGRAM STRUCTURE
 
 Duration	Exercises per Session
@@ -9103,7 +9125,7 @@ Reps = filled for Week 1 only.
 
 Reps = blank for Weeks 2–8.
 
-Weight = always blank.
+Weight = must be set appropriately based on exercise type and user level (see Baseline Weights section 6b). For dumbbells, specify weight per hand (e.g., "2kg" means 2kg in each hand). For bodyweight exercises, leave blank or use "Body".
 
 Time = used only for isometric core exercises.
 
@@ -9126,7 +9148,7 @@ Add a "Day Name" column before "Day". Populate it with the session type based on
   "similar_alternative_exercises_notes": ["Targets upper chest more. Use if bench is occupied.", "Fixed bar path for safety. Good for training to failure without spotter."],
   "sets": 4,
   "reps": "8–12",
-  "weight": "",
+  "weight": "40kg",
   "time": "30 sec",
   "notes": "Tempo 3-1-1, full ROM",
   "streakExercise": "Push-Ups — Legs Elevated",
@@ -9327,7 +9349,7 @@ const WorkoutEntry = z.object({
     similar_alternative_exercises_notes: z.array(z.string()), // Required: Brief notes for each alternative
     sets: z.number(), // Required: Always 4 per prompt rules
     reps: z.string(), // Required: Always filled with ranges like "8-12"
-    weight: z.string(), // Always empty string per prompt rules - make it required but empty
+    weight: z.string(), // Must be set appropriately based on exercise type and user level (see Baseline Weights section 6b)
     time: z.string(), // Only filled for isometric core exercises - make it required but can be empty
     notes: z.string(), // Optional additional notes - make it required but can be empty
     streakExercise: z.string(), // Required: Always filled per prompt rules from the streak exercise pool

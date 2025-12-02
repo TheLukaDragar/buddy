@@ -851,40 +851,42 @@ export default function ChatComponent({
       } else if (isExtendedMessage && extendedMessage.eventType === 'tool_call') {
         // Check if this is a show_ad tool call
         const toolEvent = extendedMessage.conversationEvent as ClientToolCallEvent;
-        if (toolEvent.client_tool_call.tool_name === 'show_ad') {
-          // Extract ad data from parameters
-          const adData = toolEvent.client_tool_call.parameters;
-          const productName = adData?.productName || 'Battery Complete Whey 1800g';
-          const description = adData?.description || 'Perfect for post-workout recovery';
-          const productUrl = adData?.productUrl || 'https://www.proteini.si/sl/beljakovine/sirotka/battery-complete-whey-1800g';
-          
-          // Special ad message with image and link
-          renderedItems.push(
-            <View key={message.id} style={styles.adContainer}>
-              <View style={styles.adBubble}>
-                <View style={styles.adContent}>
-                  <Image
-                    source={require('../assets/ad.webp')}
-                    style={styles.adImage}
-                    contentFit="cover"
-                  />
-                  <View style={styles.adTextContent}>
-                    <Text style={styles.adProductName}>{productName}</Text>
-                    <Text style={styles.adDescription}>{description}</Text>
-                    <TouchableOpacity 
-                      style={styles.adLinkButton}
-                      onPress={() => {
-                        Linking.openURL(productUrl).catch(err => console.error('Failed to open URL:', err));
-                      }}
-                    >
-                      <Text style={styles.adLinkText}>Order here</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </View>
-            </View>
-          );
-        } else {
+        // PROTEIN AD COMMENTED OUT
+        // if (toolEvent.client_tool_call.tool_name === 'show_ad') {
+        //   // Extract ad data from parameters
+        //   const adData = toolEvent.client_tool_call.parameters;
+        //   const productName = adData?.productName || 'Battery Complete Whey 1800g';
+        //   const description = adData?.description || 'Perfect for post-workout recovery';
+        //   const productUrl = adData?.productUrl || 'https://www.proteini.si/sl/beljakovine/sirotka/battery-complete-whey-1800g';
+        //   
+        //   // Special ad message with image and link
+        //   renderedItems.push(
+        //     <View key={message.id} style={styles.adContainer}>
+        //       <View style={styles.adBubble}>
+        //         <View style={styles.adContent}>
+        //           <Image
+        //             source={require('../assets/ad.webp')}
+        //             style={styles.adImage}
+        //             contentFit="cover"
+        //           />
+        //           <View style={styles.adTextContent}>
+        //             <Text style={styles.adProductName}>{productName}</Text>
+        //             <Text style={styles.adDescription}>{description}</Text>
+        //             <TouchableOpacity 
+        //               style={styles.adLinkButton}
+        //               onPress={() => {
+        //                 Linking.openURL(productUrl).catch(err => console.error('Failed to open URL:', err));
+        //               }}
+        //             >
+        //               <Text style={styles.adLinkText}>Order here</Text>
+        //             </TouchableOpacity>
+        //           </View>
+        //         </View>
+        //       </View>
+        //     </View>
+        //   );
+        // } else {
+        if (toolEvent.client_tool_call.tool_name !== 'show_ad') {
           // Regular tool call - render as subtle text
           renderedItems.push(
             <View key={message.id} style={styles.toolCallContainer}>

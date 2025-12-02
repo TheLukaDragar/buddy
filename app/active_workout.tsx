@@ -2466,41 +2466,42 @@ export default function ActiveWorkoutScreen() {
     }
   }, [status]);
 
+  // PROTEIN AD COMMENTED OUT
   // Trigger ad when workout is completed and agent is not connected
-  useEffect(() => {
-    if (status === 'workout-completed' && !voiceAgent.connected && !adShownRef.current) {
-      console.log('🎯 Workout completed and agent disconnected - triggering ad');
-      adShownRef.current = true;
-      
-      // Trigger show_ad tool
-      dispatch(showAd())
-        .then((result) => {
-          const data = unwrapResult(result);
-          console.log('🎯 Ad shown successfully:', data);
-          
-          // Add conversation event after successful ad display
-          const adEvent: ConversationEvent = {
-            type: 'client_tool_call',
-            client_tool_call: {
-              tool_name: 'show_ad',
-              tool_call_id: `ad_${Date.now()}`,
-              parameters: data,
-              expects_response: false
-            }
-          };
-          setConversationEvents(prev => [...prev, adEvent]);
-        })
-        .catch((error) => {
-          console.error('❌ Failed to show ad:', error);
-          adShownRef.current = false; // Reset flag on error so it can retry
-        });
-    }
-    
-    // Reset flag when workout starts again
-    if (status === 'selected' || status === 'preparing') {
-      adShownRef.current = false;
-    }
-  }, [status, voiceAgent.connected, dispatch]);
+  // useEffect(() => {
+  //   if (status === 'workout-completed' && !voiceAgent.connected && !adShownRef.current) {
+  //     console.log('🎯 Workout completed and agent disconnected - triggering ad');
+  //     adShownRef.current = true;
+  //     
+  //     // Trigger show_ad tool
+  //     dispatch(showAd())
+  //       .then((result) => {
+  //         const data = unwrapResult(result);
+  //         console.log('🎯 Ad shown successfully:', data);
+  //         
+  //         // Add conversation event after successful ad display
+  //         const adEvent: ConversationEvent = {
+  //           type: 'client_tool_call',
+  //           client_tool_call: {
+  //             tool_name: 'show_ad',
+  //             tool_call_id: `ad_${Date.now()}`,
+  //             parameters: data,
+  //             expects_response: false
+  //           }
+  //         };
+  //         setConversationEvents(prev => [...prev, adEvent]);
+  //       })
+  //       .catch((error) => {
+  //         console.error('❌ Failed to show ad:', error);
+  //         adShownRef.current = false; // Reset flag on error so it can retry
+  //       });
+  //   }
+  //   
+  //   // Reset flag when workout starts again
+  //   if (status === 'selected' || status === 'preparing') {
+  //     adShownRef.current = false;
+  //   }
+  // }, [status, voiceAgent.connected, dispatch]);
 
   // Handle back press
   useFocusEffect(
