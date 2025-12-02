@@ -385,6 +385,7 @@ interface VideoContainerProps {
   onShowAdjustModal: () => void;
   onHideControls?: () => void;
   dispatch: any;
+  onEndConversation?: () => Promise<void>;
 }
 
 const VideoContainer: React.FC<VideoContainerProps> = ({ 
@@ -394,7 +395,8 @@ const VideoContainer: React.FC<VideoContainerProps> = ({
   onShowFinishAlert,
   onShowAdjustModal,
   onHideControls,
-  dispatch
+  dispatch,
+  onEndConversation
 }) => {
   // Get session data from Redux for WorkoutSummary component
   const session = useSelector(selectWorkoutSession);
@@ -531,7 +533,11 @@ const VideoContainer: React.FC<VideoContainerProps> = ({
           >
             <TouchableOpacity 
               style={styles.finishButtonInner}
-              onPress={() => {
+              onPress={async () => {
+                // Disconnect voice agent before navigation
+                if (onEndConversation) {
+                  await onEndConversation();
+                }
                 // Capture sessionId before completeWorkout clears Redux state
                 const currentSessionId = selectSessionId(store.getState());
                 dispatch(completeWorkout());
@@ -623,7 +629,10 @@ const VideoContainer: React.FC<VideoContainerProps> = ({
         {/* Spotify Player Mini removed from here - now rendered as global overlay */}
         
         <View style={styles.centeredControls}>
-          <WorkoutControls onShowFinishAlert={onShowFinishAlert} />
+          <WorkoutControls 
+            onShowFinishAlert={onShowFinishAlert}
+            onEndConversation={onEndConversation}
+          />
         </View>
       </ReanimatedAnimated.View>
       )}
@@ -1074,9 +1083,10 @@ const WorkoutProgress: React.FC<WorkoutProgressProps> = ({
 // Workout Controls Component
 interface WorkoutControlsProps {
   onShowFinishAlert: () => void;
+  onEndConversation?: () => Promise<void>;
 }
 
-const WorkoutControls: React.FC<WorkoutControlsProps> = ({ onShowFinishAlert }) => {
+const WorkoutControls: React.FC<WorkoutControlsProps> = ({ onShowFinishAlert, onEndConversation }) => {
   const dispatch = useAppDispatch();
   const status = useSelector(selectWorkoutStatus);
   const activeWorkout = useSelector(selectActiveWorkout);
@@ -1227,6 +1237,10 @@ const WorkoutControls: React.FC<WorkoutControlsProps> = ({ onShowFinishAlert }) 
         case 'workout-completed':
           // FINISH - Complete workout properly and navigate to summary screen
           console.log('Workout completed! Finalizing workout and navigating to summary.');
+          // Disconnect voice agent before navigation
+          if (onEndConversation) {
+            await onEndConversation();
+          }
           // Capture sessionId before completeWorkout clears Redux state
           const currentSessionId = selectSessionId(store.getState());
           const finishResult = await dispatch(completeWorkout());
@@ -2503,31 +2517,7 @@ export default function ActiveWorkoutScreen() {
   //   }
   // }, [status, voiceAgent.connected, dispatch]);
 
-  // Handle back press
-  useFocusEffect(
-    useCallback(() => {
-      const handleBackPress = () => {
-        if (status === 'workout-completed') {
-          // Auto complete workout and navigate to summary screen, no alert
-          // Capture sessionId before completeWorkout clears Redux state
-          const currentSessionId = sessionId;
-          dispatch(completeWorkout());
-          router.replace({
-            pathname: '/workout-completed',
-            params: { sessionId: currentSessionId || '' }
-          });
-          return true;
-        } else {
-          // Show finish early alert for other states
-          setShowFinishAlert(true);
-          return true;
-        }
-      };
-
-      const backHandler = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
-      return () => backHandler.remove();
-    }, [status, dispatch, sessionId])
-  );
+  // Handle back press - will be set up after endConversation is defined
 
   // // Sync selected playlist to Spotify when screen is first shown
   // useFocusEffect(
@@ -3219,14 +3209,24 @@ export default function ActiveWorkoutScreen() {
     }
   };
 
-  // Function to end conversation
-  const endConversation = async () => {
+  // Function to safely end conversation with proper error handling
+  // Wrapped in useCallback to use in effects and callbacks
+  const endConversation = useCallback(async () => {
     try {
-      await conversation.endSession();
+      // Only end if actually connected or connecting
+      if (conversation.status === 'connected' || conversation.status === 'connecting') {
+        console.log('Disconnecting voice agent...');
+        await conversation.endSession();
+        console.log('Voice agent disconnected successfully');
+      } else {
+        console.log('Voice agent already disconnected, status:', conversation.status);
+      }
     } catch (error) {
       console.error('Failed to end ElevenLabs conversation:', error);
+      // Even if endSession fails, unregister callbacks to prevent further communication
+      contextBridgeService.unregisterCallbacks();
     }
-  };
+  }, [conversation]);
 
 
 
@@ -3251,7 +3251,7 @@ export default function ActiveWorkoutScreen() {
   // Register conversation object directly when connected
   useEffect(() => {
     if (conversation) {
-      console.log('🎙️ Registering voice callbacks - conversation fully connected');
+      console.log('Registering voice callbacks - conversation fully connected');
       contextBridgeService.registerCallbacks({
         sendMessage: conversation.sendUserMessage,
         sendContext: conversation.sendContextualUpdate,
@@ -3259,12 +3259,63 @@ export default function ActiveWorkoutScreen() {
     }
   }, [conversationStatus, conversation]);
 
-  // Cleanup callbacks on component unmount (backup)
+  // Disconnect voice agent when workout completes
+  useEffect(() => {
+    if (status === 'workout-completed') {
+      console.log('Workout completed - disconnecting voice agent');
+      endConversation();
+    }
+  }, [status, endConversation]);
+
+  // Cleanup: Disconnect voice agent when component unmounts or screen loses focus
+  useFocusEffect(
+    useCallback(() => {
+      // On focus: component is mounted and visible
+      return () => {
+        // On blur/unmount: disconnect voice agent safely
+        console.log('Screen losing focus or unmounting - disconnecting voice agent');
+        endConversation();
+        contextBridgeService.unregisterCallbacks();
+      };
+    }, [endConversation])
+  );
+
+  // Backup cleanup on component unmount (runs if useFocusEffect cleanup doesn't)
   useEffect(() => {
     return () => {
+      console.log('Component unmounting - cleaning up voice agent');
+      endConversation();
       contextBridgeService.unregisterCallbacks();
     };
-  }, []);
+  }, [endConversation]);
+
+  // Handle back press - must be after endConversation is defined
+  useFocusEffect(
+    useCallback(() => {
+      const handleBackPress = () => {
+        if (status === 'workout-completed') {
+          // Auto complete workout and navigate to summary screen, no alert
+          // Disconnect voice agent before navigation (fire and forget)
+          endConversation().catch(err => console.error('Error disconnecting on back press:', err));
+          // Capture sessionId before completeWorkout clears Redux state
+          const currentSessionId = sessionId;
+          dispatch(completeWorkout());
+          router.replace({
+            pathname: '/workout-completed',
+            params: { sessionId: currentSessionId || '' }
+          });
+          return true;
+        } else {
+          // Show finish early alert for other states
+          setShowFinishAlert(true);
+          return true;
+        }
+      };
+
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
+      return () => backHandler.remove();
+    }, [status, dispatch, sessionId, endConversation])
+  );
 
   // Generate progress segments from current exercise (reactive to current timer state)
   const generateProgressSegments = (currentTimers: any): ProgressSegment[] => {
@@ -3319,6 +3370,8 @@ export default function ActiveWorkoutScreen() {
 
   const handleFinishWorkout = async () => {
     try {
+      // Disconnect voice agent before navigation
+      await endConversation();
       // Capture sessionId before finishWorkoutEarly clears Redux state
       const currentSessionId = selectSessionId(store.getState());
       
@@ -3373,6 +3426,7 @@ export default function ActiveWorkoutScreen() {
               onShowFinishAlert={() => setShowFinishAlert(true)}
               onShowAdjustModal={() => setShowAdjustModal(true)}
               dispatch={dispatch}
+              onEndConversation={endConversation}
             />
           </View>
           

@@ -168,13 +168,42 @@ export default function WorkoutPlanProgress() {
     }
 
     // Step 3: Exercise Profiles - track exercises_completed/exercises_total
-    const currentStep = latestRequest.current_step || 1;
-    const exercisesTotal = latestRequest.exercises_total || 0;
-    const exercisesCompleted = latestRequest.exercises_completed || 0;
+    // CRITICAL: Check if current_step is actually set (not null/undefined) before using it
+    // If it's null, the request was just created and progress hasn't started yet
+    const currentStep = latestRequest.current_step ?? null;
+    const exercisesTotal = latestRequest.exercises_total ?? null;
+    const exercisesCompleted = latestRequest.exercises_completed ?? null;
 
-    if (currentStep >= 3 && exercisesTotal > 0) {
+    // If current_step is null, the request was just created - show initial state
+    if (currentStep === null || currentStep === undefined) {
+      // Request just created, show initial plan generation progress
+      let timeProgress = 0.1; // Start at 10%
+
+      if (latestRequest.created_at) {
+        const startTime = new Date(latestRequest.created_at).getTime();
+        const elapsedSeconds = (Date.now() - startTime) / 1000;
+        // For the first few seconds, show minimal progress to avoid confusion
+        const maxSeconds = 3; // First 3 seconds show minimal progress
+        const progressRange = 0.1; // 10% to 20% = 10% range for initial state
+        const timeBasedProgress = Math.min(elapsedSeconds / maxSeconds, 1) * progressRange;
+        timeProgress = 0.1 + timeBasedProgress; // 10% to 20%
+      }
+
+      return {
+        currentStep: 1, // Working on plan (step 2), profile complete
+        stepProgress: timeProgress, // 10% -> 20% initially
+        isComplete: false,
+        showButton: false,
+        stepDescription: latestRequest.step_description || 'Starting workout plan generation...'
+      };
+    }
+
+    // Now we know current_step is set, use it properly
+    if (currentStep >= 3 && exercisesTotal !== null && exercisesTotal > 0) {
       // Step 3: Generating exercise profiles - show actual progress
-      const exerciseProgress = exercisesCompleted / exercisesTotal;
+      const exerciseProgress = exercisesCompleted !== null && exercisesTotal > 0 
+        ? exercisesCompleted / exercisesTotal 
+        : 0;
 
       return {
         currentStep: 2, // Working on exercises (step 3), profile + plan complete
@@ -183,7 +212,7 @@ export default function WorkoutPlanProgress() {
         showButton: latestRequest.status === 'completed',
         stepDescription: latestRequest.status === 'completed'
           ? 'Your personalized workout plan is ready!'
-          : `Creating exercise profiles: ${exercisesCompleted}/${exercisesTotal}`
+          : `Creating exercise profiles: ${exercisesCompleted || 0}/${exercisesTotal}`
       };
     } else if (currentStep >= 2) {
       // Step 2: Creating workout structure - use created_at for progress
