@@ -207,6 +207,7 @@ query GetWorkoutSessionAdjustments($sessionId: UUID!) {
         reason
         affected_set_numbers
         affects_future_sets
+        is_applied
         created_at
         exercises {
           id

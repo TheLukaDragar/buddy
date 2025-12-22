@@ -80,6 +80,7 @@ interface AdjustmentDisplayProps {
     exerciseId?: string;
     exerciseName?: string;
     affectedSetNumbers?: number[];
+    isApplied?: boolean;
   }>;
   exercises?: Array<{
     id: string;
@@ -89,11 +90,22 @@ interface AdjustmentDisplayProps {
     weight?: string | null;
   }>;
   onSavePreference?: (exerciseId: string, adjustmentType: string, fromValue: string, toValue: string) => Promise<boolean>;
+  isWorkoutInPast?: boolean;
 }
 
-const AdjustmentDisplay: React.FC<AdjustmentDisplayProps> = ({ adjustments, exercises = [], onSavePreference }) => {
-  const [appliedAdjustments, setAppliedAdjustments] = React.useState<Set<string>>(new Set());
-  
+const AdjustmentDisplay: React.FC<AdjustmentDisplayProps> = ({ adjustments, exercises = [], onSavePreference, isWorkoutInPast = false }) => {
+  // Initialize appliedAdjustments from database (adjustments marked as is_applied)
+  const [appliedAdjustments, setAppliedAdjustments] = React.useState<Set<string>>(() => {
+    const initialApplied = new Set<string>();
+    adjustments.forEach(adj => {
+      if (adj.isApplied && adj.exerciseId) {
+        const adjustmentKey = `${adj.exerciseId}-${adj.type}`;
+        initialApplied.add(adjustmentKey);
+      }
+    });
+    return initialApplied;
+  });
+
   if (adjustments.length === 0) return null;
 
   // Create exercise lookup map
@@ -251,8 +263,8 @@ const AdjustmentDisplay: React.FC<AdjustmentDisplayProps> = ({ adjustments, exer
                     <Text style={styles.appliedIndicator}>Saved</Text>
                   )}
                 </View>
-                {/* Apply/Undo button */}
-                {onSavePreference && (
+                {/* Apply/Undo button - hide if workout is in the past */}
+                {onSavePreference && !isWorkoutInPast && (
                   <TouchableOpacity
                     style={[styles.applyButton, isApplied && styles.undoButton]}
                     onPress={isApplied ? handleUndo : handleApply}
@@ -472,7 +484,7 @@ export default function WorkoutCompletedScreen() {
     }
 
     const today = new Date().toISOString().split('T')[0]; // Format: YYYY-MM-DD
-    
+
     // Prepare adjustment values based on type
     const adjustmentReason = `Applied from workout completion: ${adjustmentType} adjusted from ${fromValue} to ${toValue}`;
     const updateData: {
@@ -495,7 +507,20 @@ export default function WorkoutCompletedScreen() {
     }
 
     try {
-      // First, get all workout plan IDs for the user
+      // First, mark the adjustment as applied in workout_session_adjustments
+      const { error: adjustmentUpdateError } = await supabase
+        .from('workout_session_adjustments')
+        .update({ is_applied: true })
+        .eq('session_id', sessionId || '')
+        .eq('exercise_id', exerciseId)
+        .eq('type', adjustmentType);
+
+      if (adjustmentUpdateError) {
+        console.error('Failed to update adjustment is_applied flag:', adjustmentUpdateError);
+        // Continue even if this fails, as the main update is more important
+      }
+
+      // Then, get all workout plan IDs for the user
       const { data: workoutPlans, error: plansError } = await supabase
         .from('workout_plans')
         .select('id')
@@ -518,7 +543,7 @@ export default function WorkoutCompletedScreen() {
 
       for (let i = 0; i < workoutPlanIds.length; i += batchSize) {
         const batch = workoutPlanIds.slice(i, i + batchSize);
-        
+
         for (const planId of batch) {
           const { data, error } = await supabase
             .from('workout_entries')
@@ -537,7 +562,7 @@ export default function WorkoutCompletedScreen() {
           totalAffected += data?.length || 0;
         }
       }
-      
+
       if (totalAffected > 0) {
         console.log(`✅ Applied adjustment to ${totalAffected} future workout${totalAffected > 1 ? 's' : ''}`);
         return true;
@@ -552,7 +577,7 @@ export default function WorkoutCompletedScreen() {
       console.error('Failed to apply adjustment to future workouts:', error);
       return false;
     }
-  }, [user?.id]);
+  }, [user?.id, sessionId]);
 
   // Extract session data
   const session = sessionData?.workout_sessionsCollection?.edges?.[0]?.node;
@@ -717,13 +742,13 @@ export default function WorkoutCompletedScreen() {
       console.log('⚠️ [WORKOUT-COMPLETED] No adjustments data available');
       return [];
     }
-    
+
     const rawAdjustments = adjustmentsData.workout_session_adjustmentsCollection.edges.map(e => e.node);
     console.log('🔄 [WORKOUT-COMPLETED] Processing', rawAdjustments.length, 'raw adjustments');
-    
+
     const filtered = rawAdjustments.filter(adj => ['weight', 'reps', 'rest'].includes(adj.type));
     console.log('📊 [WORKOUT-COMPLETED] Filtered to', filtered.length, 'relevant adjustments (weight/reps/rest)');
-    
+
     const formatted = filtered.map(adj => ({
       type: adj.type as 'weight' | 'reps' | 'rest',
       from: parseFloat(adj.from_value) || 0,
@@ -731,9 +756,10 @@ export default function WorkoutCompletedScreen() {
       reason: adj.reason,
       exerciseId: adj.exercise_id || undefined,
       exerciseName: adj.exercises?.name || undefined,
-      affectedSetNumbers: adj.affected_set_numbers 
+      affectedSetNumbers: adj.affected_set_numbers
         ? adj.affected_set_numbers.filter((n): n is number => n !== null)
         : undefined,
+      isApplied: adj.is_applied || false,
     }));
 
     console.log('✅ [WORKOUT-COMPLETED] Formatted adjustments:', formatted);
@@ -766,6 +792,20 @@ export default function WorkoutCompletedScreen() {
     
     return total;
   }, [setsData]);
+
+  // Check if workout is in the past (comparing dates only, not time)
+  const isWorkoutInPast = React.useMemo(() => {
+    if (!session?.date) return false;
+
+    const workoutDate = new Date(session.date);
+    const today = new Date();
+
+    // Reset time components to compare only dates
+    const workoutDateOnly = new Date(workoutDate.getFullYear(), workoutDate.getMonth(), workoutDate.getDate());
+    const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
+    return workoutDateOnly.getTime() < todayOnly.getTime();
+  }, [session?.date]);
 
   // Prepare display data
   const displayData = React.useMemo(() => {
@@ -929,10 +969,11 @@ export default function WorkoutCompletedScreen() {
         </ReanimatedAnimated.View>
 
         {/* Adjustments Display */}
-        <AdjustmentDisplay 
-          adjustments={displayData.adjustments} 
+        <AdjustmentDisplay
+          adjustments={displayData.adjustments}
           exercises={displayData.exercises}
           onSavePreference={handleSaveAdjustmentPreference}
+          isWorkoutInPast={isWorkoutInPast}
         />
 
         {/* AI Generated Summary - TODO: Implement later */}

@@ -2480,6 +2480,7 @@ export type Workout_Session_Adjustments = Node & {
   exercises?: Maybe<Exercises>;
   from_value: Scalars["String"]["output"];
   id: Scalars["UUID"]["output"];
+  is_applied?: Maybe<Scalars["Boolean"]["output"]>;
   metadata?: Maybe<Scalars["JSON"]["output"]>;
   /** Globally Unique Record Identifier */
   nodeId: Scalars["ID"]["output"];
@@ -2521,6 +2522,7 @@ export type Workout_Session_AdjustmentsFilter = {
   exercise_id?: InputMaybe<UuidFilter>;
   from_value?: InputMaybe<StringFilter>;
   id?: InputMaybe<UuidFilter>;
+  is_applied?: InputMaybe<BooleanFilter>;
   nodeId?: InputMaybe<IdFilter>;
   /** Negates a filter */
   not?: InputMaybe<Workout_Session_AdjustmentsFilter>;
@@ -2540,6 +2542,7 @@ export type Workout_Session_AdjustmentsInsertInput = {
   exercise_id?: InputMaybe<Scalars["UUID"]["input"]>;
   from_value?: InputMaybe<Scalars["String"]["input"]>;
   id?: InputMaybe<Scalars["UUID"]["input"]>;
+  is_applied?: InputMaybe<Scalars["Boolean"]["input"]>;
   metadata?: InputMaybe<Scalars["JSON"]["input"]>;
   reason?: InputMaybe<Scalars["String"]["input"]>;
   session_id?: InputMaybe<Scalars["UUID"]["input"]>;
@@ -2562,6 +2565,7 @@ export type Workout_Session_AdjustmentsOrderBy = {
   exercise_id?: InputMaybe<OrderByDirection>;
   from_value?: InputMaybe<OrderByDirection>;
   id?: InputMaybe<OrderByDirection>;
+  is_applied?: InputMaybe<OrderByDirection>;
   reason?: InputMaybe<OrderByDirection>;
   session_id?: InputMaybe<OrderByDirection>;
   to_value?: InputMaybe<OrderByDirection>;
@@ -2576,6 +2580,7 @@ export type Workout_Session_AdjustmentsUpdateInput = {
   exercise_id?: InputMaybe<Scalars["UUID"]["input"]>;
   from_value?: InputMaybe<Scalars["String"]["input"]>;
   id?: InputMaybe<Scalars["UUID"]["input"]>;
+  is_applied?: InputMaybe<Scalars["Boolean"]["input"]>;
   metadata?: InputMaybe<Scalars["JSON"]["input"]>;
   reason?: InputMaybe<Scalars["String"]["input"]>;
   session_id?: InputMaybe<Scalars["UUID"]["input"]>;
@@ -4340,6 +4345,7 @@ export type GetWorkoutSessionAdjustmentsQuery = {
         reason: string;
         affected_set_numbers?: Array<number | null> | null;
         affects_future_sets?: boolean | null;
+        is_applied?: boolean | null;
         created_at: any;
         exercises?: { __typename?: "exercises"; id: any; name: string } | null;
       };
@@ -5738,6 +5744,7 @@ export const GetWorkoutSessionAdjustmentsDocument = `
         reason
         affected_set_numbers
         affects_future_sets
+        is_applied
         created_at
         exercises {
           id
