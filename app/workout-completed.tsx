@@ -775,16 +775,18 @@ export default function WorkoutCompletedScreen() {
     
     const sets = setsData.workout_session_setsCollection.edges.map(e => e.node);
     
-    // Calculate: for each completed set, multiply reps × weight (if weight exists and > 0)
+    // Calculate: for each completed set, multiply reps × weight
+    // For bodyweight exercises (weight = 0), count 5kg per rep
     const total = sets.reduce((sum, set) => {
       if (!set.is_completed) return sum;
       
       const reps = set.actual_reps || 0;
       const weight = set.actual_weight ? parseFloat(set.actual_weight.toString()) : 0;
       
-      // Only count if weight exists and is greater than 0 (exclude bodyweight)
-      if (weight > 0 && reps > 0) {
-        return sum + (reps * weight);
+      if (reps > 0) {
+        // If weight is 0 (bodyweight exercise), count 5kg per rep
+        const effectiveWeight = weight > 0 ? weight : 5;
+        return sum + (reps * effectiveWeight);
       }
       
       return sum;
@@ -941,7 +943,7 @@ export default function WorkoutCompletedScreen() {
             <Text style={styles.statValue}>{formatTime(displayData.totalTime)}</Text>
           </View>
 
-          {/* Total Weight Lifted */}
+          {/* Total Weight Lifted - Always show if there are completed sets */}
           {displayData.totalWeightLifted > 0 && (
             <View style={styles.statItem}>
               <Text style={styles.statLabel}>Total Weight Lifted</Text>
