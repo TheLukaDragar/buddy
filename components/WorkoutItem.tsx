@@ -2,7 +2,7 @@ import { Image } from "expo-image";
 import { router } from "expo-router";
 import React, { useMemo } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
-import Animated, { FadeInUp } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import Svg, { Circle } from "react-native-svg";
 import { nucleus } from '../Buddy_variables.js';
 import { useGetWorkoutSessionByDateQuery, useGetWorkoutEntriesPresetIdQuery } from '../store/api/enhancedApi';
@@ -69,7 +69,7 @@ const getWorkoutImageSource = (workoutTitle: string, fallbackImage?: string) => 
 
 export default function WorkoutItem({ workout, index, onPress, planId }: WorkoutItemProps) {
   // Fetch session data for this workout if planId is provided
-  const { data: sessionData } = useGetWorkoutSessionByDateQuery(
+  const { data: sessionData, isLoading: isLoadingSession } = useGetWorkoutSessionByDateQuery(
     { workoutPlanId: planId || '', date: workout.date },
     {
       skip: !planId,
@@ -78,13 +78,16 @@ export default function WorkoutItem({ workout, index, onPress, planId }: Workout
   );
 
   // Check if this workout is from a Train Now preset
-  const { data: presetData } = useGetWorkoutEntriesPresetIdQuery(
+  const { data: presetData, isLoading: isLoadingPreset } = useGetWorkoutEntriesPresetIdQuery(
     { workoutPlanId: planId || '', date: workout.date },
     {
       skip: !planId,
       refetchOnMountOrArgChange: true
     }
   );
+
+  // Overall loading state
+  const isLoading = isLoadingSession || isLoadingPreset;
 
   // Determine if this is a Train Now workout
   const isTrainNow = useMemo(() => {
@@ -93,7 +96,7 @@ export default function WorkoutItem({ workout, index, onPress, planId }: Workout
   }, [presetData]);
 
   // Calculate completion status from session data
-  const { isCompleted, isFullyCompleted, progress, hasSession } = useMemo(() => {
+  const { isCompleted, isFullyCompleted, progress, hasSession, sessionStatus } = useMemo(() => {
     const session = sessionData?.workout_sessionsCollection?.edges?.[0]?.node;
 
     console.log('[WorkoutItem] Session query for date:', workout.date, 'planId:', planId);
@@ -116,7 +119,8 @@ export default function WorkoutItem({ workout, index, onPress, planId }: Workout
         isCompleted: workout.isCompleted,
         isFullyCompleted: workout.isCompleted,
         progress: workout.progress || 0,
-        hasSession: false
+        hasSession: false,
+        sessionStatus: null
       };
     }
 
@@ -128,14 +132,31 @@ export default function WorkoutItem({ workout, index, onPress, planId }: Workout
       console.log('[WorkoutItem] Progress calc:', session.completed_sets, '/', session.total_sets, '=', sessionProgress, '%');
     }
 
+    // ✅ FIX: Check session.status to handle abandoned/finished_early correctly
+    const status = session.status;
+
+    // Abandoned workouts are NEVER completed
+    if (status === 'abandoned') {
+      console.log('[WorkoutItem] Session abandoned - showing as incomplete');
+      return {
+        isCompleted: false,
+        isFullyCompleted: false,
+        progress: sessionProgress,
+        hasSession: true,
+        sessionStatus: 'abandoned'
+      };
+    }
+
     // Show checkmark only for fully completed OR finished early with >= 80%
     const showCheckmark = session.is_fully_completed || (session.finished_early && sessionProgress >= 80);
 
-    // Only show "Completed" status if fully completed OR progress >= 80%
-    const sessionIsCompleted = session.is_fully_completed || sessionProgress >= 80;
+    // Only show "Completed" status if:
+    // 1. Status is "completed" AND is_fully_completed is true, OR
+    // 2. Progress >= 80% (regardless of status for finished_early)
+    const sessionIsCompleted = (status === 'completed' && session.is_fully_completed) || sessionProgress >= 80;
 
     // If session is in progress but not completed, ensure we show some progress
-    if (!showCheckmark && session.status && ['exercising', 'preparing', 'resting', 'paused'].includes(session.status)) {
+    if (!showCheckmark && status && ['exercising', 'preparing', 'resting', 'paused'].includes(status)) {
       sessionProgress = Math.max(sessionProgress, 1); // At least 1% if started
     }
 
@@ -143,7 +164,8 @@ export default function WorkoutItem({ workout, index, onPress, planId }: Workout
       isCompleted: sessionIsCompleted,
       isFullyCompleted: showCheckmark,
       progress: session.is_fully_completed ? 100 : sessionProgress,
-      hasSession: true
+      hasSession: true,
+      sessionStatus: status
     };
 
     console.log('[WorkoutItem] Final result for', workout.date, ':', result);
@@ -171,14 +193,18 @@ export default function WorkoutItem({ workout, index, onPress, planId }: Workout
   };
 
   const getStatusInfo = () => {
+    const workoutDate = new Date(workout.date);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    // Reset time to compare only dates
+    const workoutDateOnly = new Date(workoutDate.getFullYear(), workoutDate.getMonth(), workoutDate.getDate());
+    const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const yesterdayOnly = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
+
+    // Handle completed workouts
     if (isCompleted) {
-      const workoutDate = new Date(workout.date);
-      const today = new Date();
-
-      // Reset time to compare only dates
-      const workoutDateOnly = new Date(workoutDate.getFullYear(), workoutDate.getMonth(), workoutDate.getDate());
-      const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-
       if (workoutDateOnly.getTime() === todayOnly.getTime()) {
         return {
           text: "Well done today! 🔥",
@@ -196,19 +222,9 @@ export default function WorkoutItem({ workout, index, onPress, planId }: Workout
       }
     }
 
-    const workoutDate = new Date(workout.date);
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    
-    // Reset time to compare only dates
-    const workoutDateOnly = new Date(workoutDate.getFullYear(), workoutDate.getMonth(), workoutDate.getDate());
-    const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const yesterdayOnly = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
-
-    // If there's session data, show encouraging message instead of missed
+    // ✅ Handle sessions with progress (abandoned, finished_early, in-progress)
+    // Show encouraging messages based on how much they completed
     if (hasSession && workoutDateOnly.getTime() < todayOnly.getTime()) {
-      // Encouraging message based on progress
       let text = "Started";
       if (progress >= 50) {
         text = "Almost there!";
@@ -226,6 +242,21 @@ export default function WorkoutItem({ workout, index, onPress, planId }: Workout
       };
     }
 
+    // If there's an in-progress session (exercising, paused, etc.)
+    if (hasSession && sessionStatus && ['exercising', 'preparing', 'paused', 'selected'].includes(sessionStatus)) {
+      let text = "In Progress";
+      if (sessionStatus === 'paused') text = "Paused";
+      if (sessionStatus === 'preparing') text = "Preparing";
+
+      return {
+        text,
+        backgroundColor: nucleus.light.global.blue["20"],
+        textColor: nucleus.light.global.blue["80"],
+        icon: "partial"
+      };
+    }
+
+    // No session or session without completion - check date-based status
     if (workoutDateOnly.getTime() === yesterdayOnly.getTime()) {
       return {
         text: "Yesterday",
@@ -255,7 +286,7 @@ export default function WorkoutItem({ workout, index, onPress, planId }: Workout
 
     // Calculate days difference for upcoming workouts
     const daysDiff = Math.ceil((workoutDateOnly.getTime() - todayOnly.getTime()) / (1000 * 60 * 60 * 24));
-    
+
     if (daysDiff === 1) {
       return {
         text: "Tomorrow",
@@ -345,17 +376,26 @@ export default function WorkoutItem({ workout, index, onPress, planId }: Workout
       <View style={styles.workoutContent}>
         <View style={styles.workoutInfo}>
           <View style={styles.badgesRow}>
-            <View style={[styles.statusBadge, { backgroundColor: statusInfo.backgroundColor }]}>
-              <Text style={[styles.statusText, { color: statusInfo.textColor }]}>
-                {statusInfo.text}
-              </Text>
-            </View>
-            {isTrainNow && (
-              <View style={[styles.trainNowBadge, { backgroundColor: nucleus.light.global.brand["40"] }]}>
+            {/* Only render badge after data loads - no flash of wrong status */}
+            {!isLoading && (
+              <Animated.View
+                entering={FadeIn.duration(100)}
+                style={[styles.statusBadge, { backgroundColor: statusInfo.backgroundColor }]}
+              >
+                <Text style={[styles.statusText, { color: statusInfo.textColor }]}>
+                  {statusInfo.text}
+                </Text>
+              </Animated.View>
+            )}
+            {!isLoading && isTrainNow && (
+              <Animated.View
+                entering={FadeIn.duration(100)}
+                style={[styles.trainNowBadge, { backgroundColor: nucleus.light.global.brand["40"] }]}
+              >
                 <Text style={[styles.trainNowText, { color: nucleus.light.global.brand["90"] }]}>
                   Train Now
                 </Text>
-              </View>
+              </Animated.View>
             )}
           </View>
           <View style={styles.workoutDetails}>
@@ -512,6 +552,7 @@ const styles = {
     alignItems: 'center' as const,
     gap: 8,
     flexWrap: 'wrap' as const,
+    minHeight: 22, // Reserve space for badge (paddingVertical: 4 + lineHeight: 14 = 22)
   },
   statusBadge: {
     paddingHorizontal: 8,

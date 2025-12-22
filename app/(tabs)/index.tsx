@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from 'react-native-paper';
 import Animated, {
@@ -194,7 +194,6 @@ export default function ExploreScreen() {
   console.log('🏠 [MAIN] ExploreScreen render complete - rendering UI');
   // Week calendar data
   const weeks = [1, 2, 3, 4, 5, 6, 7, 8];
-  const completedWeeks = [1, 2]; // Completed weeks (exclude current week)
 
   // Helper function to format date as YYYY-MM-DD
   const formatDateForAPI = (date: Date): string => {
@@ -213,36 +212,70 @@ export default function ExploreScreen() {
     const today = new Date();
     const currentDay = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
     const daysToMonday = currentDay === 0 ? 6 : currentDay - 1; // Days to previous Monday
-    
+
     const monday = new Date(today);
     monday.setDate(today.getDate() - daysToMonday + (weekOffset * 7));
     return monday;
   };
 
-  // Helper function to calculate current week based on today's date
+  // Helper function to calculate current week based on workout plan start date
   const getCurrentWeekNumber = () => {
-    const today = new Date();
-    const currentDay = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
-    const daysToMonday = currentDay === 0 ? 6 : currentDay - 1; // Days to previous Monday
-    
-    // Get current week's Monday
-    const currentWeekMonday = new Date(today);
-    currentWeekMonday.setDate(today.getDate() - daysToMonday);
-    
-    // Check which week this Monday corresponds to in our 8-week plan
-    for (let week = 0; week < 8; week++) {
-      const weekStart = getWeekStartDate(week);
-      if (weekStart.toDateString() === currentWeekMonday.toDateString()) {
-        return week + 1; // Return 1-based week number
-      }
+    if (!activeWorkoutPlan?.start_date) {
+      return 1; // Default to week 1 if no active plan
     }
-    
-    // Default to week 1 if no match found
-    return 1;
+
+    const today = new Date();
+    const planStartDate = new Date(activeWorkoutPlan.start_date);
+
+    // Calculate days since plan started
+    const daysDiff = Math.floor((today.getTime() - planStartDate.getTime()) / (1000 * 60 * 60 * 24));
+
+    // Calculate week number (1-based, max 8 weeks)
+    const weekNumber = Math.min(8, Math.max(1, Math.floor(daysDiff / 7) + 1));
+
+    return weekNumber;
   };
 
-  // Active week state
-  const [activeWeek, setActiveWeek] = useState(getCurrentWeekNumber()); // Current week based on today's date
+  // Active week state - auto-select current week based on plan start date
+  const [activeWeek, setActiveWeek] = useState(getCurrentWeekNumber());
+
+  // Ref for week calendar ScrollView
+  const weekScrollViewRef = useRef<ScrollView>(null);
+
+  // Update active week when workout plan changes or component mounts
+  useEffect(() => {
+    const currentWeek = getCurrentWeekNumber();
+    setActiveWeek(currentWeek);
+  }, [activeWorkoutPlan?.id, activeWorkoutPlan?.start_date]);
+
+  // Auto-scroll to active week
+  useEffect(() => {
+    if (weekScrollViewRef.current && activeWeek) {
+      // Calculate scroll position
+      // Each week container is 63px wide + 8px gap = 71px per week
+      const weekWidth = 71;
+      const scrollToX = (activeWeek - 1) * weekWidth;
+
+      // Scroll to the active week with a slight delay to ensure layout is complete
+      setTimeout(() => {
+        weekScrollViewRef.current?.scrollTo({
+          x: scrollToX,
+          y: 0,
+          animated: true
+        });
+      }, 300);
+    }
+  }, [activeWeek]);
+
+  // Calculate completed weeks - all weeks before the current week are completed (green)
+  const completedWeeks = useMemo(() => {
+    const currentWeek = getCurrentWeekNumber();
+    const completed: number[] = [];
+    for (let i = 1; i < currentWeek; i++) {
+      completed.push(i);
+    }
+    return completed;
+  }, [activeWorkoutPlan?.start_date]);
 
   // Fetch detailed workout plan data for current week only (much more efficient!)
   const { data: workoutPlanData, isLoading: isLoadingWorkoutPlan, isFetching: isFetchingWorkoutPlan, refetch: refetchWorkoutPlan } = useGetWorkoutPlanByWeekQuery(
@@ -298,10 +331,6 @@ export default function ExploreScreen() {
     
     entriesByDay.forEach((dayEntries, dayKey) => {
       const firstEntry = dayEntries[0];
-      const today = new Date();
-      const workoutDate = new Date(firstEntry.date);
-      const isToday = workoutDate.toDateString() === today.toDateString();
-      const isPastWorkout = workoutDate < today && !isToday;
 
       // Use EXACT day_name from database (Push, Pull, Legs)
       const workoutTitle = firstEntry.day_name;
@@ -325,8 +354,8 @@ export default function ExploreScreen() {
         duration: Math.round(estimatedDuration),
         exercises: dayEntries.length, // Number of different exercises this day
         reps: totalSets, // Total sets across all exercises
-        isCompleted: isPastWorkout,
-        progress: isPastWorkout ? 100 : 0,
+        isCompleted: false, // ✅ FIX: Never assume completion - let WorkoutItem check session data
+        progress: 0, // ✅ FIX: Default to 0 - WorkoutItem will calculate from session
         weekNumber: firstEntry.week_number, // EXACT week_number from database
         dayOfWeek: dayMapping[firstEntry.day.toLowerCase()] || 1, // Convert day string to number
         image: getDayNameImage(workoutTitle) // Use appropriate dayname image based on workout title
@@ -632,8 +661,9 @@ export default function ExploreScreen() {
 
         {/* Week Calendar Section */}
         <Animated.View style={[styles.calendarContainer, calendarAnimatedStyle]}>
-          <ScrollView 
-            horizontal 
+          <ScrollView
+            ref={weekScrollViewRef}
+            horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.calendarScrollContent}
           >
