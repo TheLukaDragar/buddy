@@ -194,6 +194,8 @@ export type Mutation = {
   calculate_total_time_ms?: Maybe<Scalars["BigInt"]["output"]>;
   /** Deletes zero or more records from the `exercises` collection */
   deleteFromexercisesCollection: ExercisesDeleteResponse;
+  /** Deletes zero or more records from the `single_workout_requests` collection */
+  deleteFromsingle_workout_requestsCollection: Single_Workout_RequestsDeleteResponse;
   /** Deletes zero or more records from the `todos` collection */
   deleteFromtodosCollection: TodosDeleteResponse;
   /** Deletes zero or more records from the `user_feedback` collection */
@@ -227,6 +229,8 @@ export type Mutation = {
   increment_completed_sets?: Maybe<Scalars["Opaque"]["output"]>;
   /** Adds one or more `exercises` records to the collection */
   insertIntoexercisesCollection?: Maybe<ExercisesInsertResponse>;
+  /** Adds one or more `single_workout_requests` records to the collection */
+  insertIntosingle_workout_requestsCollection?: Maybe<Single_Workout_RequestsInsertResponse>;
   /** Adds one or more `todos` records to the collection */
   insertIntotodosCollection?: Maybe<TodosInsertResponse>;
   /** Adds one or more `user_feedback` records to the collection */
@@ -259,6 +263,8 @@ export type Mutation = {
   insertIntoworkout_sessionsCollection?: Maybe<Workout_SessionsInsertResponse>;
   /** Updates zero or more records in the `exercises` collection */
   updateexercisesCollection: ExercisesUpdateResponse;
+  /** Updates zero or more records in the `single_workout_requests` collection */
+  updatesingle_workout_requestsCollection: Single_Workout_RequestsUpdateResponse;
   /** Updates zero or more records in the `todos` collection */
   updatetodosCollection: TodosUpdateResponse;
   /** Updates zero or more records in the `user_feedback` collection */
@@ -300,6 +306,12 @@ export type MutationCalculate_Total_Time_MsArgs = {
 export type MutationDeleteFromexercisesCollectionArgs = {
   atMost?: Scalars["Int"]["input"];
   filter?: InputMaybe<ExercisesFilter>;
+};
+
+/** The root type for creating and mutating data */
+export type MutationDeleteFromsingle_Workout_RequestsCollectionArgs = {
+  atMost?: Scalars["Int"]["input"];
+  filter?: InputMaybe<Single_Workout_RequestsFilter>;
 };
 
 /** The root type for creating and mutating data */
@@ -404,6 +416,11 @@ export type MutationInsertIntoexercisesCollectionArgs = {
 };
 
 /** The root type for creating and mutating data */
+export type MutationInsertIntosingle_Workout_RequestsCollectionArgs = {
+  objects: Array<Single_Workout_RequestsInsertInput>;
+};
+
+/** The root type for creating and mutating data */
 export type MutationInsertIntotodosCollectionArgs = {
   objects: Array<TodosInsertInput>;
 };
@@ -484,6 +501,13 @@ export type MutationUpdateexercisesCollectionArgs = {
   atMost?: Scalars["Int"]["input"];
   filter?: InputMaybe<ExercisesFilter>;
   set: ExercisesUpdateInput;
+};
+
+/** The root type for creating and mutating data */
+export type MutationUpdatesingle_Workout_RequestsCollectionArgs = {
+  atMost?: Scalars["Int"]["input"];
+  filter?: InputMaybe<Single_Workout_RequestsFilter>;
+  set: Single_Workout_RequestsUpdateInput;
 };
 
 /** The root type for creating and mutating data */
@@ -629,6 +653,8 @@ export type Query = {
   exercisesCollection?: Maybe<ExercisesConnection>;
   /** Retrieve a record by its `ID` */
   node?: Maybe<Node>;
+  /** A pagable collection of type `single_workout_requests` */
+  single_workout_requestsCollection?: Maybe<Single_Workout_RequestsConnection>;
   /** A pagable collection of type `todos` */
   todosCollection?: Maybe<TodosConnection>;
   /** A pagable collection of type `user_feedback` */
@@ -675,6 +701,17 @@ export type QueryExercisesCollectionArgs = {
 /** The root type for querying data */
 export type QueryNodeArgs = {
   nodeId: Scalars["ID"]["input"];
+};
+
+/** The root type for querying data */
+export type QuerySingle_Workout_RequestsCollectionArgs = {
+  after?: InputMaybe<Scalars["Cursor"]["input"]>;
+  before?: InputMaybe<Scalars["Cursor"]["input"]>;
+  filter?: InputMaybe<Single_Workout_RequestsFilter>;
+  first?: InputMaybe<Scalars["Int"]["input"]>;
+  last?: InputMaybe<Scalars["Int"]["input"]>;
+  offset?: InputMaybe<Scalars["Int"]["input"]>;
+  orderBy?: InputMaybe<Array<Single_Workout_RequestsOrderBy>>;
 };
 
 /** The root type for querying data */
@@ -1123,6 +1160,146 @@ export type ExercisesUpdateResponse = {
   affectedCount: Scalars["Int"]["output"];
   /** Array of records impacted by the mutation */
   records: Array<Exercises>;
+};
+
+export type Single_Workout_Requests = Node & {
+  __typename?: "single_workout_requests";
+  completed_at?: Maybe<Scalars["Datetime"]["output"]>;
+  created_at?: Maybe<Scalars["Datetime"]["output"]>;
+  current_step?: Maybe<Scalars["Int"]["output"]>;
+  difficulty: Scalars["String"]["output"];
+  duration: Scalars["Int"]["output"];
+  equipment: Array<Maybe<Scalars["String"]["output"]>>;
+  error_message?: Maybe<Scalars["String"]["output"]>;
+  generated_preset_id?: Maybe<Scalars["UUID"]["output"]>;
+  id: Scalars["UUID"]["output"];
+  muscle_groups: Array<Maybe<Scalars["String"]["output"]>>;
+  /** Globally Unique Record Identifier */
+  nodeId: Scalars["ID"]["output"];
+  request_id: Scalars["UUID"]["output"];
+  status: Scalars["String"]["output"];
+  step_description?: Maybe<Scalars["String"]["output"]>;
+  total_steps?: Maybe<Scalars["Int"]["output"]>;
+  user_id: Scalars["UUID"]["output"];
+  user_profile: Scalars["String"]["output"];
+  workout_presets?: Maybe<Workout_Presets>;
+};
+
+export type Single_Workout_RequestsConnection = {
+  __typename?: "single_workout_requestsConnection";
+  edges: Array<Single_Workout_RequestsEdge>;
+  pageInfo: PageInfo;
+};
+
+export type Single_Workout_RequestsDeleteResponse = {
+  __typename?: "single_workout_requestsDeleteResponse";
+  /** Count of the records impacted by the mutation */
+  affectedCount: Scalars["Int"]["output"];
+  /** Array of records impacted by the mutation */
+  records: Array<Single_Workout_Requests>;
+};
+
+export type Single_Workout_RequestsEdge = {
+  __typename?: "single_workout_requestsEdge";
+  cursor: Scalars["String"]["output"];
+  node: Single_Workout_Requests;
+};
+
+export type Single_Workout_RequestsFilter = {
+  /** Returns true only if all its inner filters are true, otherwise returns false */
+  and?: InputMaybe<Array<Single_Workout_RequestsFilter>>;
+  completed_at?: InputMaybe<DatetimeFilter>;
+  created_at?: InputMaybe<DatetimeFilter>;
+  current_step?: InputMaybe<IntFilter>;
+  difficulty?: InputMaybe<StringFilter>;
+  duration?: InputMaybe<IntFilter>;
+  equipment?: InputMaybe<StringListFilter>;
+  error_message?: InputMaybe<StringFilter>;
+  generated_preset_id?: InputMaybe<UuidFilter>;
+  id?: InputMaybe<UuidFilter>;
+  muscle_groups?: InputMaybe<StringListFilter>;
+  nodeId?: InputMaybe<IdFilter>;
+  /** Negates a filter */
+  not?: InputMaybe<Single_Workout_RequestsFilter>;
+  /** Returns true if at least one of its inner filters is true, otherwise returns false */
+  or?: InputMaybe<Array<Single_Workout_RequestsFilter>>;
+  request_id?: InputMaybe<UuidFilter>;
+  status?: InputMaybe<StringFilter>;
+  step_description?: InputMaybe<StringFilter>;
+  total_steps?: InputMaybe<IntFilter>;
+  user_id?: InputMaybe<UuidFilter>;
+  user_profile?: InputMaybe<StringFilter>;
+};
+
+export type Single_Workout_RequestsInsertInput = {
+  completed_at?: InputMaybe<Scalars["Datetime"]["input"]>;
+  created_at?: InputMaybe<Scalars["Datetime"]["input"]>;
+  current_step?: InputMaybe<Scalars["Int"]["input"]>;
+  difficulty?: InputMaybe<Scalars["String"]["input"]>;
+  duration?: InputMaybe<Scalars["Int"]["input"]>;
+  equipment?: InputMaybe<Array<InputMaybe<Scalars["String"]["input"]>>>;
+  error_message?: InputMaybe<Scalars["String"]["input"]>;
+  generated_preset_id?: InputMaybe<Scalars["UUID"]["input"]>;
+  id?: InputMaybe<Scalars["UUID"]["input"]>;
+  muscle_groups?: InputMaybe<Array<InputMaybe<Scalars["String"]["input"]>>>;
+  request_id?: InputMaybe<Scalars["UUID"]["input"]>;
+  status?: InputMaybe<Scalars["String"]["input"]>;
+  step_description?: InputMaybe<Scalars["String"]["input"]>;
+  total_steps?: InputMaybe<Scalars["Int"]["input"]>;
+  user_id?: InputMaybe<Scalars["UUID"]["input"]>;
+  user_profile?: InputMaybe<Scalars["String"]["input"]>;
+};
+
+export type Single_Workout_RequestsInsertResponse = {
+  __typename?: "single_workout_requestsInsertResponse";
+  /** Count of the records impacted by the mutation */
+  affectedCount: Scalars["Int"]["output"];
+  /** Array of records impacted by the mutation */
+  records: Array<Single_Workout_Requests>;
+};
+
+export type Single_Workout_RequestsOrderBy = {
+  completed_at?: InputMaybe<OrderByDirection>;
+  created_at?: InputMaybe<OrderByDirection>;
+  current_step?: InputMaybe<OrderByDirection>;
+  difficulty?: InputMaybe<OrderByDirection>;
+  duration?: InputMaybe<OrderByDirection>;
+  error_message?: InputMaybe<OrderByDirection>;
+  generated_preset_id?: InputMaybe<OrderByDirection>;
+  id?: InputMaybe<OrderByDirection>;
+  request_id?: InputMaybe<OrderByDirection>;
+  status?: InputMaybe<OrderByDirection>;
+  step_description?: InputMaybe<OrderByDirection>;
+  total_steps?: InputMaybe<OrderByDirection>;
+  user_id?: InputMaybe<OrderByDirection>;
+  user_profile?: InputMaybe<OrderByDirection>;
+};
+
+export type Single_Workout_RequestsUpdateInput = {
+  completed_at?: InputMaybe<Scalars["Datetime"]["input"]>;
+  created_at?: InputMaybe<Scalars["Datetime"]["input"]>;
+  current_step?: InputMaybe<Scalars["Int"]["input"]>;
+  difficulty?: InputMaybe<Scalars["String"]["input"]>;
+  duration?: InputMaybe<Scalars["Int"]["input"]>;
+  equipment?: InputMaybe<Array<InputMaybe<Scalars["String"]["input"]>>>;
+  error_message?: InputMaybe<Scalars["String"]["input"]>;
+  generated_preset_id?: InputMaybe<Scalars["UUID"]["input"]>;
+  id?: InputMaybe<Scalars["UUID"]["input"]>;
+  muscle_groups?: InputMaybe<Array<InputMaybe<Scalars["String"]["input"]>>>;
+  request_id?: InputMaybe<Scalars["UUID"]["input"]>;
+  status?: InputMaybe<Scalars["String"]["input"]>;
+  step_description?: InputMaybe<Scalars["String"]["input"]>;
+  total_steps?: InputMaybe<Scalars["Int"]["input"]>;
+  user_id?: InputMaybe<Scalars["UUID"]["input"]>;
+  user_profile?: InputMaybe<Scalars["String"]["input"]>;
+};
+
+export type Single_Workout_RequestsUpdateResponse = {
+  __typename?: "single_workout_requestsUpdateResponse";
+  /** Count of the records impacted by the mutation */
+  affectedCount: Scalars["Int"]["output"];
+  /** Array of records impacted by the mutation */
+  records: Array<Single_Workout_Requests>;
 };
 
 export type Todos = Node & {
@@ -2346,10 +2523,21 @@ export type Workout_Presets = Node & {
   name: Scalars["String"]["output"];
   /** Globally Unique Record Identifier */
   nodeId: Scalars["ID"]["output"];
+  single_workout_requestsCollection?: Maybe<Single_Workout_RequestsConnection>;
   sort_order: Scalars["Int"]["output"];
   updated_at: Scalars["Datetime"]["output"];
   workout_entriesCollection?: Maybe<Workout_EntriesConnection>;
   workout_preset_entriesCollection?: Maybe<Workout_Preset_EntriesConnection>;
+};
+
+export type Workout_PresetsSingle_Workout_RequestsCollectionArgs = {
+  after?: InputMaybe<Scalars["Cursor"]["input"]>;
+  before?: InputMaybe<Scalars["Cursor"]["input"]>;
+  filter?: InputMaybe<Single_Workout_RequestsFilter>;
+  first?: InputMaybe<Scalars["Int"]["input"]>;
+  last?: InputMaybe<Scalars["Int"]["input"]>;
+  offset?: InputMaybe<Scalars["Int"]["input"]>;
+  orderBy?: InputMaybe<Array<Single_Workout_RequestsOrderBy>>;
 };
 
 export type Workout_PresetsWorkout_EntriesCollectionArgs = {
@@ -3223,6 +3411,36 @@ export type GetWorkoutPlanRequestsQuery = {
   } | null;
 };
 
+export type GetSingleWorkoutRequestsQueryVariables = Exact<{
+  userId: Scalars["UUID"]["input"];
+}>;
+
+export type GetSingleWorkoutRequestsQuery = {
+  __typename?: "Query";
+  single_workout_requestsCollection?: {
+    __typename?: "single_workout_requestsConnection";
+    edges: Array<{
+      __typename?: "single_workout_requestsEdge";
+      node: {
+        __typename?: "single_workout_requests";
+        id: any;
+        request_id: any;
+        status: string;
+        muscle_groups: Array<string | null>;
+        duration: number;
+        equipment: Array<string | null>;
+        difficulty: string;
+        error_message?: string | null;
+        created_at?: any | null;
+        completed_at?: any | null;
+        current_step?: number | null;
+        total_steps?: number | null;
+        step_description?: string | null;
+      };
+    }>;
+  } | null;
+};
+
 export type GetWorkoutPlanQueryVariables = Exact<{
   id: Scalars["UUID"]["input"];
 }>;
@@ -3494,6 +3712,7 @@ export type GetWorkoutDayQueryVariables = Exact<{
   planId: Scalars["UUID"]["input"];
   weekNumber: Scalars["Int"]["input"];
   day: Weekday;
+  dayName?: InputMaybe<Scalars["String"]["input"]>;
 }>;
 
 export type GetWorkoutDayQuery = {
@@ -4724,6 +4943,39 @@ export type CompleteWorkoutSessionMutation = {
   };
 };
 
+export type GetWorkoutEntriesByDayQueryVariables = Exact<{
+  planId: Scalars["UUID"]["input"];
+  dayName: Scalars["String"]["input"];
+}>;
+
+export type GetWorkoutEntriesByDayQuery = {
+  __typename?: "Query";
+  workout_entriesCollection?: {
+    __typename?: "workout_entriesConnection";
+    edges: Array<{
+      __typename?: "workout_entriesEdge";
+      node: {
+        __typename?: "workout_entries";
+        id: any;
+        exercise_id: any;
+        sets: number;
+        reps: string;
+        weight?: string | null;
+        time?: string | null;
+        notes?: string | null;
+        day_name: string;
+        exercises: {
+          __typename?: "exercises";
+          id: any;
+          name: string;
+          slug: string;
+          equipment_text: string;
+        };
+      };
+    }>;
+  } | null;
+};
+
 export const GetTodosDocument = `
     query GetTodos {
   todosCollection {
@@ -4819,6 +5071,33 @@ export const GetWorkoutPlanRequestsDocument = `
         step_description
         exercises_total
         exercises_completed
+      }
+    }
+  }
+}
+    `;
+export const GetSingleWorkoutRequestsDocument = `
+    query GetSingleWorkoutRequests($userId: UUID!) {
+  single_workout_requestsCollection(
+    filter: {user_id: {eq: $userId}}
+    orderBy: [{created_at: DescNullsLast}]
+    first: 10
+  ) {
+    edges {
+      node {
+        id
+        request_id
+        status
+        muscle_groups
+        duration
+        equipment
+        difficulty
+        error_message
+        created_at
+        completed_at
+        current_step
+        total_steps
+        step_description
       }
     }
   }
@@ -5040,7 +5319,7 @@ export const GetWorkoutPlanByWeekDocument = `
 }
     `;
 export const GetWorkoutDayDocument = `
-    query GetWorkoutDay($planId: UUID!, $weekNumber: Int!, $day: weekday!) {
+    query GetWorkoutDay($planId: UUID!, $weekNumber: Int!, $day: weekday!, $dayName: String) {
   workout_plansCollection(filter: {id: {eq: $planId}}) {
     edges {
       node {
@@ -5049,7 +5328,7 @@ export const GetWorkoutDayDocument = `
         start_date
         status
         workout_entriesCollection(
-          filter: {week_number: {eq: $weekNumber}, day: {eq: $day}}
+          filter: {week_number: {eq: $weekNumber}, day: {eq: $day}, day_name: {eq: $dayName}}
           orderBy: [{created_at: AscNullsLast}]
         ) {
           edges {
@@ -6009,6 +6288,33 @@ export const CompleteWorkoutSessionDocument = `
   }
 }
     `;
+export const GetWorkoutEntriesByDayDocument = `
+    query GetWorkoutEntriesByDay($planId: UUID!, $dayName: String!) {
+  workout_entriesCollection(
+    filter: {workout_plan_id: {eq: $planId}, day_name: {eq: $dayName}}
+    orderBy: [{created_at: DescNullsLast}]
+  ) {
+    edges {
+      node {
+        id
+        exercise_id
+        sets
+        reps
+        weight
+        time
+        notes
+        day_name
+        exercises {
+          id
+          name
+          slug
+          equipment_text
+        }
+      }
+    }
+  }
+}
+    `;
 
 const injectedRtkApi = api.injectEndpoints({
   endpoints: (build) => ({
@@ -6039,6 +6345,15 @@ const injectedRtkApi = api.injectEndpoints({
     >({
       query: (variables) => ({
         document: GetWorkoutPlanRequestsDocument,
+        variables,
+      }),
+    }),
+    GetSingleWorkoutRequests: build.query<
+      GetSingleWorkoutRequestsQuery,
+      GetSingleWorkoutRequestsQueryVariables
+    >({
+      query: (variables) => ({
+        document: GetSingleWorkoutRequestsDocument,
         variables,
       }),
     }),
@@ -6377,6 +6692,15 @@ const injectedRtkApi = api.injectEndpoints({
         variables,
       }),
     }),
+    GetWorkoutEntriesByDay: build.query<
+      GetWorkoutEntriesByDayQuery,
+      GetWorkoutEntriesByDayQueryVariables
+    >({
+      query: (variables) => ({
+        document: GetWorkoutEntriesByDayDocument,
+        variables,
+      }),
+    }),
   }),
 });
 
@@ -6391,6 +6715,8 @@ export const {
   useDeleteTodoMutation,
   useGetWorkoutPlanRequestsQuery,
   useLazyGetWorkoutPlanRequestsQuery,
+  useGetSingleWorkoutRequestsQuery,
+  useLazyGetSingleWorkoutRequestsQuery,
   useGetWorkoutPlanQuery,
   useLazyGetWorkoutPlanQuery,
   useGetUserWorkoutPlansQuery,
@@ -6453,4 +6779,6 @@ export const {
   useLazyGetFutureWorkoutEntriesQuery,
   useApplyAdjustmentToFutureWorkoutsMutation,
   useCompleteWorkoutSessionMutation,
+  useGetWorkoutEntriesByDayQuery,
+  useLazyGetWorkoutEntriesByDayQuery,
 } = injectedRtkApi;

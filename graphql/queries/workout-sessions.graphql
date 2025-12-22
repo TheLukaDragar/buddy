@@ -658,3 +658,33 @@ mutation CompleteWorkoutSession(
   }
 }
 
+# Query to get workout entries by day name (for Train Now workouts)
+query GetWorkoutEntriesByDay($planId: UUID!, $dayName: String!) {
+  workout_entriesCollection(
+    filter: {
+      workout_plan_id: { eq: $planId }
+      day_name: { eq: $dayName }
+    }
+    orderBy: [{ created_at: DescNullsLast }]
+  ) {
+    edges {
+      node {
+        id
+        exercise_id
+        sets
+        reps
+        weight
+        time
+        notes
+        day_name
+        exercises {
+          id
+          name
+          slug
+          equipment_text
+        }
+      }
+    }
+  }
+}
+

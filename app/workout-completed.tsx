@@ -890,7 +890,7 @@ export default function WorkoutCompletedScreen() {
         style={styles.backButtonContainer}
       >
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={() => router.push('/(tabs)/')}
           style={styles.backButton}
         >
           <Image

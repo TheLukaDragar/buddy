@@ -599,6 +599,14 @@ export default function ExploreScreen() {
     }
   };
 
+  // Handle generate custom workout press
+  const handleGeneratePress = () => {
+    console.log('Generate custom workout pressed');
+    router.push({
+      pathname: '/(tabs)/chat',
+      params: { mode: 'train_now' }
+    });
+  };
 
   // Animated styles
   const greetingAnimatedStyle = useAnimatedStyle(() => ({
@@ -768,6 +776,7 @@ export default function ExploreScreen() {
           <TrainNowCard
             presets={presets}
             onPresetPress={handlePresetPress}
+            onGeneratePress={handleGeneratePress}
             onViewAllPress={() => {
               // TODO: Navigate to full preset list screen
               console.log('View all presets');

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { nucleus } from '../Buddy_variables';
 
@@ -14,20 +14,17 @@ interface CategoryPillsProps {
   onCategorySelect?: (categoryId: string) => void;
 }
 
-export default function CategoryPills({ 
-  categories, 
+export default function CategoryPills({
+  categories,
   selectedCategory = 'general',
-  onCategorySelect 
+  onCategorySelect
 }: CategoryPillsProps) {
-  const [selected, setSelected] = useState(selectedCategory);
-
   const handlePillPress = (categoryId: string) => {
-    setSelected(categoryId);
     onCategorySelect?.(categoryId);
   };
 
   const renderPill = (category: CategoryPill) => {
-    const isSelected = selected === category.id;
+    const isSelected = selectedCategory === category.id;
     
     return (
       <TouchableOpacity

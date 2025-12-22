@@ -24,6 +24,33 @@ query GetWorkoutPlanRequests($userId: UUID!) {
   }
 }
 
+# Query to get single workout requests for real-time monitoring
+query GetSingleWorkoutRequests($userId: UUID!) {
+  single_workout_requestsCollection(
+    filter: { user_id: { eq: $userId } }
+    orderBy: [{ created_at: DescNullsLast }]
+    first: 10
+  ) {
+    edges {
+      node {
+        id
+        request_id
+        status
+        muscle_groups
+        duration
+        equipment
+        difficulty
+        error_message
+        created_at
+        completed_at
+        current_step
+        total_steps
+        step_description
+      }
+    }
+  }
+}
+
 # Query to get the completed workout plan
 query GetWorkoutPlan($id: UUID!) {
   workout_plansCollection(filter: { id: { eq: $id } }) {
@@ -245,7 +272,7 @@ query GetWorkoutPlanByWeek($planId: UUID!, $weekNumber: Int!) {
 }
 
 # Query to get a single day's workout with all exercises
-query GetWorkoutDay($planId: UUID!, $weekNumber: Int!, $day: weekday!) {
+query GetWorkoutDay($planId: UUID!, $weekNumber: Int!, $day: weekday!, $dayName: String) {
   workout_plansCollection(filter: { id: { eq: $planId } }) {
     edges {
       node {
@@ -257,6 +284,7 @@ query GetWorkoutDay($planId: UUID!, $weekNumber: Int!, $day: weekday!) {
           filter: {
             week_number: { eq: $weekNumber }
             day: { eq: $day }
+            day_name: { eq: $dayName }
           }
           orderBy: [{ created_at: AscNullsLast }]
         ) {

@@ -20,6 +20,7 @@ interface TrainNowCardProps {
   presets?: PresetData[];
   onPresetPress?: (preset: PresetData) => void;
   onViewAllPress?: () => void;
+  onGeneratePress?: () => void;
   isLoading?: boolean;
 }
 
@@ -71,6 +72,7 @@ export default function TrainNowCard({
   presets = [],
   onPresetPress,
   onViewAllPress,
+  onGeneratePress,
   isLoading = false
 }: TrainNowCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -119,6 +121,16 @@ export default function TrainNowCard({
         {/* Expanded Content */}
         {isExpanded && (
           <Animated.View entering={FadeInUp.duration(300)}>
+            {/* Generate Custom Workout Button */}
+            <TouchableOpacity
+              style={styles.generateButton}
+              onPress={onGeneratePress}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.generateButtonText}>✨ Generate Custom Workout</Text>
+              <Text style={styles.generateButtonSubtext}>Chat with Buddy to create your perfect session</Text>
+            </TouchableOpacity>
+
             {/* Preset Options */}
             <View style={styles.presetsContainer}>
               {presets.slice(0, 4).map((preset) => {
@@ -214,6 +226,30 @@ const styles = StyleSheet.create({
   chevron: {
     fontSize: 10,
     color: nucleus.light.semantic.fg.muted,
+  },
+  generateButton: {
+    marginHorizontal: 12,
+    marginTop: 4,
+    marginBottom: 16,
+    backgroundColor: nucleus.light.global.brand["50"],
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+  },
+  generateButtonText: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 15,
+    fontWeight: '700',
+    lineHeight: 18,
+    color: nucleus.light.global.white,
+    marginBottom: 4,
+  },
+  generateButtonSubtext: {
+    fontFamily: 'PlusJakartaSans-Regular',
+    fontSize: 12,
+    fontWeight: '400',
+    lineHeight: 14,
+    color: nucleus.light.global.brand["10"],
   },
   presetsContainer: {
     paddingHorizontal: 12,

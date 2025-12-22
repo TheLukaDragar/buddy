@@ -74,14 +74,14 @@ export default function WorkoutScreen() {
     date: string;
   }>();
 
-  // Fetch workout data for the specific day
+  // Fetch workout data - same query for both regular and Train Now workouts
   const { data: workoutData, isLoading, error, isFetching, refetch } = useGetWorkoutDayQuery({
     planId: planId || '',
     weekNumber: parseInt(weekNumber || '1'),
     day: (day as Weekday) || Weekday.Monday,
+    dayName: dayName || undefined,
   }, {
-    skip: false, // Always fetch the data
-    refetchOnMountOrArgChange: true // Refetch when component mounts or args change
+    refetchOnMountOrArgChange: true
   });
   
   // Force refetch on component mount to ensure fresh data
@@ -156,7 +156,7 @@ export default function WorkoutScreen() {
 
   // // Debug logging
   // console.log('Workout Data Debug:');
-  // console.log('Raw workout data:', JSON.stringify(workoutData, null, 2));
+  console.log('Raw workout data:', JSON.stringify(workoutData, null, 2));
   // // console.log('Workout entries count:', workoutEntries.length);
   // // console.log('All workout entries:', workoutEntries.map(entry => entry.node));
   // // console.log('First workout entry:', workoutEntries[0]?.node);

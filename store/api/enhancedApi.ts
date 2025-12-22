@@ -648,6 +648,12 @@ export const enhancedApi = generatedApi.enhanceEndpoints({
       ],
     },
 
+    GetWorkoutEntriesByDay: {
+      providesTags: (result, error, arg) => [
+        { type: 'WorkoutDay' as const, id: `${arg.planId}-${arg.dayName}` }
+      ],
+    },
+
     // Enhance SwapExerciseWithAlternative mutation with optimistic updates
     SwapExerciseWithAlternative: {
       invalidatesTags: (result, error, arg) => {
@@ -828,6 +834,9 @@ export const {
   // Statistics hooks
   useGetUserWorkoutStatisticsQuery,
   useLazyGetUserWorkoutStatisticsQuery,
+  // Train Now hooks
+  useGetWorkoutEntriesByDayQuery,
+  useLazyGetWorkoutEntriesByDayQuery,
 } = enhancedApi
 
 // Export the enhanced API as default

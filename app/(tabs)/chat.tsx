@@ -1,12 +1,11 @@
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import { Image } from "expo-image";
-import { router } from 'expo-router';
+import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { fetch as expoFetch } from 'expo/fetch';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Animated, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SystemBars } from 'react-native-edge-to-edge';
-import { Avatar } from 'react-native-paper';
 import ReanimatedAnimated, {
   Easing,
   FadeIn,
@@ -18,7 +17,10 @@ import ReanimatedAnimated, {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { nucleus } from '../../Buddy_variables';
 import CategoryPills from '../../components/CategoryPills';
+import { useAuth } from '../../contexts/AuthContext';
+import { useSingleWorkoutGeneration } from '../../hooks/useSingleWorkoutGeneration';
 import { RootState } from '../../store';
+import { useGetUserWorkoutPlansQuery, useGetWorkoutEntriesByDayQuery } from '../../store/api/enhancedApi';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { addMessage, clearMessages, setError, setInputCollapsed, setLoading, type ChatMessage } from '../../store/slices/chatSlice';
 import { generateAPIUrl } from '../../utils';
@@ -113,14 +115,93 @@ export default function ChatScreen() {
   const inputScale = useSharedValue(1);
   const sendButtonScale = useSharedValue(1);
   const [isInputCollapsed, setIsInputCollapsed] = useState(false);
-  
-  // Chat session management
-  const [chatId, setChatId] = useState(() => `chat-${Date.now()}`);
-  
+
   // Redux selectors and actions
   const dispatch = useAppDispatch();
   const { messages, isLoading, error } = useAppSelector((state: RootState) => (state as any).chat);
   const userProfile = useAppSelector((state: RootState) => (state as any).user?.extractedProfile);
+
+  // Auth context
+  const { user } = useAuth();
+
+  // Train Now mode - single workout generation
+  const {
+    isGenerating,
+    currentRequest,
+    isLoading: isGeneratingWorkout,
+    startGeneration,
+    clearGeneration,
+    isCompleted: isWorkoutGenerated,
+    isFailed: isWorkoutGenerationFailed,
+    errorMessage: workoutGenerationError
+  } = useSingleWorkoutGeneration(user?.id || '');
+
+  // Get active workout plan for adding generated workout
+  const { data: workoutPlansData, refetch: refetchWorkoutPlan } = useGetUserWorkoutPlansQuery(
+    { userId: user?.id || '' },
+    { skip: !user?.id }
+  );
+  const userWorkoutPlans = workoutPlansData?.workout_plansCollection?.edges?.map(edge => edge.node) || [];
+  const activeWorkoutPlan = userWorkoutPlans.find(plan => plan.status === 'active');
+
+  // Fetch generated Train Now workout entries when workout is completed
+  const { data: trainNowEntriesData, refetch: refetchTrainNowEntries, isLoading: isLoadingEntries } = useGetWorkoutEntriesByDayQuery(
+    {
+      planId: activeWorkoutPlan?.id || '',
+      dayName: 'Train Now',
+    },
+    { 
+      skip: !activeWorkoutPlan?.id || !isWorkoutGenerated,
+      // Poll every 2 seconds while workout is being generated to catch when entries are created
+      pollingInterval: isWorkoutGenerated ? 2000 : 0,
+    }
+  );
+
+  const trainNowEntries = trainNowEntriesData?.workout_entriesCollection?.edges?.map((edge: any) => edge.node) || [];
+  
+  // Stop polling once we have entries
+  React.useEffect(() => {
+    if (trainNowEntries.length > 0) {
+      // Entries loaded, we can stop polling by refetching one last time
+      console.log('📋 Train Now entries loaded, stopping polling');
+    }
+  }, [trainNowEntries.length]);
+  
+  // Calculate workout metadata from entries
+  const trainNowWorkoutMetadata = React.useMemo(() => {
+    if (trainNowEntries.length === 0) return null;
+    
+    const totalSets = trainNowEntries.reduce((sum: number, entry: any) => sum + (entry.sets || 0), 0);
+    // Estimate 3-5 minutes per set
+    const estimatedDuration = Math.round(totalSets * 4);
+    
+    return {
+      name: 'Train Now Workout',
+      exerciseCount: trainNowEntries.length,
+      estimatedDuration,
+      difficulty: currentRequest?.difficulty || 'medium',
+    };
+  }, [trainNowEntries, currentRequest]);
+
+  // Debug logs for Train Now data
+  React.useEffect(() => {
+    if (isWorkoutGenerated) {
+      console.log('📋 Train Now Workout Generated');
+      console.log('📋 Active Workout Plan ID:', activeWorkoutPlan?.id);
+      console.log('📋 Train Now Entries Count:', trainNowEntries.length);
+      console.log('📋 Train Now Entries:', JSON.stringify(trainNowEntries, null, 2));
+      console.log('📋 Workout Metadata:', trainNowWorkoutMetadata);
+    }
+  }, [isWorkoutGenerated, activeWorkoutPlan, trainNowEntries, trainNowWorkoutMetadata]);
+
+  // Refetch Train Now entries and invalidate home screen cache when workout generation completes
+  React.useEffect(() => {
+    if (isWorkoutGenerated && activeWorkoutPlan?.id) {
+      refetchTrainNowEntries();
+      // Invalidate the workout plan cache so home screen shows the new Train Now workout
+      dispatch({ type: 'api/invalidateTags', payload: [{ type: 'WorkoutPlan' }] });
+    }
+  }, [isWorkoutGenerated, activeWorkoutPlan?.id, refetchTrainNowEntries, dispatch]);
 
   // Message animation values
   const firstMessageOpacity = useRef(new Animated.Value(0)).current;
@@ -139,10 +220,59 @@ export default function ChatScreen() {
   
   // Input state
   const [inputText, setInputText] = useState('');
-  
+  const [selectedSuggestions, setSelectedSuggestions] = useState<string[]>([]); // Track selected suggestions (like onboarding)
+
   // Category pills state
   const [selectedCategory, setSelectedCategory] = useState('general');
-  
+
+  // Chat session management - include category in ID to force new instance when switching modes
+  const chatId = useMemo(() => `chat-${selectedCategory}-${Date.now()}`, [selectedCategory]);
+
+  // Route params for deep linking (e.g., from Train Now Generate button)
+  const params = useLocalSearchParams<{ mode?: string }>();
+
+  // Track if we need to auto-start train_now conversation
+  const [needsAutoStart, setNeedsAutoStart] = useState(false);
+
+  // Set selectedCategory from route params when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      if (params.mode === 'train_now') {
+        console.log('🎯 Chat focused with mode:', params.mode);
+        console.log('🎯 Current selectedCategory:', selectedCategory);
+
+        // Clear existing messages and set category
+        console.log('Clearing messages');
+        setAiMessages([]);
+        dispatch(clearMessages());
+        setSelectedCategory(params.mode);
+        setNeedsAutoStart(true); // Flag to auto-start after category is set
+        console.log('🎯 Setting selectedCategory to:', params.mode);
+      } else if (params.mode) {
+        console.log('🎯 Chat focused with mode:', params.mode);
+        setSelectedCategory(params.mode);
+      } else {
+        console.log('🎯 Chat focused without mode param');
+      }
+    }, [params.mode])
+  );
+
+  // Auto-send start message after category is set to train_now
+  useEffect(() => {
+    if (needsAutoStart && selectedCategory === 'train_now') {
+      console.log('🚀 Auto-starting train_now conversation');
+      setTimeout(() => {
+        sendMessage({ text: 'start' });
+        setNeedsAutoStart(false);
+      }, 300);
+    }
+  }, [needsAutoStart, selectedCategory]);
+
+  // Debug log when selectedCategory changes
+  useEffect(() => {
+    console.log('📊 selectedCategory updated to:', selectedCategory);
+  }, [selectedCategory]);
+
   // Text animation state
   const textOpacity = useSharedValue(1);
   const textTranslateY = useSharedValue(0);
@@ -157,6 +287,10 @@ export default function ChatScreen() {
       general: {
         title: 'Welcome to your personal chat with Buddy!',
         subtitle: "I'm here to help you with workouts, answer questions, and keep you motivated. Let's chat! 💬"
+      },
+      train_now: {
+        title: 'Let\'s build your perfect workout! ✨',
+        subtitle: "I'll help you create a custom workout for today based on your goals, available equipment, and preferences! 🏋️"
       },
       streak: {
         title: 'Keep your streak alive! 🏠',
@@ -209,6 +343,7 @@ export default function ChatScreen() {
   // Category pills data - fitness chat modes
   const categories = [
     { id: 'general', label: 'General' },
+    { id: 'train_now', label: 'Generate Workout', emoji: '✨' },
     { id: 'streak', label: 'Streak', emoji: '🏠' },
     { id: 'illness', label: 'Illness', emoji: '🤒' },
     { id: 'injury', label: 'Injury', emoji: '🤕' },
@@ -223,10 +358,15 @@ export default function ChatScreen() {
   ];
 
   // AI SDK Chat Hook - now with proper streaming like onboarding
+  // Use special train-now-chat API for train_now mode
+  const chatApiEndpoint = selectedCategory === 'train_now'
+    ? '/api/train-now-chat'
+    : '/api/chat';
+
   const { messages: aiMessages, sendMessage, status, setMessages: setAiMessages } = useChat({
     id: chatId, // Use the chat session ID
     transport: new DefaultChatTransport({
-      api: generateAPIUrl('/api/chat'),
+      api: generateAPIUrl(chatApiEndpoint),
       fetch: expoFetch as unknown as typeof globalThis.fetch,
       body: {
         userProfile: userProfile, // Include user profile in requests
@@ -237,9 +377,44 @@ export default function ChatScreen() {
       dispatch(setError(error.message));
       dispatch(setLoading(false));
     },
-    onFinish: (message) => {
+    onFinish: async (message) => {
       console.log('AI message finished streaming:', message);
-      
+
+      // Check for train_now mode completion (workout_params_complete tool call)
+      if (selectedCategory === 'train_now' && message.message.parts) {
+        // Look for workout_params_complete tool call in message parts
+        for (const part of message.message.parts) {
+          if (part.type && part.type.startsWith('tool-')) {
+            const toolName = part.type.replace(/^tool-/, '');
+            if (toolName === 'workout_params_complete') {
+              const toolPart = part as any;
+              const params = toolPart.input as {
+                muscleGroups: string[];
+                duration: number;
+                equipment: string[];
+                difficulty: 'easy' | 'medium' | 'hard';
+              };
+
+              console.log('🏋️ Workout parameters collected:', params);
+
+              // Trigger workout generation
+              try {
+                await startGeneration({
+                  muscleGroups: params.muscleGroups,
+                  duration: params.duration,
+                  equipment: params.equipment,
+                  difficulty: params.difficulty
+                });
+                console.log('✨ Workout generation started successfully');
+              } catch (error) {
+                console.error('❌ Failed to start workout generation:', error);
+              }
+              break;
+            }
+          }
+        }
+      }
+
       // Add AI response to Redux store for persistence
       const buddyMessage: ChatMessage = {
         id: Date.now().toString(),
@@ -250,7 +425,7 @@ export default function ChatScreen() {
       };
       dispatch(addMessage(buddyMessage));
       dispatch(setLoading(false));
-      
+
       // Auto scroll to bottom after streaming completes
       setTimeout(() => {
         scrollViewRef.current?.scrollToEnd({ animated: true });
@@ -270,13 +445,14 @@ export default function ChatScreen() {
   // Hide category pills when there are messages
   useEffect(() => {
     // Filter out control messages to get actual chat messages
-    const visibleMessages = aiMessages.filter((message, index) => {
-      if (index === 0 && message.role === 'user') {
+    const visibleMessages = aiMessages.filter((message) => {
+      if (message.role === 'user') {
         const textContent = message.parts
           ?.filter(part => part.type === 'text')
           .map(part => (part as any).text)
           .join('');
-        return !textContent?.includes('User is ready to start');
+        // Hide control messages and "start" trigger
+        return !textContent?.includes('User is ready to start') && textContent !== 'start';
       }
       return true;
     });
@@ -423,25 +599,24 @@ export default function ChatScreen() {
     const renderedItems: React.ReactElement[] = [];
     
     // Use AI SDK messages for rendering (like onboarding) to prevent flickering
-    // Filter out the first control message if it exists
-    const visibleMessages = aiMessages.filter((message, index) => {
-      // Hide the first user message if it's a control message
-      if (index === 0 && message.role === 'user') {
+    // Filter out control messages
+    const visibleMessages = aiMessages.filter((message) => {
+      // Hide user control messages
+      if (message.role === 'user') {
         const textContent = message.parts
           ?.filter(part => part.type === 'text')
           .map(part => (part as any).text)
           .join('');
-        
-        // Hide if it's a control message
-        if (textContent?.includes('User is ready to start')) {
+
+        // Hide control messages and "start" trigger
+        if (textContent?.includes('User is ready to start') || textContent === 'start') {
           return false;
         }
       }
       return true;
     });
-    
+
     visibleMessages.forEach((message, index) => {
-      const previousMessage = visibleMessages[index - 1];
       const isUser = message.role === 'user';
       
       // Add date delimiter if needed (only for Redux messages)
@@ -468,14 +643,35 @@ export default function ChatScreen() {
         );
       } else {
         // Buddy message - ALWAYS show avatar and name (like onboarding)
+        // Extract suggestions from message parts (matching onboarding pattern)
+        let suggestions: string[] = [];
+        if (message.parts) {
+          for (const part of message.parts) {
+            // Check for tool parts (type starts with 'tool-')
+            if (part.type && part.type.startsWith('tool-')) {
+              const toolName = part.type.replace(/^tool-/, '');
+              if (toolName === 'follow_up_suggestions') {
+                const toolPart = part as any;
+                // Extract suggestions from input (tool args)
+                const args = toolPart.input as { suggestions?: string[] };
+                if (Array.isArray(args?.suggestions)) {
+                  suggestions = args.suggestions;
+                }
+              }
+            }
+          }
+        }
+        const isLastMessage = index === visibleMessages.length - 1;
+        const shouldShowSuggestions = selectedCategory === 'train_now' && isLastMessage && suggestions.length > 0;
+
         renderedItems.push(
           <View key={message.id} style={{ width: '100%' }}>
             <View style={styles.buddyMessage}>
               {/* <Avatar.Image size={40} source={require('../../assets/avatar.png')} style={styles.avatar} /> */}
               <Text style={styles.buddyName}>Buddy</Text>
             </View>
-            
-            <Animated.View 
+
+            <Animated.View
               style={[
                 styles.messageBubble,
                 index < 3 ? {
@@ -488,12 +684,89 @@ export default function ChatScreen() {
                 {renderMessageText(message.parts?.map(part => part.type === 'text' ? (part as any).text : '').join('') || '')}
               </Text>
             </Animated.View>
+
+            {/* Show suggestions for the last assistant message only (like onboarding) */}
+            {shouldShowSuggestions && (
+              <ScrollView
+                style={isKeyboardVisible ? styles.suggestionsContainerKeyboard : styles.suggestionsContainerNormal}
+                contentContainerStyle={styles.suggestionsContent}
+                horizontal={isKeyboardVisible}
+                showsHorizontalScrollIndicator={false}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="always"
+                nestedScrollEnabled={true}
+              >
+                {suggestions.map((suggestion: string, idx: number) => {
+                  const isSelected = selectedSuggestions.includes(suggestion);
+                  return (
+                    <TouchableOpacity
+                      key={idx}
+                      style={[
+                        isKeyboardVisible ? styles.suggestionButtonKeyboard : styles.suggestionButtonNormal,
+                        isSelected ? styles.suggestionButtonSelected : null
+                      ]}
+                      activeOpacity={0.7}
+                      onPress={() => handleSuggestionTap(suggestion)}
+                    >
+                      <Text style={[
+                        styles.suggestionText,
+                        isSelected ? styles.suggestionTextSelected : null
+                      ]}>
+                        {suggestion}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            )}
           </View>
         );
       }
     });
     
     return renderedItems;
+  };
+
+  // Handle suggestion tap (copied from onboarding)
+  const handleSuggestionTap = (suggestion: string) => {
+    const isAlreadySelected = selectedSuggestions.includes(suggestion);
+
+    if (isAlreadySelected) {
+      // Remove the suggestion from input text
+      let newText = inputText;
+
+      // First, try to remove with comma and space (for middle/end suggestions)
+      if (newText.includes(`, ${suggestion}`)) {
+        newText = newText.replace(`, ${suggestion}`, '');
+      }
+      // If not found, try to remove just the suggestion (for first suggestion)
+      else if (newText.trim() === suggestion) {
+        newText = '';
+      }
+      // Handle case where suggestion is at the start but followed by comma
+      else if (newText.startsWith(`${suggestion}, `)) {
+        newText = newText.replace(`${suggestion}, `, '');
+      }
+      // Handle case where suggestion is at the start without comma
+      else if (newText.startsWith(suggestion)) {
+        newText = newText.replace(suggestion, '').trim();
+      }
+
+      setInputText(newText.trim());
+      setSelectedSuggestions(prev => prev.filter(s => s !== suggestion));
+    } else {
+      // Add suggestion to input text with comma separation
+      if (inputText.trim()) {
+        // If there's already text, add comma and space before new suggestion
+        setInputText(prev => `${prev.trim()}, ${suggestion}`);
+      } else {
+        // If input is empty, just add the suggestion
+        setInputText(suggestion);
+      }
+
+      // Track which suggestions have been clicked (for visual feedback)
+      setSelectedSuggestions(prev => [...prev, suggestion]);
+    }
   };
 
   const handleSendMessage = () => {
@@ -513,7 +786,8 @@ export default function ChatScreen() {
       // Send to AI (this will add the message to aiMessages automatically)
       sendMessage({ text: inputText.trim() });
       setInputText('');
-      
+      setSelectedSuggestions([]); // Clear selected suggestions (like onboarding)
+
       // Auto scroll to bottom after sending
       setTimeout(() => {
         scrollViewRef.current?.scrollToEnd({ animated: true });
@@ -522,13 +796,16 @@ export default function ChatScreen() {
   };
 
   const handleClearChat = () => {
-    // Generate a new chat ID to create a fresh chat session
-    setChatId(`chat-${Date.now()}`);
+    // Clear AI messages
+    setAiMessages([]);
     // Clear Redux store
     dispatch(clearMessages());
     // Clear any loading states
     dispatch(setLoading(false));
     dispatch(setError(null));
+    
+    // Clear Train Now generation state
+    clearGeneration();
     
     // Show pills again when chat is cleared
     pillsHeight.value = withTiming(56, {
@@ -739,7 +1016,7 @@ export default function ChatScreen() {
             decelerationRate="normal"
             bounces={true}
             bouncesZoom={false}
-            onContentSizeChange={(w, h) => setContentHeight(h)}
+            onContentSizeChange={(_, h) => setContentHeight(h)}
             onLayout={(event) => setScrollViewHeight(event.nativeEvent.layout.height)}
           >
             <Animated.View 
@@ -767,8 +1044,8 @@ export default function ChatScreen() {
                     {/* <Avatar.Image size={40} source={require('../../assets/avatar.png')} style={styles.avatar} /> */}
                     <Text style={styles.buddyName}>Buddy</Text>
                   </View>
-                  
-                  <ReanimatedAnimated.View 
+
+                  <ReanimatedAnimated.View
                     entering={FadeIn.duration(300)}
                     style={styles.thinkingBubble}
                   >
@@ -780,7 +1057,154 @@ export default function ChatScreen() {
                   </ReanimatedAnimated.View>
                 </View>
               )}
-              
+
+              {/* Train Now Mode - Workout Generation Progress */}
+              {selectedCategory === 'train_now' && isGenerating && (
+                <ReanimatedAnimated.View
+                  entering={FadeIn.duration(300)}
+                  style={styles.generationProgressContainer}
+                >
+                  <View style={styles.buddyMessage}>
+                    <Text style={styles.buddyName}>Buddy</Text>
+                  </View>
+                  <View style={styles.progressCard}>
+                    <View style={styles.progressHeader}>
+                      <Text style={styles.progressTitle}>✨ Creating your workout...</Text>
+                      <Text style={styles.progressStep}>
+                        Step {currentRequest?.current_step || 1} of {currentRequest?.total_steps || 2}
+                      </Text>
+                    </View>
+                    <Text style={styles.progressDescription}>
+                      {currentRequest?.step_description || 'Generating your workout...'}
+                    </Text>
+                    <View style={styles.progressBarContainer}>
+                      <View
+                        style={[
+                          styles.progressBar,
+                          { width: `${((currentRequest?.current_step || 1) / (currentRequest?.total_steps || 2)) * 100}%` }
+                        ]}
+                      />
+                    </View>
+                  </View>
+                </ReanimatedAnimated.View>
+              )}
+
+              {/* Train Now Mode - Workout Generation Failed */}
+              {selectedCategory === 'train_now' && isWorkoutGenerationFailed && (
+                <ReanimatedAnimated.View
+                  entering={FadeIn.duration(300)}
+                  style={styles.generationProgressContainer}
+                >
+                  <View style={styles.buddyMessage}>
+                    <Text style={styles.buddyName}>Buddy</Text>
+                  </View>
+                  <View style={[styles.progressCard, styles.errorCard]}>
+                    <Text style={styles.errorTitle}>❌ Generation Failed</Text>
+                    <Text style={styles.errorMessage}>
+                      {workoutGenerationError || 'Something went wrong while generating your workout. Please try again.'}
+                    </Text>
+                  </View>
+                </ReanimatedAnimated.View>
+              )}
+
+              {/* Train Now Mode - Workout Preview (when completed) */}
+              {selectedCategory === 'train_now' && isWorkoutGenerated && (
+                <ReanimatedAnimated.View
+                  entering={FadeIn.duration(300)}
+                  style={styles.generationProgressContainer}
+                >
+                  <View style={styles.buddyMessage}>
+                    <Text style={styles.buddyName}>Buddy</Text>
+                  </View>
+                  <View style={styles.workoutPreviewCard}>
+                    <Text style={styles.workoutPreviewTitle}>✅ Your workout is ready!</Text>
+
+                    {/* Show loading while entries are being fetched */}
+                    {isLoadingEntries || trainNowEntries.length === 0 ? (
+                      <View style={styles.loadingEntriesContainer}>
+                        <View style={styles.thinkingDots}>
+                          <ThinkingDot delay={0} />
+                          <ThinkingDot delay={150} />
+                          <ThinkingDot delay={300} />
+                        </View>
+                        <Text style={styles.loadingEntriesText}>Loading exercises...</Text>
+                      </View>
+                    ) : (
+                      <>
+                        {/* Workout Metadata */}
+                        {trainNowWorkoutMetadata && (
+                          <View style={styles.workoutMetadata}>
+                            <Text style={styles.workoutPreviewName}>{trainNowWorkoutMetadata.name}</Text>
+                            <View style={styles.workoutMetadataRow}>
+                              <Text style={styles.workoutMetadataText}>{trainNowWorkoutMetadata.estimatedDuration} min</Text>
+                              <View style={styles.metadataDot} />
+                              <Text style={styles.workoutMetadataText}>{trainNowWorkoutMetadata.exerciseCount} exercises</Text>
+                              <View style={styles.metadataDot} />
+                              <Text style={styles.workoutMetadataText}>{trainNowWorkoutMetadata.difficulty}</Text>
+                            </View>
+                          </View>
+                        )}
+
+                        {/* Exercise List */}
+                        {trainNowEntries.length > 0 && (
+                      <View style={styles.exerciseList}>
+                        {trainNowEntries.map((entry: any, index: number) => (
+                          <View key={entry.id} style={styles.exerciseItem}>
+                            <View style={styles.exerciseNumber}>
+                              <Text style={styles.exerciseNumberText}>{index + 1}</Text>
+                            </View>
+                            <View style={styles.exerciseDetails}>
+                              <Text style={styles.exerciseName}>{entry.exercises?.name || 'Exercise'}</Text>
+                              <Text style={styles.exerciseInfo}>
+                                {entry.sets} sets × {entry.reps} reps
+                                {entry.weight && ` · ${entry.weight}`}
+                              </Text>
+                            </View>
+                          </View>
+                        ))}
+                      </View>
+                        )}
+
+                        <TouchableOpacity
+                          style={[styles.addToTodayButton, { opacity: trainNowEntries.length > 0 ? 1 : 0.5 }]}
+                          onPress={() => {
+                            if (trainNowEntries.length === 0 || !activeWorkoutPlan) return;
+                            console.log('Starting Train Now workout with', trainNowEntries.length, 'exercises');
+
+                            // Clear chat before starting workout
+                            setAiMessages([]);
+                            dispatch(clearMessages());
+
+                            // Calculate week number and day for navigation
+                            const today = new Date();
+                            const dateString = today.toISOString().split('T')[0];
+                            const planStartDate = new Date(activeWorkoutPlan.start_date);
+                            const daysDiff = Math.floor((today.getTime() - planStartDate.getTime()) / (1000 * 60 * 60 * 24));
+                            const weekNumber = Math.min(8, Math.max(1, Math.floor(daysDiff / 7) + 1));
+                            const dayOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][today.getDay()];
+
+                            // Navigate to workout screen with Train Now entries
+                            router.push({
+                              pathname: '/workout',
+                              params: {
+                                planId: activeWorkoutPlan.id,
+                                weekNumber: weekNumber.toString(),
+                                day: dayOfWeek,
+                                dayName: 'Train Now',
+                                date: dateString,
+                              }
+                            });
+                          }}
+                          disabled={trainNowEntries.length === 0}
+                        >
+                          <Text style={styles.addToTodayButtonText}>Start Workout →</Text>
+                        </TouchableOpacity>
+                      </>
+                    )}
+                  </View>
+                </ReanimatedAnimated.View>
+              )}
+
             </Animated.View>
           </ScrollView>
 
@@ -1199,5 +1623,232 @@ const styles = StyleSheet.create({
   },
   mainContent: {
     flex: 1,
+  },
+  // Train Now Mode - Generation Progress Styles
+  generationProgressContainer: {
+    width: '100%',
+    marginTop: 16,
+  },
+  progressCard: {
+    backgroundColor: nucleus.light.semantic.bg.canvas,
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 8,
+  },
+  progressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  progressTitle: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 16,
+    fontWeight: '700',
+    color: nucleus.light.semantic.fg.base,
+  },
+  progressStep: {
+    fontFamily: 'PlusJakartaSans-Regular',
+    fontSize: 12,
+    color: nucleus.light.semantic.fg.muted,
+  },
+  progressDescription: {
+    fontFamily: 'PlusJakartaSans-Regular',
+    fontSize: 14,
+    color: nucleus.light.semantic.fg.muted,
+    marginBottom: 16,
+  },
+  progressBarContainer: {
+    height: 8,
+    backgroundColor: nucleus.light.semantic.bg.canvas,
+    borderRadius: 9999,
+    overflow: 'hidden',
+  },
+  progressBar: {
+    height: '100%',
+    backgroundColor: nucleus.light.semantic.accent.bold,
+    borderRadius: 9999,
+  },
+  // Error Card
+  errorCard: {
+    backgroundColor: nucleus.light.global.orange["10"],
+  },
+  errorTitle: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 16,
+    fontWeight: '700',
+    color: nucleus.light.global.orange["80"],
+    marginBottom: 8,
+  },
+  errorMessage: {
+    fontFamily: 'PlusJakartaSans-Regular',
+    fontSize: 14,
+    color: nucleus.light.semantic.fg.muted,
+  },
+  // Workout Preview Card
+  workoutPreviewCard: {
+    backgroundColor: nucleus.light.semantic.bg.canvas,
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 8,
+  },
+  workoutPreviewTitle: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 16,
+    fontWeight: '700',
+    color: nucleus.light.semantic.fg.base,
+    marginBottom: 8,
+  },
+  workoutPreviewDescription: {
+    fontFamily: 'PlusJakartaSans-Regular',
+    fontSize: 14,
+    color: nucleus.light.semantic.fg.muted,
+    marginBottom: 16,
+  },
+  loadingEntriesContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 24,
+    justifyContent: 'center',
+  },
+  loadingEntriesText: {
+    fontFamily: 'PlusJakartaSans-Regular',
+    fontSize: 14,
+    color: nucleus.light.semantic.fg.muted,
+  },
+  addToTodayButton: {
+    backgroundColor: nucleus.light.semantic.accent.bold,
+    borderRadius: 48,
+    padding: 14,
+    alignItems: 'center',
+    minHeight: 48,
+  },
+  addToTodayButtonText: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 16,
+    fontWeight: '700',
+    color: nucleus.light.global.white,
+  },
+  // Workout Metadata
+  workoutMetadata: {
+    marginBottom: 16,
+  },
+  workoutPreviewName: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 18,
+    fontWeight: '700',
+    color: nucleus.light.semantic.fg.base,
+    marginBottom: 8,
+  },
+  workoutMetadataRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  workoutMetadataText: {
+    fontFamily: 'PlusJakartaSans-Regular',
+    fontSize: 12,
+    color: nucleus.light.semantic.fg.muted,
+  },
+  metadataDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: nucleus.light.semantic.fg.muted,
+  },
+  // Exercise List
+  exerciseList: {
+    gap: 12,
+    marginBottom: 16,
+  },
+  exerciseItem: {
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'flex-start',
+  },
+  exerciseNumber: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: nucleus.light.semantic.accent.moderate,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  exerciseNumberText: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 12,
+    fontWeight: '700',
+    color: nucleus.light.semantic.fg.base,
+  },
+  exerciseDetails: {
+    flex: 1,
+    gap: 4,
+  },
+  exerciseName: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 14,
+    fontWeight: '700',
+    color: nucleus.light.semantic.fg.base,
+  },
+  exerciseInfo: {
+    fontFamily: 'PlusJakartaSans-Regular',
+    fontSize: 12,
+    color: nucleus.light.semantic.fg.muted,
+  },
+  // Suggestion chips (matching onboarding exactly)
+  suggestionsContainerNormal: {
+    flexDirection: 'column',
+    marginTop: 12,
+    alignSelf: 'stretch',
+    maxHeight: 250,
+  },
+  suggestionsContainerKeyboard: {
+    flexDirection: 'row',
+    marginTop: 12,
+    alignSelf: 'stretch',
+    maxHeight: 120,
+  },
+  suggestionsContent: {
+    gap: 8,
+    paddingHorizontal: 0,
+    paddingBottom: 0,
+  },
+  suggestionButtonNormal: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: nucleus.light.global.blue["70"],
+    backgroundColor: 'transparent',
+    alignSelf: 'flex-start',
+    width: 'auto',
+    minWidth: 120,
+  },
+  suggestionButtonKeyboard: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: nucleus.light.global.blue["70"],
+    backgroundColor: 'transparent',
+    alignSelf: 'flex-start',
+    width: 'auto',
+    minWidth: 120,
+  },
+  suggestionText: {
+    color: nucleus.light.global.blue["70"],
+    fontFamily: 'PlusJakartaSans-Medium',
+    fontSize: 14,
+    fontWeight: '500',
+    lineHeight: 18,
+    textAlign: 'center',
+  },
+  suggestionButtonSelected: {
+    backgroundColor: nucleus.light.global.blue["70"],
+    borderColor: nucleus.light.global.blue["70"],
+  },
+  suggestionTextSelected: {
+    color: nucleus.light.global.blue["10"],
   },
 }); 

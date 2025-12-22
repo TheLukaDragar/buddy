@@ -337,24 +337,25 @@ s3_access_key = "env(S3_ACCESS_KEY)"
 # Configures AWS_SECRET_ACCESS_KEY for S3 bucket
 s3_secret_key = "env(S3_SECRET_KEY)"
 
-[functions.generate-workout-plan]
-enabled = true
-verify_jwt = true
-import_map = "./functions/generate-workout-plan/deno.json"
-# Uncomment to specify a custom file path to the entrypoint.
-# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
-entrypoint = "./functions/generate-workout-plan/index.ts"
-# Specifies static files to be bundled with the function. Supports glob patterns.
-# For example, if you want to serve static HTML pages in your function:
-# static_files = [ "./functions/generate-workout-plan/*.html" ]
+# Old functions - disabled (directories don't exist)
+# [functions.generate-workout-plan]
+# enabled = false
+# verify_jwt = true
+# import_map = "./functions/generate-workout-plan/deno.json"
+# entrypoint = "./functions/generate-workout-plan/index.ts"
 
-[functions.generate-exercise-profile]
+# [functions.generate-exercise-profile]
+# enabled = false
+# verify_jwt = true
+# import_map = "./functions/generate-exercise-profile/deno.json"
+# entrypoint = "./functions/generate-exercise-profile/index.ts"
+
+[functions.trigger-workout-plan]
 enabled = true
 verify_jwt = true
-import_map = "./functions/generate-exercise-profile/deno.json"
-# Uncomment to specify a custom file path to the entrypoint.
-# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
-entrypoint = "./functions/generate-exercise-profile/index.ts"
-# Specifies static files to be bundled with the function. Supports glob patterns.
-# For example, if you want to serve static HTML pages in your function:
-# static_files = [ "./functions/generate-exercise-profile/*.html" ]
+import_map = "./functions/trigger-workout-plan/deno.json"
+
+[functions.trigger-single-workout]
+enabled = true
+verify_jwt = true
+import_map = "./functions/trigger-single-workout/deno.json"
