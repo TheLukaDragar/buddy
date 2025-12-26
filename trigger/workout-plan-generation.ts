@@ -9574,6 +9574,9 @@ export const generateWorkoutPlanTask = task({
       nextMonday.setDate(today.getDate() + daysUntilMonday);
       
       let entryIndex = 0;
+      // Track position per day within each week
+      const dayPositionMap = new Map<string, number>();
+      
       for (let week = 1; week <= 8; week++) {
         for (const entry of workoutPlanWithData.entries) {
           // Calculate the proper date for this week and day
@@ -9583,6 +9586,11 @@ export const generateWorkoutPlanTask = task({
           weekStartDate.setDate(weekStartDate.getDate() + dayIndex); // Add days within week
           
           const workoutDate = weekStartDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+
+          // Calculate position for this day within this week
+          const dayKey = `${week}-${entry.dayName}`;
+          const currentPosition = (dayPositionMap.get(dayKey) || 0) + 1;
+          dayPositionMap.set(dayKey, currentPosition);
 
           allEntries.push({
             workout_plan_id: planData.id,
@@ -9598,7 +9606,8 @@ export const generateWorkoutPlanTask = task({
             notes: entry.notes,
             streak_exercise_id: exerciseIds[slugify(entry.streakExercise)],
             streak_exercise_notes: entry.streakExerciseNotes,
-            is_adjusted: false
+            is_adjusted: false,
+            position: currentPosition, // Position within this day/week combination
           });
 
           // Store alternative exercises for this entry using the array index

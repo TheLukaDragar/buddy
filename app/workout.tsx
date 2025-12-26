@@ -17,7 +17,7 @@ import ExerciseInfoModal from '../components/ExerciseInfoModal';
 import MusicModal from '../components/MusicModal';
 import { Weekday } from '../graphql/generated';
 import { selectWorkoutFromEntries } from '../store/actions/workoutActions';
-import { useAddWorkoutEntryMutation, useDeleteWorkoutEntryMutation, useGetWorkoutDayQuery } from '../store/api/enhancedApi';
+import { enhancedApi, useAddWorkoutEntryMutation, useDeleteWorkoutEntryMutation, useGetWorkoutDayQuery } from '../store/api/enhancedApi';
 import { useAppDispatch } from '../store/hooks';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -44,6 +44,8 @@ export default function WorkoutScreen() {
   const [addWorkoutEntry, { isLoading: isAddingExercise }] = useAddWorkoutEntryMutation();
   const [deleteWorkoutEntry] = useDeleteWorkoutEntryMutation();
   const [newlyAddedExerciseId, setNewlyAddedExerciseId] = useState<string | null>(null);
+  const [exerciseSlugMap, setExerciseSlugMap] = useState<Map<string, string>>(new Map());
+  const [exerciseDataMap, setExerciseDataMap] = useState<Map<string, any>>(new Map());
   const [deletedExercise, setDeletedExercise] = useState<{
     id: string;
     exercise_id: string;
@@ -54,6 +56,7 @@ export default function WorkoutScreen() {
     notes: string | null;
     streak_exercise_id: string;
     streak_exercise_notes: string | null;
+    position: number;
   } | null>(null);
   const undoTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollViewRef = useRef<Animated.ScrollView>(null);
@@ -107,21 +110,63 @@ export default function WorkoutScreen() {
       entryCount: workoutData?.workout_plansCollection?.edges?.[0]?.node?.workout_entriesCollection?.edges?.length
     });
     
-    // Log detailed exercise information
+    // Log workout entry metadata (exercise_id is always fresh)
+    // NOTE: entry.node.exercises?.name may be stale from nested cache - ExerciseCard fetches fresh data separately
     if (workoutData?.workout_plansCollection?.edges?.[0]?.node?.workout_entriesCollection?.edges) {
       const entries = workoutData.workout_plansCollection.edges[0].node.workout_entriesCollection.edges;
       console.log('Workout entries details:', entries.map((entry: any) => ({
         id: entry.node.id,
-        exercise_id: entry.node.exercise_id,
-        exercise_name: entry.node.exercises?.name,
+        exercise_id: entry.node.exercise_id, // Always fresh - ExerciseCard uses this to fetch fresh exercise data
         is_adjusted: entry.node.is_adjusted,
-        adjustment_reason: entry.node.adjustment_reason
+        adjustment_reason: entry.node.adjustment_reason,
+        position: entry.node.position
       })));
     }
   }, [workoutData, isLoading, isFetching]);
 
   // Extract workout entries from the query response
   const workoutEntries = workoutData?.workout_plansCollection?.edges?.[0]?.node?.workout_entriesCollection?.edges || [];
+
+  // Memoize exercise IDs to create stable dependency
+  const exerciseIds = useMemo(() => {
+    return workoutEntries.map(entry => entry.node.exercise_id).join(',');
+  }, [workoutEntries]);
+
+  // Fetch fresh exercise data to get correct slugs (avoids stale nested cache)
+  useEffect(() => {
+    if (workoutEntries.length === 0) {
+      setExerciseSlugMap(new Map());
+      return;
+    }
+
+    // Extract unique exercise IDs from workout entries
+    const uniqueExerciseIds = [...new Set(workoutEntries.map(entry => entry.node.exercise_id))];
+    
+    // Fetch all exercises in parallel to get fresh data (NO FALLBACKS to nested cache)
+    const fetchExercises = async () => {
+      const slugMap = new Map<string, string>();
+      const dataMap = new Map<string, any>();
+      
+      const exercisePromises = uniqueExerciseIds.map(async (exerciseId) => {
+        const result = await dispatch(
+          enhancedApi.endpoints.GetExerciseById.initiate({ id: exerciseId })
+        ).unwrap();
+        
+        const exercise = result?.exercisesCollection?.edges?.[0]?.node;
+        if (!exercise?.slug) {
+          throw new Error(`Exercise ${exerciseId} missing slug`);
+        }
+        slugMap.set(exerciseId, exercise.slug);
+        dataMap.set(exerciseId, exercise); // Store full exercise data
+      });
+      
+      await Promise.all(exercisePromises);
+      setExerciseSlugMap(slugMap);
+      setExerciseDataMap(dataMap);
+    };
+
+    fetchExercises();
+  }, [exerciseIds, dispatch]); // Re-fetch when exercise IDs change
 
   // Scroll to newly added exercise after data refetches
   useEffect(() => {
@@ -156,9 +201,9 @@ export default function WorkoutScreen() {
 
   // // Debug logging
   // console.log('Workout Data Debug:');
-  console.log('Raw workout data:', JSON.stringify(workoutData, null, 2));
-  // // console.log('Workout entries count:', workoutEntries.length);
-  // // console.log('All workout entries:', workoutEntries.map(entry => entry.node));
+  //console.log('Raw workout data:', JSON.stringify(workoutData, null, 2));
+   console.log('Workout entries count:', workoutEntries.length);
+  console.log('All workout entries:', workoutEntries.map(entry => entry.node));
   // // console.log('First workout entry:', workoutEntries[0]?.node);
   // console.log('Workout entries:', JSON.stringify(workoutEntries, null, 2));
 
@@ -179,10 +224,12 @@ export default function WorkoutScreen() {
   console.log('Total sets:', totalSets);
   console.log('Total workout minutes:', totalWorkoutMinutes);
 
-  // Extract unique equipment from all exercises using equipment_groups
+  // Extract unique equipment from all exercises using FRESH exercise data (NO FALLBACKS to nested cache)
   // Keep track of all unique equipment items across all exercises
   const allEquipmentItems = workoutEntries.flatMap(entry => {
-    const equipmentGroups = entry.node.exercises?.equipment_groups;
+    // Use fresh exercise data from map, not nested cache
+    const exercise = exerciseDataMap.get(entry.node.exercise_id);
+    const equipmentGroups = exercise?.equipment_groups;
     
     // Parse equipment_groups if it's a string (JSON from database)
     let groups = [];
@@ -209,14 +256,18 @@ export default function WorkoutScreen() {
     slug.split('-').map((word: string) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
   );
 
-  console.log('Equipment groups from entries:', workoutEntries.map(e => e.node.exercises?.equipment_groups));
+  console.log('Equipment groups from fresh data:', workoutEntries.map(e => {
+    const exercise = exerciseDataMap.get(e.node.exercise_id);
+    return exercise?.equipment_groups;
+  }));
   console.log('Unique equipment slugs:', uniqueEquipment);
   console.log('Unique equipment readable:', uniqueEquipmentReadable);
 
-  // Extract exercise slugs and create thumbnail URLs (memoized to prevent re-renders)
+  // Extract exercise slugs and create thumbnail URLs using fresh exercise data (memoized to prevent re-renders)
   const { exerciseSlugs, thumbnailUrls } = useMemo(() => {
+    // Use ONLY fresh slugs from exerciseSlugMap - no fallback to nested cache
     const slugs = workoutEntries
-      .map(entry => entry.node.exercises?.slug)
+      .map(entry => exerciseSlugMap.get(entry.node.exercise_id))
       .filter(Boolean) as string[];
 
     const urls = slugs.map(slug =>
@@ -224,7 +275,7 @@ export default function WorkoutScreen() {
     );
 
     return { exerciseSlugs: slugs, thumbnailUrls: urls };
-  }, [workoutEntries]);
+  }, [workoutEntries, exerciseSlugMap]);
 
   console.log('Exercise slugs:', exerciseSlugs);
   console.log('Thumbnail URLs:', thumbnailUrls);
@@ -467,18 +518,25 @@ export default function WorkoutScreen() {
   }));
 
   // Create exercises summary from dynamic data with thumbnail URLs and equipment groups
+  // Use ONLY fresh exercise data from map (NO FALLBACKS to nested cache)
   const exercises = workoutEntries.map((entry, index) => {
-    // Clean up exercise name by removing ALL parentheses and their contents
-    const cleanName = entry.node.exercises.name.replace(/\s*\([^)]*\)/g, '').trim();
+    // Get fresh exercise data from map
+    const exercise = exerciseDataMap.get(entry.node.exercise_id);
+    if (!exercise) {
+      throw new Error(`Missing fresh exercise data for ${entry.node.exercise_id}`);
+    }
     
-    // Get thumbnail URL for this exercise
-    const slug = entry.node.exercises?.slug;
+    // Get fresh slug from map
+    const slug = exerciseSlugMap.get(entry.node.exercise_id);
     const thumbnailUrl = slug 
       ? `https://kmtddcpdqkeqipyetwjs.supabase.co/storage/v1/object/public/workouts/processed/${slug}/${slug}_cropped_thumbnail_low.jpg`
       : null;
+    
+    // Clean up exercise name by removing ALL parentheses and their contents
+    const cleanName = exercise.name?.replace(/\s*\([^)]*\)/g, '').trim() || '';
 
-    // Parse equipment groups for this exercise
-    const equipmentGroups = entry.node.exercises?.equipment_groups;
+    // Parse equipment groups for this exercise using fresh data
+    const equipmentGroups = exercise.equipment_groups;
     let parsedGroups: string[][] = [];
     if (typeof equipmentGroups === 'string') {
       try {
@@ -495,8 +553,8 @@ export default function WorkoutScreen() {
       id: index + 1,
       name: cleanName,
       sets: `${entry.node.sets} sets`,
-      muscles: entry.node.exercises?.muscle_categories?.join(', ') || '', 
-      description: entry.node.exercises.instructions || 'Exercise instructions',
+      muscles: exercise.muscle_categories?.join(', ') || '', 
+      description: exercise.instructions || 'Exercise instructions',
       thumbnailUrl: thumbnailUrl,
       slug: slug,
       equipmentGroups: parsedGroups, // [[item1, item2], [item3]] means (item1 OR item2) AND item3
@@ -853,6 +911,7 @@ export default function WorkoutScreen() {
                           notes: entryToDelete.notes ?? null,
                           streak_exercise_id: entryToDelete.streak_exercise_id,
                           streak_exercise_notes: entryToDelete.streak_exercise_notes ?? null,
+                          position: entryToDelete.position,
                         });
                         
                         try {
@@ -955,6 +1014,7 @@ export default function WorkoutScreen() {
                       weight: deletedExercise.weight,
                       time: deletedExercise.time,
                       notes: deletedExercise.notes,
+                      position: deletedExercise.position,
                     }).unwrap();
                     
                     console.log('✅ Exercise restored successfully');
@@ -1165,6 +1225,13 @@ export default function WorkoutScreen() {
           }
           
           try {
+            // Calculate next position (max position + 1) for this workout day
+            const existingEntries = workoutEntries.map((edge: any) => edge.node);
+            const maxPosition = existingEntries.length > 0
+              ? Math.max(...existingEntries.map((entry: any) => entry.position || 0))
+              : 0;
+            const nextPosition = maxPosition + 1;
+
             const result = await addWorkoutEntry({
               workoutPlanId: planId,
               weekNumber: parseInt(weekNumber),
@@ -1178,6 +1245,7 @@ export default function WorkoutScreen() {
               weight: null,
               time: null,
               notes: null,
+              position: nextPosition,
             }).unwrap();
             
             console.log('✅ Exercise added successfully');

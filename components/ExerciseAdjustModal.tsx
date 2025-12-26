@@ -242,29 +242,75 @@ interface ExerciseInfoModalProps {
   
   // Just pass the workout entry ID - modal will fetch its own data
   workoutEntryId: string;
+  // Optional: Pass current exercise ID from Redux to ensure correct exercise is shown
+  // This is more reliable than using workoutEntry.exercise_id after jumps/swaps
+  currentExerciseId?: string;
 }
 
-const ExerciseInfoModal = React.memo<ExerciseInfoModalProps>(function ExerciseInfoModal({ visible, onClose, onAdjustmentComplete, workoutEntryId }) {
+const ExerciseInfoModal = React.memo<ExerciseInfoModalProps>(function ExerciseInfoModal({ visible, onClose, onAdjustmentComplete, workoutEntryId, currentExerciseId }) {
   const insets = useSafeAreaInsets();
   const SHEET_HEIGHT = SCREEN_HEIGHT;
   
   const translateY = useSharedValue(SHEET_HEIGHT);
   
   // Fetch workout entry data WITHOUT nested exercises (avoids stale data)
+  // Force refetch when modal opens to ensure fresh data after exercise jumps/swaps
   const { data, isLoading: isLoadingEntry, error } = useGetWorkoutEntryBasicQuery(
     { id: workoutEntryId },
-    { skip: !visible || !workoutEntryId }
+    { 
+      skip: !visible || !workoutEntryId,
+      // Force refetch when modal opens to get latest exercise_id after jumps/swaps
+      refetchOnMountOrArgChange: true,
+    }
   );
   
   const workoutEntryNode = data?.workout_entriesCollection?.edges[0]?.node;
   
+  // Log for debugging
+  useEffect(() => {
+    if (visible && workoutEntryNode) {
+      console.log('🔧 [ExerciseAdjustModal] Fetching exercise for workout entry:', {
+        workoutEntryId,
+        exerciseId: workoutEntryNode.exercise_id,
+        sets: workoutEntryNode.sets,
+        reps: workoutEntryNode.reps,
+        weight: workoutEntryNode.weight,
+      });
+    }
+  }, [visible, workoutEntryNode, workoutEntryId]);
+  
   // Fetch main exercise data separately using exercise_id (always fresh!)
+  // Use currentExerciseId from Redux if provided (more reliable after jumps/swaps),
+  // otherwise fall back to workoutEntryNode.exercise_id from database
+  const exerciseIdToFetch = currentExerciseId || workoutEntryNode?.exercise_id || '';
   const { data: mainExerciseData, isLoading: isLoadingMainExercise } = useGetExerciseByIdQuery(
-    { id: workoutEntryNode?.exercise_id || '' },
-    { skip: !visible || !workoutEntryNode?.exercise_id }
+    { id: exerciseIdToFetch },
+    { skip: !visible || !exerciseIdToFetch }
   );
   
+  // Log which exercise ID we're using
+  useEffect(() => {
+    if (visible && exerciseIdToFetch) {
+      console.log('🔧 [ExerciseAdjustModal] Using exercise ID:', {
+        exerciseId: exerciseIdToFetch,
+        source: currentExerciseId ? 'Redux (currentExerciseId)' : 'Database (workoutEntry.exercise_id)',
+        workoutEntryExerciseId: workoutEntryNode?.exercise_id,
+      });
+    }
+  }, [visible, exerciseIdToFetch, currentExerciseId, workoutEntryNode?.exercise_id]);
+  
   const mainExercise = mainExerciseData?.exercisesCollection?.edges?.[0]?.node;
+  
+  // Log exercise data for debugging
+  useEffect(() => {
+    if (visible && mainExercise) {
+      console.log('🔧 [ExerciseAdjustModal] Loaded exercise:', {
+        exerciseId: mainExercise.id,
+        exerciseName: mainExercise.name,
+        slug: mainExercise.slug,
+      });
+    }
+  }, [visible, mainExercise]);
   
   // RTK Query mutation hooks
   const [updateWorkoutEntry, { isLoading: isUpdating }] = useUpdateWorkoutEntryMutation();

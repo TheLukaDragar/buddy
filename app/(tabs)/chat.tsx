@@ -1,9 +1,9 @@
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import { Image } from "expo-image";
-import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { fetch as expoFetch } from 'expo/fetch';
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SystemBars } from 'react-native-edge-to-edge';
 import ReanimatedAnimated, {
@@ -20,7 +20,7 @@ import CategoryPills from '../../components/CategoryPills';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSingleWorkoutGeneration } from '../../hooks/useSingleWorkoutGeneration';
 import { RootState } from '../../store';
-import { useGetUserWorkoutPlansQuery, useGetWorkoutEntriesByDayQuery } from '../../store/api/enhancedApi';
+import { enhancedApi, useGetUserWorkoutPlansQuery, useGetWorkoutEntriesByDayQuery } from '../../store/api/enhancedApi';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { addMessage, clearMessages, setError, setInputCollapsed, setLoading, type ChatMessage } from '../../store/slices/chatSlice';
 import { generateAPIUrl } from '../../utils';
@@ -158,6 +158,36 @@ export default function ChatScreen() {
   );
 
   const trainNowEntries = trainNowEntriesData?.workout_entriesCollection?.edges?.map((edge: any) => edge.node) || [];
+  const [exerciseNameMap, setExerciseNameMap] = React.useState<Map<string, string>>(new Map());
+  
+  // Fetch fresh exercise data for entries (NO FALLBACKS to nested cache)
+  React.useEffect(() => {
+    if (trainNowEntries.length === 0) {
+      setExerciseNameMap(new Map());
+      return;
+    }
+    
+    const uniqueExerciseIds = [...new Set(trainNowEntries.map((entry: any) => entry.exercise_id))];
+    const fetchExercises = async () => {
+      const nameMap = new Map<string, string>();
+      
+      const exercisePromises = uniqueExerciseIds.map(async (exerciseId: string) => {
+        const result = await dispatch(
+          enhancedApi.endpoints.GetExerciseById.initiate({ id: exerciseId })
+        ).unwrap();
+        const exercise = result?.exercisesCollection?.edges?.[0]?.node;
+        if (!exercise?.name) {
+          throw new Error(`Exercise ${exerciseId} missing name`);
+        }
+        nameMap.set(exerciseId, exercise.name);
+      });
+      
+      await Promise.all(exercisePromises);
+      setExerciseNameMap(nameMap);
+    };
+    
+    fetchExercises();
+  }, [trainNowEntries.map((e: any) => e.exercise_id).join(','), dispatch]);
   
   // Stop polling once we have entries
   React.useEffect(() => {
@@ -1154,7 +1184,7 @@ export default function ChatScreen() {
                               <Text style={styles.exerciseNumberText}>{index + 1}</Text>
                             </View>
                             <View style={styles.exerciseDetails}>
-                              <Text style={styles.exerciseName}>{entry.exercises?.name || 'Exercise'}</Text>
+                              <Text style={styles.exerciseName}>{exerciseNameMap.get(entry.exercise_id) || 'Exercise'}</Text>
                               <Text style={styles.exerciseInfo}>
                                 {entry.sets} sets × {entry.reps} reps
                                 {entry.weight && ` · ${entry.weight}`}

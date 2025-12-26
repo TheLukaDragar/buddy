@@ -13,12 +13,14 @@ import {
   confirmReadyAndStartSet as confirmReadyAndStartSetReducer,
   extendRest as extendRestReducer,
   finishWorkoutEarly as finishWorkoutEarlyReducer,
+  jumpToExerciseAndQueueCurrent as jumpToExerciseAndQueueCurrentReducer,
   jumpToExercise as jumpToExerciseReducer,
   jumpToSet as jumpToSetReducer,
   nextSet as nextSetReducer,
   pauseSet as pauseSetReducer,
   previousSet as previousSetReducer,
   resumeSet as resumeSetReducer,
+  resumeWorkoutFromSession as resumeWorkoutFromSessionReducer,
   selectWorkoutFromEntries as selectWorkoutFromEntriesReducer,
   selectWorkout as selectWorkoutReducer,
   startExercisePreparation as startExercisePreparationReducer,
@@ -146,39 +148,38 @@ export const selectWorkoutFromEntries = createAsyncThunk(
 
     // Fetch exercise data separately for each unique exercise_id to avoid stale nested relationship data
     // This ensures we always use fresh exercise data, not cached nested data from GetWorkoutDay query
+    // NO FALLBACKS - must fetch fresh data or fail
     const uniqueExerciseIds = [...new Set(workoutEntries.map(entry => entry.exercise_id))]
     const exerciseDataMap = new Map<string, any>()
     
-    try {
-      // Fetch all exercises in parallel
-      const exercisePromises = uniqueExerciseIds.map(async (exerciseId) => {
-        try {
-          const result = await dispatch(
-            enhancedApi.endpoints.GetExerciseById.initiate({ id: exerciseId })
-          ).unwrap()
-          const exercise = result?.exercisesCollection?.edges?.[0]?.node
-          if (exercise) {
-            exerciseDataMap.set(exerciseId, exercise)
-          }
-        } catch (error: any) {
-          console.warn(`Failed to fetch exercise ${exerciseId}:`, error)
-        }
-      })
-      
-      await Promise.all(exercisePromises)
-      
-      // Enrich workout entries with fresh exercise data
-      const enrichedEntries = workoutEntries.map(entry => ({
+    // Fetch all exercises in parallel - NO FALLBACKS
+    const exercisePromises = uniqueExerciseIds.map(async (exerciseId) => {
+      const result = await dispatch(
+        enhancedApi.endpoints.GetExerciseById.initiate({ id: exerciseId })
+      ).unwrap()
+      const exercise = result?.exercisesCollection?.edges?.[0]?.node
+      if (!exercise) {
+        throw new Error(`Failed to fetch exercise ${exerciseId}`)
+      }
+      exerciseDataMap.set(exerciseId, exercise)
+    })
+    
+    await Promise.all(exercisePromises)
+    
+    // Enrich workout entries with fresh exercise data - NO FALLBACKS
+    const enrichedEntries = workoutEntries.map(entry => {
+      const freshExercise = exerciseDataMap.get(entry.exercise_id)
+      if (!freshExercise) {
+        throw new Error(`Missing fresh exercise data for ${entry.exercise_id}`)
+      }
+      return {
         ...entry,
-        exercises: exerciseDataMap.get(entry.exercise_id) || entry.exercises // Fallback to nested if fetch failed
-      }))
-      
-      // Replace workoutEntries with enriched version
-      workoutEntries = enrichedEntries as WorkoutEntryNode[]
-    } catch (error: any) {
-      console.warn('Failed to fetch exercise data separately, using nested data:', error)
-      // Continue with nested data as fallback
-    }
+        exercises: freshExercise
+      }
+    })
+    
+    // Replace workoutEntries with enriched version
+    workoutEntries = enrichedEntries as WorkoutEntryNode[]
 
     // Use atomic database function to start workout session
     // This function atomically completes any existing active sessions and creates a new one
@@ -484,6 +485,132 @@ export const jumpToSet = createAsyncThunk(
   }
 )
 
+export const jumpToExerciseAndQueueCurrent = createAsyncThunk(
+  'workout/jumpToExerciseAndQueueCurrent',
+  async ({ targetExerciseSlug, reason }: { targetExerciseSlug: string; reason: string }, { getState, dispatch, rejectWithValue }) => {
+    const state = getState() as RootState;
+    
+    if (!state.workout.workoutEntries || !state.workout.activeWorkout || !state.workout.planId || !state.workout.dayName) {
+      return rejectWithValue('No active workout or missing workout data');
+    }
+    
+    const currentIndex = state.workout.activeWorkout.currentExerciseIndex;
+    const currentEntry = state.workout.workoutEntries[currentIndex];
+    
+    if (!currentEntry) {
+      return rejectWithValue('Current exercise entry not found');
+    }
+    
+    // Find target exercise by fetching fresh exercise data for all entries (NO FALLBACKS to nested cache)
+    // This ensures we match by fresh slug, not stale nested cache
+    const workoutEntries = state.workout.workoutEntries || [];
+    const uniqueExerciseIds = [...new Set(workoutEntries.map(entry => entry.exercise_id))];
+    const exerciseSlugMap = new Map<string, string>();
+    
+    // Fetch all exercises in parallel to get fresh slugs
+    const exercisePromises = uniqueExerciseIds.map(async (exerciseId) => {
+      const result = await dispatch(
+        enhancedApi.endpoints.GetExerciseById.initiate({ id: exerciseId })
+      ).unwrap();
+      const exercise = result?.exercisesCollection?.edges?.[0]?.node;
+      if (!exercise?.slug) {
+        throw new Error(`Exercise ${exerciseId} missing slug`);
+      }
+      exerciseSlugMap.set(exerciseId, exercise.slug);
+    });
+    
+    await Promise.all(exercisePromises);
+    
+    // Find target exercise by matching fresh slug
+    const targetIndex = workoutEntries.findIndex(
+      entry => exerciseSlugMap.get(entry.exercise_id) === targetExerciseSlug
+    );
+    
+    if (targetIndex === -1) {
+      const availableSlugs = Array.from(exerciseSlugMap.values()).join(', ');
+      return rejectWithValue(`Exercise not found: ${targetExerciseSlug}. Available: ${availableSlugs}`);
+    }
+    
+    if (targetIndex === currentIndex) {
+      return rejectWithValue('Cannot queue current exercise to itself');
+    }
+    
+    // Get week number from current entry
+    const weekNumber = currentEntry.week_number || 1;
+    
+    // Call reducer to update Redux state (reorders array)
+    dispatch(jumpToExerciseAndQueueCurrentReducer({ targetExerciseSlug, reason }));
+    
+    // Get updated state after reducer
+    const updatedState = getState() as RootState;
+    const reorderedEntries = updatedState.workout.workoutEntries;
+    const updatedActiveWorkout = updatedState.workout.activeWorkout;
+    
+    if (!reorderedEntries || !updatedActiveWorkout) {
+      return rejectWithValue('Failed to reorder exercises');
+    }
+    
+    // Sync positions to database
+    try {
+      // Update each entry's position in the database
+      const positionUpdates = reorderedEntries.map((entry, index) => ({
+        entryId: entry.id,
+        newPosition: index + 1,
+      }));
+      
+      // Update positions individually via Supabase client
+      const updatePromises = positionUpdates.map(({ entryId, newPosition }) =>
+        supabase
+          .from('workout_entries')
+          .update({ position: newPosition })
+          .eq('id', entryId)
+      );
+      
+      const results = await Promise.all(updatePromises);
+      const errors = results.filter(r => r.error);
+      
+      if (errors.length > 0) {
+        console.warn('⚠️ Some position updates failed:', errors);
+      }
+      
+      // Fetch fresh exercise names for logging (NO FALLBACKS)
+      const currentExerciseResult = await dispatch(
+        enhancedApi.endpoints.GetExerciseById.initiate({ id: currentEntry.exercise_id })
+      ).unwrap();
+      const currentExerciseName = currentExerciseResult?.exercisesCollection?.edges?.[0]?.node?.name || 'Unknown';
+      
+      const targetEntry = reorderedEntries[updatedActiveWorkout.currentExerciseIndex];
+      const targetExerciseResult = await dispatch(
+        enhancedApi.endpoints.GetExerciseById.initiate({ id: targetEntry.exercise_id })
+      ).unwrap();
+      const targetExerciseName = targetExerciseResult?.exercisesCollection?.edges?.[0]?.node?.name || 'Unknown';
+      
+      console.log('✅ Synced exercise reorder to database:', {
+        movedExercise: currentExerciseName,
+        targetExercise: targetExerciseName,
+        newOrder: positionUpdates.map(p => p.newPosition),
+      });
+      
+      return {
+        success: true,
+        message: `Jumped to ${targetExerciseSlug} and queued current exercise`,
+        data: {
+          currentExerciseIndex: updatedActiveWorkout.currentExerciseIndex,
+          reorderedCount: reorderedEntries.length,
+        },
+      };
+    } catch (error: any) {
+      console.error('❌ Failed to sync exercise reorder to database:', error);
+      // Don't reject - state is already updated, just log the error
+      return {
+        success: true,
+        message: `Jumped to ${targetExerciseSlug} (DB sync failed, but state updated)`,
+        warning: 'Database sync failed',
+      };
+    }
+  }
+);
+
 export const jumpToExercise = createAsyncThunk(
   'workout/jumpToExercise',
   async ({ exerciseSlug, reason }: { exerciseSlug: string; reason: string }, { getState, dispatch, rejectWithValue }) => {
@@ -497,21 +624,42 @@ export const jumpToExercise = createAsyncThunk(
       return rejectWithValue('No workout entries available')
     }
     
-    // Find exercise by slug
-    const exerciseIndex = state.workout.workoutEntries.findIndex(
-      entry => entry.exercises?.slug === exerciseSlug
-    )
+    // Find exercise by slug using fresh exercise data (NO FALLBACKS to nested cache)
+    const workoutEntries = state.workout.workoutEntries || [];
+    const uniqueExerciseIds = [...new Set(workoutEntries.map(entry => entry.exercise_id))];
+    const exerciseSlugMap = new Map<string, { id: string; name: string }>();
     
-    if (exerciseIndex === -1) {
-      const availableSlugs = state.workout.workoutEntries
-        .map(e => e.exercises?.slug)
-        .filter(Boolean)
-        .join(', ')
+    // Fetch all exercises in parallel to get fresh slugs and names
+    const exercisePromises = uniqueExerciseIds.map(async (exerciseId) => {
+      const result = await dispatch(
+        enhancedApi.endpoints.GetExerciseById.initiate({ id: exerciseId })
+      ).unwrap();
+      const exercise = result?.exercisesCollection?.edges?.[0]?.node;
+      if (!exercise?.slug) {
+        throw new Error(`Exercise ${exerciseId} missing slug`);
+      }
+      exerciseSlugMap.set(exercise.slug, { id: exerciseId, name: exercise.name });
+    });
+    
+    await Promise.all(exercisePromises);
+    
+    // Find exercise by matching fresh slug
+    const exerciseData = exerciseSlugMap.get(exerciseSlug);
+    if (!exerciseData) {
+      const availableSlugs = Array.from(exerciseSlugMap.keys()).join(', ');
       return rejectWithValue(`Exercise with slug "${exerciseSlug}" not found. Available exercises: ${availableSlugs}`)
     }
     
-    const targetEntry = state.workout.workoutEntries[exerciseIndex]
-    const exerciseName = targetEntry.exercises?.name || 'Unknown Exercise'
+    const exerciseIndex = workoutEntries.findIndex(
+      entry => entry.exercise_id === exerciseData.id
+    );
+    
+    if (exerciseIndex === -1) {
+      return rejectWithValue(`Exercise entry not found for slug "${exerciseSlug}"`)
+    }
+    
+    const targetEntry = workoutEntries[exerciseIndex]
+    const exerciseName = exerciseData.name
     
     dispatch(jumpToExerciseReducer({ exerciseSlug, reason }))
     
@@ -586,7 +734,7 @@ export const nextSet = createAsyncThunk(
 
 export const getWorkoutStatus = createAsyncThunk(
   'workout/getWorkoutStatus',
-  async (_, { getState }) => {
+  async (_, { getState, dispatch }) => {
     const state = getState() as RootState
     
     if (!state.workout.activeWorkout) {
@@ -613,7 +761,7 @@ export const getWorkoutStatus = createAsyncThunk(
     const currentExerciseIndex = state.workout.activeWorkout.currentExerciseIndex
     const currentEntry = state.workout.workoutEntries?.[currentExerciseIndex]
     
-    // Build list of all exercises (without alternatives)
+    // Build list of all exercises (entries from Redux are already enriched with fresh exercise data)
     const allExercises = state.workout.workoutEntries?.map((entry, index) => {
       const isCurrent = index === currentExerciseIndex
       const isCompleted = index < currentExerciseIndex
@@ -633,7 +781,7 @@ export const getWorkoutStatus = createAsyncThunk(
       }
     }) || []
     
-    // Get alternatives ONLY for current exercise
+    // Get alternatives ONLY for current exercise (nested alternatives may be stale, but we fetch fresh in ExerciseAdjustModal)
     const currentExerciseAlternatives = currentEntry?.workout_entry_alternativesCollection?.edges?.map(edge => ({
       id: edge.node.exercises?.id,
       name: edge.node.exercises?.name || 'Unknown',
@@ -750,3 +898,9 @@ export const showAd = createAsyncThunk(
 )
 
 export const show_ad = showAd
+
+// =============================================================================
+// RESUME WORKOUT FROM SESSION (direct reducer action, no async logic needed)
+// =============================================================================
+
+export const resumeWorkoutFromSession = resumeWorkoutFromSessionReducer

@@ -249,6 +249,368 @@ const workoutSlice = createSlice({
       })
     },
 
+    // Resume workout from database session with full state restoration
+    resumeWorkoutFromSession: {
+      reducer: (state, action: PayloadAction<{
+        sessionId: string;
+        workoutEntries: WorkoutEntryNode[];
+        planId: string;
+        dayName: string;
+        // Session progress data
+        currentExerciseIndex: number;
+        currentSetIndex: number;
+        completedExercises: number;
+        completedSets: number;
+        totalExercises: number;
+        totalSets: number;
+        status: string; // Database status: 'selected', 'preparing', 'exercising', 'paused'
+        startedAt: string; // ISO timestamp
+        totalTimeMs: number;
+        totalPauseTimeMs: number;
+        // Completed sets data
+        completedSetsData: Array<{
+          workoutEntryId: string;
+          exerciseId: string;
+          setNumber: number;
+          targetReps?: number | null;
+          targetWeight?: number | null;
+          targetTime?: number | null;
+          actualReps?: number | null;
+          actualWeight?: number | null;
+          actualTime?: number | null;
+          difficulty?: string | null;
+          restStartedAt?: string | null;
+          restCompletedAt?: string | null;
+        }>;
+        // Adjustments data
+        adjustmentsData: Array<{
+          type: string;
+          workoutEntryId?: string | null;
+          exerciseId?: string | null;
+          fromValue: string;
+          toValue: string;
+          reason: string;
+          timestamp: string;
+        }>;
+      }>) => {
+        const {
+          sessionId,
+          workoutEntries,
+          planId,
+          dayName,
+          currentExerciseIndex,
+          currentSetIndex,
+          completedExercises,
+          completedSets,
+          totalExercises,
+          totalSets,
+          status,
+          startedAt,
+          totalTimeMs,
+          totalPauseTimeMs,
+          completedSetsData,
+          adjustmentsData,
+        } = action.payload;
+
+        if (workoutEntries.length === 0) {
+          return; // No entries, don't proceed
+        }
+
+        // Validate that entries have exercise data
+        if (!workoutEntries[0]?.exercises) {
+          console.error('⚠️ Workout entry missing exercise data:', workoutEntries[0]);
+          return;
+        }
+
+        state.workoutEntries = workoutEntries;
+        state.planId = planId;
+        state.dayName = dayName;
+        state.sessionId = sessionId;
+
+        // Helper functions for parsing
+        const parseReps = (repsStr: string): number => {
+          const match = repsStr.match(/(\d+)/);
+          return match ? parseInt(match[1], 10) : 8;
+        };
+
+        const parseWeight = (weightStr: string | null | undefined): number | undefined => {
+          if (!weightStr) return undefined;
+          const match = weightStr.match(/(\d+(?:\.\d+)?)/);
+          return match ? parseFloat(match[1]) : undefined;
+        };
+
+        const parseTime = (timeStr: string | null | undefined): number | undefined => {
+          if (!timeStr) return undefined;
+          const match = timeStr.match(/(\d+)/);
+          return match ? parseInt(match[1], 10) : undefined;
+        };
+
+        const parseRestTime = (notes: string | null | undefined): number => {
+          if (!notes) return 90;
+          const match = notes.match(/[Rr]est\s+(\d+)/);
+          return match ? parseInt(match[1], 10) : 90;
+        };
+
+        // Build exercises array from workout entries
+        const exercises = workoutEntries.map((entry) => {
+          if (!entry.exercises) {
+            throw new Error(`Entry ${entry.id} missing exercise data`);
+          }
+
+          const targetReps = parseReps(entry.reps);
+          const targetWeight = parseWeight(entry.weight);
+          const targetTime = parseTime(entry.time);
+          const restTimeAfter = parseRestTime(entry.notes);
+
+          // Mark sets as completed based on completedSetsData
+          const sets = Array.from({ length: entry.sets }, (_, i) => {
+            const setNumber = i + 1;
+            const completedSet = completedSetsData.find(
+              (cs) => cs.workoutEntryId === entry.id && cs.setNumber === setNumber
+            );
+
+            return {
+              id: `${entry.id}-set-${setNumber}`,
+              setNumber,
+              targetReps,
+              targetWeight,
+              targetTime,
+              restTimeAfter,
+              isCompleted: !!completedSet,
+              actualReps: completedSet?.actualReps ?? undefined,
+              actualWeight: completedSet?.actualWeight ? parseFloat(String(completedSet.actualWeight)) : undefined,
+              actualTime: completedSet?.actualTime ?? undefined,
+              difficulty: completedSet?.difficulty as 'easy' | 'medium' | 'hard' | 'impossible' | undefined,
+            };
+          });
+
+          return {
+            id: entry.exercise_id,
+            name: entry.exercises.name.replace(/\s*\([^)]*\)/g, '').trim(),
+            description: entry.exercises.instructions,
+            type: 'strength' as const,
+            muscleGroups: entry.exercises.muscle_categories?.filter(Boolean) as string[] || [],
+            sets,
+            videoUrl: entry.exercises.slug
+              ? `https://kmtddcpdqkeqipyetwjs.supabase.co/storage/v1/object/public/workouts/processed/${entry.exercises.slug}/${entry.exercises.slug}_cropped_video.mp4`
+              : undefined,
+            equipment: [],
+            instructions: entry.exercises.instructions.split(/(?=\(\d+(?:st|nd|rd|th)\))/).filter(Boolean),
+            tips: [],
+            estimatedDuration: 0,
+            repLimitationsProgressionRules: entry.exercises.rep_limitations_progression_rules,
+            progressionByClientFeedback: entry.exercises.progression_by_client_feedback,
+            painInjuryProtocol: entry.exercises.pain_injury_protocol,
+            trainerNotes: entry.exercises.trainer_notes,
+            equipmentText: entry.exercises.equipment_text,
+            iconDescription: entry.exercises.icon_description,
+            videoDescription: entry.exercises.video_description,
+          };
+        });
+
+        // Get current exercise
+        const currentExercise = exercises[currentExerciseIndex];
+        if (!currentExercise) {
+          console.error('⚠️ Current exercise index out of bounds:', currentExerciseIndex);
+          return;
+        }
+
+        // Validate and adjust currentSetIndex if out of bounds
+        // This can happen if all sets were completed but index wasn't reset
+        let adjustedSetIndex = currentSetIndex;
+        if (currentSetIndex >= currentExercise.sets.length) {
+          console.warn(`⚠️ Current set index ${currentSetIndex} out of bounds (exercise has ${currentExercise.sets.length} sets), adjusting to last set`);
+          adjustedSetIndex = currentExercise.sets.length - 1;
+        }
+
+        // Get current set
+        const currentSet = currentExercise.sets[adjustedSetIndex];
+        if (!currentSet) {
+          console.error('⚠️ Current set is undefined after adjustment:', adjustedSetIndex);
+          return;
+        }
+
+        // Build setsCompleted array from completedSetsData
+        const setsCompleted = completedSetsData.map((cs) => ({
+          exerciseId: cs.exerciseId,
+          setId: `${cs.workoutEntryId}-set-${cs.setNumber}`,
+          performance: {
+            actualReps: cs.actualReps ?? undefined,
+            actualWeight: cs.actualWeight ? parseFloat(String(cs.actualWeight)) : undefined,
+            difficulty: cs.difficulty as 'easy' | 'medium' | 'hard' | 'impossible' | undefined,
+          },
+        }));
+
+        // Build adjustmentsMade array from adjustmentsData
+        const adjustmentsMade = adjustmentsData.map((adj) => ({
+          type: adj.type as 'weight' | 'reps' | 'rest',
+          from: parseFloat(adj.fromValue) || 0,
+          to: parseFloat(adj.toValue) || 0,
+          reason: adj.reason,
+          timestamp: new Date(adj.timestamp),
+        }));
+
+        // Check if current set is already completed in database
+        const currentSetCompleted = completedSetsData.some(
+          (cs) => cs.workoutEntryId === workoutEntries[currentExerciseIndex]?.id && 
+                   cs.setNumber === (currentSetIndex + 1) // setNumber is 1-indexed
+        );
+
+        // Calculate elapsed time from start
+        const startTime = new Date(startedAt);
+        const now = new Date();
+        const elapsedTime = totalTimeMs || (now.getTime() - startTime.getTime() - totalPauseTimeMs);
+
+        // Map database status to Redux status
+        // Strategy: Always resume paused at the start of the last segment for natural experience
+        // Timers can't be perfectly restored, so pause at segment start and let user resume manually
+        // Database: 'selected', 'preparing', 'exercising', 'paused'
+        // Redux: 'selected', 'preparing', 'exercising', 'set-complete', 'resting', 'rest-ending', 'exercise-transition', 'workout-completed'
+        let reduxStatus: WorkoutState['status'] = 'selected';
+        let phase: ActiveWorkoutState['phase'] = 'preparing';
+        let isPaused = false;
+
+        // Check if we were in a rest period (last completed set has rest_started_at but no rest_completed_at)
+        const lastCompletedSet = completedSetsData
+          .filter(cs => cs.workoutEntryId === workoutEntries[currentExerciseIndex]?.id)
+          .sort((a, b) => b.setNumber - a.setNumber)[0]; // Get most recent completed set for current exercise
+        
+        const wasInRest = lastCompletedSet?.restStartedAt && !lastCompletedSet?.restCompletedAt;
+
+        // Strategy: Always resume paused at the START of the last segment for natural experience
+        // Check if current set is completed first
+        if (currentSetCompleted) {
+          // Set already completed - transition to set-complete (will auto-transition to rest)
+          // Then pause at start of rest segment for natural resume
+          reduxStatus = 'set-complete';
+          phase = 'resting';
+          // Note: Will auto-transition to rest, then pause at start of rest
+        } else if (wasInRest) {
+          // We were in a rest period - resume paused at start of rest segment
+          reduxStatus = 'resting';
+          phase = 'resting';
+          isPaused = true;
+          console.log('⏸️ Resuming workout paused at start of rest segment - user can resume when ready');
+        } else if (status === 'preparing' || status === 'selected') {
+          // If preparing or selected, stay in that state (not paused - user hasn't started set yet)
+          reduxStatus = status === 'preparing' ? 'preparing' : 'selected';
+          phase = 'preparing';
+        } else {
+          // For 'exercising' or 'paused' status:
+          // Resume paused at the START of the current set segment
+          // This is most natural - user can resume when ready with fresh timer
+          reduxStatus = 'exercising';
+          phase = 'exercising';
+          isPaused = true;
+          console.log('⏸️ Resuming workout paused at start of current set segment - user can resume when ready');
+        }
+
+        state.status = reduxStatus;
+        state.activeWorkout = {
+          sessionId,
+          currentExerciseIndex,
+          currentSetIndex: adjustedSetIndex, // Use adjusted index
+          phase,
+          startTime,
+          currentPhaseStartTime: new Date(), // Reset phase start time
+          elapsedTime: Math.max(0, elapsedTime),
+          isPaused: isPaused,
+          totalPauseTime: totalPauseTimeMs || 0,
+          pauseStartTime: isPaused ? new Date() : undefined,
+          completedExercises,
+          completedSets,
+          totalExercises,
+          totalSets,
+          currentExercise,
+          currentSet,
+          exerciseConfirmed: adjustedSetIndex > 0 || completedSets > 0, // Confirmed if we've done any sets
+          setsCompleted,
+          adjustmentsMade,
+        };
+
+        // Initialize timers based on current state
+        // If resuming to exercising state, create set timer with full duration
+        // If resuming to resting state, create rest timer with full duration
+        if (reduxStatus === 'exercising' && currentSet) {
+          const targetTime = currentSet.targetTime || 45;
+          state.timers.setTimer = {
+            active: false, // Will be activated when user resumes
+            startTime: Date.now(),
+            duration: targetTime * 1000,
+            remaining: targetTime * 1000, // Start with full duration
+          };
+          state.timers.restTimer = null;
+        } else if (reduxStatus === 'resting' && currentSet) {
+          const restTimeAfter = currentSet.restTimeAfter || 90;
+          state.timers.restTimer = {
+            active: false, // Will be activated when user resumes
+            startTime: Date.now(),
+            duration: restTimeAfter * 1000,
+            remaining: restTimeAfter * 1000, // Start with full duration
+            isLastSet: false, // Middleware will determine this
+          };
+          state.timers.setTimer = null;
+        } else {
+          // Reset timers for other states
+          state.timers = {
+            setTimer: null,
+            restTimer: null,
+          };
+        }
+
+        console.log('✅ Workout resumed from session:', {
+          sessionId,
+          currentExerciseIndex,
+          originalSetIndex: currentSetIndex,
+          adjustedSetIndex,
+          completedExercises,
+          completedSets,
+          status: reduxStatus,
+          setsCompletedCount: setsCompleted.length,
+          adjustmentsCount: adjustmentsMade.length,
+        });
+      },
+      prepare: (params: {
+        sessionId: string;
+        workoutEntries: WorkoutEntryNode[];
+        planId: string;
+        dayName: string;
+        currentExerciseIndex: number;
+        currentSetIndex: number;
+        completedExercises: number;
+        completedSets: number;
+        totalExercises: number;
+        totalSets: number;
+        status: string;
+        startedAt: string;
+        totalTimeMs: number;
+        totalPauseTimeMs: number;
+        completedSetsData: Array<{
+          workoutEntryId: string;
+          exerciseId: string;
+          setNumber: number;
+          targetReps?: number | null;
+          targetWeight?: number | null;
+          targetTime?: number | null;
+          actualReps?: number | null;
+          actualWeight?: number | null;
+          actualTime?: number | null;
+          difficulty?: string | null;
+        }>;
+        adjustmentsData: Array<{
+          type: string;
+          workoutEntryId?: string | null;
+          exerciseId?: string | null;
+          fromValue: string;
+          toValue: string;
+          reason: string;
+          timestamp: string;
+        }>;
+      }) => ({
+        payload: params,
+      }),
+    },
+
     startExercisePreparation: (state) => {
       state.status = 'preparing';
       state.activeWorkout!.phase = 'preparing';
@@ -389,11 +751,16 @@ const workoutSlice = createSlice({
         state.timers.setTimer = null;
         state.userActivityPingActive = false;
 
-        // Update set data
-        state.activeWorkout!.currentSet!.actualReps = actualReps || state.activeWorkout!.currentSet!.targetReps;
+        // Update set data (safety check for undefined currentSet)
+        if (!state.activeWorkout!.currentSet) {
+          console.warn('⚠️ Cannot complete set - currentSet is undefined');
+          return;
+        }
+        
+        state.activeWorkout!.currentSet.actualReps = actualReps || state.activeWorkout!.currentSet.targetReps;
         // Set actualWeight to targetWeight when set is completed (for weight tracking)
-        state.activeWorkout!.currentSet!.actualWeight = state.activeWorkout!.currentSet!.targetWeight;
-        state.activeWorkout!.currentSet!.isCompleted = true;
+        state.activeWorkout!.currentSet.actualWeight = state.activeWorkout!.currentSet.targetWeight;
+        state.activeWorkout!.currentSet.isCompleted = true;
 
         // Reset pause state (but we've already captured it above)
         state.activeWorkout!.isPaused = false;
@@ -403,16 +770,18 @@ const workoutSlice = createSlice({
         state.activeWorkout!.phase = 'resting';
         state.activeWorkout!.completedSets++;
 
-        // Add to completed sets tracking
-        state.activeWorkout!.setsCompleted.push({
-          exerciseId: state.activeWorkout!.currentExercise!.id,
-          setId: state.activeWorkout!.currentSet!.id,
-          performance: {
-            actualReps: state.activeWorkout!.currentSet!.actualReps,
-            actualWeight: state.activeWorkout!.currentSet!.actualWeight,
-            difficulty: state.activeWorkout!.currentSet!.difficulty,
-          },
-        });
+        // Add to completed sets tracking (safety check)
+        if (state.activeWorkout!.currentExercise && state.activeWorkout!.currentSet) {
+          state.activeWorkout!.setsCompleted.push({
+            exerciseId: state.activeWorkout!.currentExercise.id,
+            setId: state.activeWorkout!.currentSet.id,
+            performance: {
+              actualReps: state.activeWorkout!.currentSet.actualReps,
+              actualWeight: state.activeWorkout!.currentSet.actualWeight,
+              difficulty: state.activeWorkout!.currentSet.difficulty,
+            },
+          });
+        }
 
         // Middleware will handle context message generation
 
@@ -613,19 +982,25 @@ const workoutSlice = createSlice({
       // Get workout name from either session (legacy) or dayName (new structure)
       const workoutName = state.session?.name || state.dayName || 'Workout';
 
+      // Safety check - ensure activeWorkout exists
+      if (!state.activeWorkout) {
+        console.error('⚠️ Cannot finish workout early - activeWorkout is null');
+        return;
+      }
+
       const workoutSummary = {
         sessionName: workoutName,
-        totalTime: Date.now() - state.activeWorkout!.startTime.getTime(),
-        completedExercises: state.activeWorkout!.completedExercises,
-        totalExercises: state.activeWorkout!.totalExercises,
-        completedSets: state.activeWorkout!.completedSets,
-        totalSets: state.activeWorkout!.totalSets,
-        setsCompleted: state.activeWorkout!.setsCompleted,
-        adjustmentsMade: state.activeWorkout!.adjustmentsMade,
+        totalTime: Date.now() - state.activeWorkout.startTime.getTime(),
+        completedExercises: state.activeWorkout.completedExercises,
+        totalExercises: state.activeWorkout.totalExercises,
+        completedSets: state.activeWorkout.completedSets,
+        totalSets: state.activeWorkout.totalSets,
+        setsCompleted: state.activeWorkout.setsCompleted,
+        adjustmentsMade: state.activeWorkout.adjustmentsMade,
         isFullyCompleted: false,
         finishedEarly: true,
-        currentExercise: state.activeWorkout!.currentExercise?.name,
-        currentSet: state.activeWorkout!.currentSetIndex + 1,
+        currentExercise: state.activeWorkout.currentExercise?.name,
+        currentSet: state.activeWorkout.currentSetIndex + 1,
       };
 
       // Middleware will handle context message generation
@@ -647,7 +1022,15 @@ const workoutSlice = createSlice({
 
     // Timer updates (called by middleware)
     updateSetTimer: (state, action: PayloadAction<{ remaining: number; elapsed: number }>) => {
-      if (state.timers.setTimer) {
+      // Create timer if it doesn't exist
+      if (!state.timers.setTimer) {
+        state.timers.setTimer = {
+          active: false,
+          startTime: Date.now(),
+          duration: action.payload.remaining,
+          remaining: action.payload.remaining,
+        };
+      } else {
         state.timers.setTimer.remaining = action.payload.remaining;
       }
       if (state.activeWorkout) {
@@ -657,7 +1040,16 @@ const workoutSlice = createSlice({
     },
 
     updateRestTimer: (state, action: PayloadAction<{ remaining: number; elapsed: number }>) => {
-      if (state.timers.restTimer) {
+      // Create timer if it doesn't exist
+      if (!state.timers.restTimer) {
+        state.timers.restTimer = {
+          active: false,
+          startTime: Date.now(),
+          duration: action.payload.remaining,
+          remaining: action.payload.remaining,
+          isLastSet: false, // Middleware will determine this
+        };
+      } else {
         state.timers.restTimer.remaining = action.payload.remaining;
       }
       if (state.activeWorkout) {
@@ -684,30 +1076,40 @@ const workoutSlice = createSlice({
         
         // Middleware will handle context message generation
       } else if (state.status === 'rest-ending') {
-        // Rest timer fully expired - auto-advance to preparing state (middleware handles isLastSet)
+        // Rest timer fully expired - check if we should advance to next set or complete exercise
         state.timers.restTimer = null;
         
-        if (state.activeWorkout) {
-          // Advance to next set
-          state.activeWorkout.currentSetIndex++;
-          if (state.activeWorkout.currentExercise) {
+        if (state.activeWorkout && state.activeWorkout.currentExercise) {
+          const currentSetIndex = state.activeWorkout.currentSetIndex;
+          const totalSets = state.activeWorkout.currentExercise.sets.length;
+          
+          // Check if this was the last set of the current exercise
+          if (currentSetIndex >= totalSets - 1) {
+            // Last set completed - complete the exercise (middleware will handle transition)
+            // Don't advance set index, let completeExercise handle it
+            state.status = 'exercise-transition';
+            state.activeWorkout.phase = 'transitioning';
+            // Middleware will call completeExercise
+          } else {
+            // Advance to next set
+            state.activeWorkout.currentSetIndex++;
             state.activeWorkout.currentSet = state.activeWorkout.currentExercise.sets[state.activeWorkout.currentSetIndex];
+            
+            // Reset timing data for new set
+            state.activeWorkout.elapsedTime = 0;
+            state.activeWorkout.totalPauseTime = 0;
+            state.activeWorkout.pauseStartTime = undefined;
+            state.activeWorkout.isPaused = false;
+            state.activeWorkout.timeRemaining = undefined; // Clear rest timer display
+            
+            // Go to preparing state
+            state.status = 'preparing';
+            state.activeWorkout.phase = 'preparing';
+            state.activeWorkout.currentPhaseStartTime = new Date();
+            state.activeWorkout.exerciseConfirmed = false;
+            
+            // Middleware will handle context message generation
           }
-          
-          // Reset timing data for new set
-          state.activeWorkout.elapsedTime = 0;
-          state.activeWorkout.totalPauseTime = 0;
-          state.activeWorkout.pauseStartTime = undefined;
-          state.activeWorkout.isPaused = false;
-          state.activeWorkout.timeRemaining = undefined; // Clear rest timer display
-          
-          // Go to preparing state
-          state.status = 'preparing';
-          state.activeWorkout.phase = 'preparing';
-          state.activeWorkout.currentPhaseStartTime = new Date();
-          state.activeWorkout.exerciseConfirmed = false;
-          
-          // Middleware will handle context message generation
         }
       }
     },
@@ -1009,7 +1411,9 @@ const workoutSlice = createSlice({
         videoDescription: targetEntry.exercises?.video_description,
       } as NonNullable<typeof state.activeWorkout>['currentExercise'];
       
-      state.activeWorkout.currentSet = state.activeWorkout.currentExercise.sets[0];
+      if (state.activeWorkout.currentExercise) {
+        state.activeWorkout.currentSet = state.activeWorkout.currentExercise.sets[0];
+      }
       
       // Transition to preparing state
       state.status = 'preparing';
@@ -1017,6 +1421,203 @@ const workoutSlice = createSlice({
       state.activeWorkout.currentPhaseStartTime = new Date();
       
       // Middleware will handle context message generation
+    },
+
+    jumpToExerciseAndQueueCurrent: (state, action: PayloadAction<{ 
+      targetExerciseSlug: string; 
+      reason: string;
+    }>) => {
+      const { targetExerciseSlug, reason } = action.payload;
+      
+      if (!state.workoutEntries || !state.activeWorkout) {
+        return;
+      }
+      
+      const currentIndex = state.activeWorkout.currentExerciseIndex;
+      const currentEntry = state.workoutEntries[currentIndex];
+      
+      if (!currentEntry) {
+        console.warn('⚠️ Cannot queue current exercise - current entry not found');
+        return;
+      }
+      
+      // Find target exercise index
+      const targetIndex = state.workoutEntries.findIndex(
+        entry => entry.exercises?.slug === targetExerciseSlug
+      );
+      
+      if (targetIndex === -1) {
+        console.warn('⚠️ Target exercise not found:', targetExerciseSlug);
+        return;
+      }
+      
+      if (targetIndex === currentIndex) {
+        console.warn('⚠️ Cannot queue current exercise to itself');
+        return;
+      }
+      
+      // Reorder: Move current exercise to end, shift others forward
+      const reordered = [...state.workoutEntries];
+      const [movedEntry] = reordered.splice(currentIndex, 1);
+      reordered.push(movedEntry);
+      
+      // Find new index of target exercise after reorder
+      const newTargetIndex = reordered.findIndex(
+        entry => entry.exercises?.slug === targetExerciseSlug
+      );
+      
+      if (newTargetIndex === -1) {
+        console.error('⚠️ Target exercise not found after reorder');
+        return;
+      }
+      
+      // Update positions in the reordered array
+      reordered.forEach((entry, index) => {
+        // Update position property if it exists on the entry object
+        // Note: This updates the in-memory object, DB sync will happen via middleware
+        if (entry) {
+          (entry as any).position = index + 1;
+        }
+      });
+      
+      // Update state
+      state.workoutEntries = reordered;
+      state.activeWorkout.currentExerciseIndex = newTargetIndex;
+      
+      // Build exercise structure from new target entry (reuse logic from jumpToExercise)
+      const targetEntry = reordered[newTargetIndex];
+      const parseReps = (repsStr: string): number => {
+        const match = repsStr.match(/(\d+)/);
+        return match ? parseInt(match[1], 10) : 8;
+      };
+      const parseWeight = (weightStr: string | null | undefined): number | undefined => {
+        if (!weightStr) return undefined;
+        const match = weightStr.match(/(\d+(?:\.\d+)?)/);
+        return match ? parseFloat(match[1]) : undefined;
+      };
+      const parseTime = (timeStr: string | null | undefined): number | undefined => {
+        if (!timeStr) return undefined;
+        const match = timeStr.match(/(\d+)/);
+        return match ? parseInt(match[1], 10) : undefined;
+      };
+      const parseRestTime = (notes: string | null | undefined): number => {
+        if (!notes) return 90;
+        const match = notes.match(/[Rr]est\s+(\d+)/);
+        return match ? parseInt(match[1], 10) : 90;
+      };
+      
+      const targetReps = parseReps(targetEntry.reps);
+      const targetWeight = parseWeight(targetEntry.weight);
+      const targetTime = parseTime(targetEntry.time);
+      const restTimeAfter = parseRestTime(targetEntry.notes);
+      
+      // Restore completed sets from setsCompleted array
+      const completedSetsForTarget = state.activeWorkout.setsCompleted.filter(
+        (sc) => sc.setId.startsWith(`${targetEntry.id}-set-`)
+      );
+      
+      // Build sets array with restored completion status
+      const sets = Array.from({ length: targetEntry.sets }, (_, i) => {
+        const setNumber = i + 1;
+        const setId = `${targetEntry.id}-set-${setNumber}`;
+        const completedSet = completedSetsForTarget.find(sc => sc.setId === setId);
+        
+        return {
+          id: setId,
+          setNumber,
+          targetReps,
+          targetWeight,
+          targetTime,
+          restTimeAfter,
+          isCompleted: !!completedSet,
+          actualReps: completedSet?.performance?.actualReps,
+          actualWeight: completedSet?.performance?.actualWeight,
+          difficulty: completedSet?.performance?.difficulty,
+        };
+      });
+      
+      // Find first incomplete set (or last set if all completed)
+      const firstIncompleteSetIndex = sets.findIndex(set => !set.isCompleted);
+      const targetSetIndex = firstIncompleteSetIndex !== -1 ? firstIncompleteSetIndex : sets.length - 1;
+      
+      state.activeWorkout.currentExercise = {
+        id: targetEntry.exercises?.id || '',
+        name: targetEntry.exercises?.name?.replace(/\s*\([^)]*\)/g, '').trim() || '',
+        description: targetEntry.exercises?.instructions || '',
+        type: 'strength' as const,
+        muscleGroups: targetEntry.exercises?.muscle_categories?.filter(Boolean) as string[] || [],
+        sets,
+        entryId: targetEntry.id,
+        slug: targetEntry.exercises?.slug || '',
+        videoUrl: targetEntry.exercises?.slug 
+          ? `https://kmtddcpdqkeqipyetwjs.supabase.co/storage/v1/object/public/workouts/processed/${targetEntry.exercises.slug}/${targetEntry.exercises.slug}_cropped_video.mp4`
+          : undefined,
+        equipment: [],
+        instructions: targetEntry.exercises?.instructions?.split(/(?=\(\d+(?:st|nd|rd|th)\))/).filter(Boolean) || [],
+        tips: [],
+        estimatedDuration: 0,
+        repLimitationsProgressionRules: targetEntry.exercises?.rep_limitations_progression_rules,
+        progressionByClientFeedback: targetEntry.exercises?.progression_by_client_feedback,
+        painInjuryProtocol: targetEntry.exercises?.pain_injury_protocol,
+        trainerNotes: targetEntry.exercises?.trainer_notes,
+        equipmentText: targetEntry.exercises?.equipment_text,
+        iconDescription: targetEntry.exercises?.icon_description,
+        videoDescription: targetEntry.exercises?.video_description,
+      } as NonNullable<typeof state.activeWorkout>['currentExercise'];
+      
+      // Set current set index to first incomplete set (or last set if all completed)
+      state.activeWorkout.currentSetIndex = targetSetIndex;
+      
+      if (state.activeWorkout.currentExercise && sets[targetSetIndex]) {
+        state.activeWorkout.currentSet = sets[targetSetIndex];
+      }
+      
+      // Determine status based on progress
+      const currentSet = sets[targetSetIndex];
+      const isAllSetsCompleted = sets.every(set => set.isCompleted);
+      const isLastSet = targetSetIndex === sets.length - 1;
+      const wasCurrentSetCompleted = currentSet?.isCompleted;
+      
+      // Clear all timers initially (will be restored if needed)
+      state.timers.setTimer = null;
+      state.timers.restTimer = null;
+      state.userActivityPingActive = false;
+      
+      // Reset timing data (preserve total pause time from workout)
+      // Don't reset elapsedTime - it's cumulative for the whole workout
+      state.activeWorkout.totalPauseTime = state.activeWorkout.totalPauseTime || 0;
+      state.activeWorkout.pauseStartTime = undefined;
+      state.activeWorkout.isPaused = true; // Start paused for natural resume
+      
+      // Determine initial status based on progress
+      if (isAllSetsCompleted) {
+        // All sets completed - transition to exercise-complete or next exercise
+        state.status = 'exercise-transition';
+        state.activeWorkout.phase = 'transitioning';
+      } else if (wasCurrentSetCompleted && !isLastSet) {
+        // Last set was completed, but not the final set - should be in rest
+        state.status = 'resting';
+        state.activeWorkout.phase = 'resting';
+        // Initialize rest timer (will be paused)
+        state.timers.restTimer = {
+          active: false,
+          startTime: Date.now(),
+          duration: (currentSet?.restTimeAfter || restTimeAfter) * 1000,
+          remaining: (currentSet?.restTimeAfter || restTimeAfter) * 1000,
+          isLastSet: false,
+        };
+      } else {
+        // Not completed yet - start at preparing state
+        state.status = 'preparing';
+        state.activeWorkout.phase = 'preparing';
+        state.activeWorkout.exerciseConfirmed = false;
+      }
+      
+      state.activeWorkout.currentPhaseStartTime = new Date();
+      
+      console.log(`🔄 [Jump & Queue] Moved exercise "${currentEntry.exercises?.name}" to back, jumped to "${targetEntry.exercises?.name}"`);
+      
+      // Middleware will handle DB sync and context message generation
     },
 
     previousSet: (state) => {
@@ -1300,6 +1901,7 @@ const workoutSlice = createSlice({
 export const {
   selectWorkout,
   selectWorkoutFromEntries,
+  resumeWorkoutFromSession,
   startExercisePreparation,
   confirmReadyAndStartSet,
   completeSet,
@@ -1329,6 +1931,7 @@ export const {
   trackConversation,
   syncWorkoutEntryUpdate,
   cleanup,
+  jumpToExerciseAndQueueCurrent,
 } = workoutSlice.actions;
 
 // Selectors

@@ -286,7 +286,7 @@ query GetWorkoutDay($planId: UUID!, $weekNumber: Int!, $day: weekday!, $dayName:
             day: { eq: $day }
             day_name: { eq: $dayName }
           }
-          orderBy: [{ created_at: AscNullsLast }]
+          orderBy: [{ position: AscNullsLast }, { created_at: AscNullsLast }]
         ) {
           edges {
             node {
@@ -305,6 +305,7 @@ query GetWorkoutDay($planId: UUID!, $weekNumber: Int!, $day: weekday!, $dayName:
               streak_exercise_notes
               is_adjusted
               adjustment_reason
+              position
               exercises {
                 id
                 name
@@ -488,6 +489,7 @@ mutation AddWorkoutEntry(
   $weight: String
   $time: String
   $notes: String
+  $position: Int!
 ) {
   insertIntoworkout_entriesCollection(
     objects: [{
@@ -504,6 +506,7 @@ mutation AddWorkoutEntry(
       time: $time
       notes: $notes
       is_adjusted: false
+      position: $position
     }]
   ) {
     records {
@@ -522,6 +525,7 @@ mutation AddWorkoutEntry(
       streak_exercise_notes
       is_adjusted
       adjustment_reason
+      position
       exercises {
         id
         name

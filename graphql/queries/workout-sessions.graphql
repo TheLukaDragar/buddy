@@ -180,6 +180,10 @@ query GetWorkoutSessionSets($sessionId: UUID!) {
         completed_at
         is_completed
         skipped
+        rest_started_at
+        rest_completed_at
+        rest_duration_seconds
+        rest_extended
         created_at
         workout_entries {
           preset_id

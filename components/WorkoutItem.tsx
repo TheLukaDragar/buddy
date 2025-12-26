@@ -5,7 +5,7 @@ import { Text, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import Svg, { Circle } from "react-native-svg";
 import { nucleus } from '../Buddy_variables.js';
-import { useGetWorkoutSessionByDateQuery, useGetWorkoutEntriesPresetIdQuery } from '../store/api/enhancedApi';
+import { useGetWorkoutEntriesPresetIdQuery, useGetWorkoutSessionByDateQuery } from '../store/api/enhancedApi';
 import { getDayNameImage } from '../utils';
 
 export interface WorkoutItemData {
@@ -176,10 +176,16 @@ export default function WorkoutItem({ workout, index, onPress, planId }: Workout
   // Get sessionId for navigation
   const sessionId = sessionData?.workout_sessionsCollection?.edges?.[0]?.node?.id;
 
-  // Handle press - navigate to completed screen if workout is done
+  // Handle press - navigate based on workout status
   const handlePress = () => {
-    // Navigate to completed screen if workout has session and is completed (>= 80% or fully done)
-    if (hasSession && (isCompleted || isFullyCompleted) && sessionId) {
+    // Check if workout is in progress (exercising, preparing, paused, selected)
+    const isInProgress = hasSession && sessionStatus && ['exercising', 'preparing', 'paused', 'selected'].includes(sessionStatus);
+    
+    if (isInProgress) {
+      // Navigate directly to active workout screen - resume logic will handle restoration
+      console.log('[WorkoutItem] Resuming workout in progress, navigating to active_workout');
+      router.push('/active_workout');
+    } else if (hasSession && (isCompleted || isFullyCompleted) && sessionId) {
       // Navigate to workout completed summary
       console.log('[WorkoutItem] Navigating to workout-completed with sessionId:', sessionId);
       router.push({
@@ -187,7 +193,7 @@ export default function WorkoutItem({ workout, index, onPress, planId }: Workout
         params: { sessionId }
       });
     } else if (onPress) {
-      // Navigate to workout screen
+      // Navigate to workout screen (for new workouts)
       onPress();
     }
   };

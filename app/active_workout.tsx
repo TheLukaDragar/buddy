@@ -6,7 +6,7 @@ import { Image } from 'expo-image';
 import { router, useFocusEffect } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, BackHandler, Dimensions, Modal, StyleSheet, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
+import { ActivityIndicator, Animated, BackHandler, Dimensions, Modal, StyleSheet, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { SystemBars } from 'react-native-edge-to-edge';
 import { PanGestureHandler } from 'react-native-gesture-handler';
 import { Button, Text } from 'react-native-paper';
@@ -57,7 +57,7 @@ import {
   jumpToSet,
   pauseSet,
   resumeSet,
-  selectWorkoutFromEntries,
+  resumeWorkoutFromSession,
   showAd,
   startExercisePreparation,
   startRest
@@ -84,6 +84,7 @@ import { AnimatedAIButton } from '../components/AnimatedAIButton';
 import ExerciseAdjustModal from '../components/ExerciseAdjustModal';
 import MusicPlayerMini from '../components/MusicPlayerMini';
 import PartynetAudioPlayer from '../components/PartynetAudioPlayer';
+import SwitchExerciseModal from '../components/SwitchExerciseModal';
 import { useAuth } from '../contexts/AuthContext';
 import { useMicrophonePermission } from '../hooks/useMicrophonePermission';
 import { loadUserProfileFromDatabase } from '../services/userProfileService';
@@ -383,6 +384,7 @@ interface VideoContainerProps {
   activeWorkout?: any;
   onShowFinishAlert: () => void;
   onShowAdjustModal: () => void;
+  onShowSwitchModal?: () => void;
   onHideControls?: () => void;
   dispatch: any;
   onEndConversation?: () => Promise<void>;
@@ -394,6 +396,7 @@ const VideoContainer: React.FC<VideoContainerProps> = ({
   activeWorkout, 
   onShowFinishAlert,
   onShowAdjustModal,
+  onShowSwitchModal,
   onHideControls,
   dispatch,
   onEndConversation
@@ -582,17 +585,41 @@ const VideoContainer: React.FC<VideoContainerProps> = ({
             <ReanimatedAnimated.View style={[styles.topRightOverlay, animatedTopRightStyle, { 
               paddingRight: shouldAdjustForPlayer ? 16 : insets.right + 16,
             }]}>
-              <TouchableOpacity 
-                style={styles.topRightButton}
-                onPress={onShowAdjustModal}
-                activeOpacity={0.7}
-              >
-                <Image
-                  source={require('../assets/icons/topright.svg')}
-                  style={styles.topRightIcon}
-                  contentFit="contain"
-                />
-              </TouchableOpacity>
+              <View style={styles.topRightButtonsContainer}>
+                {/* Adjust Button */}
+                <TouchableOpacity 
+                  style={styles.topRightButton}
+                  onPress={onShowAdjustModal}
+                  activeOpacity={0.7}
+                >
+                  <Image
+                    source={require('../assets/icons/topright.svg')}
+                    style={styles.topRightIcon}
+                    contentFit="contain"
+                  />
+                </TouchableOpacity>
+                {/* Switch Exercise Button */}
+                {onShowSwitchModal && (
+                  <TouchableOpacity 
+                    style={styles.topRightButton}
+                    onPress={onShowSwitchModal}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.swapIconContainer}>
+                      <Image
+                        source={require('../assets/icons/back.svg')}
+                        style={[styles.swapIconArrow, { transform: [{ rotate: '90deg' }] }]}
+                        contentFit="contain"
+                      />
+                      <Image
+                        source={require('../assets/icons/back.svg')}
+                        style={[styles.swapIconArrow, { transform: [{ rotate: '-90deg' }] }]}
+                        contentFit="contain"
+                      />
+                    </View>
+                  </TouchableOpacity>
+                )}
+              </View>
             </ReanimatedAnimated.View>
           )}
         </>
@@ -2223,6 +2250,8 @@ export default function ActiveWorkoutScreen() {
   const [showFinishAlert, setShowFinishAlert] = useState(false);
   const [showMusicModal, setShowMusicModal] = useState(false);
   const [showAdjustModal, setShowAdjustModal] = useState(false);
+  const [showSwitchModal, setShowSwitchModal] = useState(false);
+  const [isRestoringSession, setIsRestoringSession] = useState(false);
   
   // Auth context
   const { user } = useAuth();
@@ -2242,25 +2271,55 @@ export default function ActiveWorkoutScreen() {
   const dispatch = useAppDispatch();
   
   // Get current workout entry ID - use the entry at current index (this is the source of truth)
-  // The workout entry's exercise_id reflects the current exercise, even if it was swapped
+  // After jumping exercises, workoutEntries is reordered, so currentExerciseIndex points to the correct entry
   const currentWorkoutEntryId = useMemo(() => {
     if (!workoutEntries || !activeWorkout) return null;
     const currentIndex = activeWorkout.currentExerciseIndex;
     const entry = workoutEntries[currentIndex];
     
-    // Only log mismatches or on first entry change (for debugging)
-    if (entry && entry.exercise_id !== currentExercise?.id) {
-      console.warn('⚠️ Workout entry mismatch:', {
+    if (!entry) {
+      console.warn('⚠️ No workout entry found at current index:', {
+        currentIndex,
+        workoutEntriesLength: workoutEntries.length,
+        currentExerciseName: currentExercise?.name,
+      });
+      return null;
+    }
+    
+    // Log for debugging adjust modal issues
+    // NOTE: entry.exercises may be stale from nested cache - currentExercise uses fresh data
+    console.log('🔧 [ActiveWorkout] Current workout entry ID:', {
+      entryId: entry.id,
+      entryExerciseId: entry.exercise_id, // Always fresh - this is the source of truth
+      entryExerciseSlug: entry.exercises?.slug, // May be stale from nested cache
+      entryExerciseName: entry.exercises?.name, // May be stale from nested cache
+      currentExerciseId: currentExercise?.id,
+      currentExerciseSlug: (currentExercise as any)?.slug, // Type assertion - slug exists at runtime
+      currentExerciseName: currentExercise?.name,
+      currentIndex,
+    });
+    
+    // Verify the entry matches the current exercise (by exercise_id - most reliable)
+    if (currentExercise?.id && entry.exercise_id !== currentExercise.id) {
+      console.warn('⚠️ Workout entry exercise mismatch:', {
         index: currentIndex,
         entryId: entry.id,
         entryExerciseId: entry.exercise_id,
-        entryExerciseName: entry.exercises?.name,
-        currentExerciseName: currentExercise?.name,
+        currentExerciseId: currentExercise.id,
+      });
+    }
+    
+    // Only warn if entry exists but exercises object is missing (data integrity issue)
+    if (entry && !entry.exercises && currentExercise) {
+      console.warn('⚠️ Workout entry missing exercises data:', {
+        index: currentIndex,
+        entryId: entry.id,
+        entryExerciseId: entry.exercise_id,
         currentExerciseId: currentExercise?.id,
       });
     }
     
-    return entry?.id || null;
+    return entry.id;
   }, [workoutEntries, activeWorkout, currentExercise]);
 
   // Track if ad has been shown to prevent multiple triggers
@@ -2283,6 +2342,8 @@ export default function ActiveWorkoutScreen() {
         return;
       }
 
+      setIsRestoringSession(true);
+
       try {
         // Get user ID from auth session
         const { data: { session } } = await supabase.auth.getSession();
@@ -2300,6 +2361,7 @@ export default function ActiveWorkoutScreen() {
 
           const activeSession = result?.workout_sessionsCollection?.edges?.[0]?.node;
           if (!activeSession) {
+            setIsRestoringSession(false);
             return; // No active session found
           }
 
@@ -2317,23 +2379,179 @@ export default function ActiveWorkoutScreen() {
           const entries = workoutData?.workout_plansCollection?.edges?.[0]?.node?.workout_entriesCollection?.edges || [];
           if (entries.length === 0) {
             console.warn('⚠️ No workout entries found for active session');
+            setIsRestoringSession(false);
             return;
           }
 
           // Extract workout entries
           const workoutEntries = entries.map((edge: any) => edge.node);
 
-          // Resume workout by dispatching selectWorkoutFromEntries with the session ID
-          // The reducer will restore state from the session data
-          await dispatch(
-            selectWorkoutFromEntries({
+          // Fetch fresh exercise data separately to avoid stale nested cache (same pattern as selectWorkoutFromEntries)
+          const uniqueExerciseIds = [...new Set(workoutEntries.map((entry: any) => entry.exercise_id))];
+          const exerciseDataMap = new Map<string, any>();
+          
+          // Fetch all exercises in parallel - NO FALLBACKS to nested cache
+          const exercisePromises = uniqueExerciseIds.map(async (exerciseId: string) => {
+            const result = await dispatch(
+              enhancedApi.endpoints.GetExerciseById.initiate({ id: exerciseId })
+            ).unwrap();
+            const exercise = result?.exercisesCollection?.edges?.[0]?.node;
+            if (!exercise) {
+              throw new Error(`Failed to fetch exercise ${exerciseId} for resume`);
+            }
+            exerciseDataMap.set(exerciseId, exercise);
+          });
+          
+          await Promise.all(exercisePromises);
+          
+          // Enrich workout entries with fresh exercise data - NO FALLBACKS
+          const enrichedEntries = workoutEntries.map((entry: any) => {
+            const freshExercise = exerciseDataMap.get(entry.exercise_id);
+            if (!freshExercise) {
+              throw new Error(`Missing fresh exercise data for ${entry.exercise_id}`);
+            }
+            return {
+              ...entry,
+              exercises: freshExercise
+            };
+          });
+          
+          // Replace workoutEntries with enriched version
+          workoutEntries.length = 0;
+          workoutEntries.push(...enrichedEntries);
+
+          // Fetch completed sets for this session
+          let completedSetsData: Array<{
+            workoutEntryId: string;
+            exerciseId: string;
+            setNumber: number;
+            targetReps?: number | null;
+            targetWeight?: number | null;
+            targetTime?: number | null;
+            actualReps?: number | null;
+            actualWeight?: number | null;
+            actualTime?: number | null;
+            difficulty?: string | null;
+            restStartedAt?: string | null;
+            restCompletedAt?: string | null;
+          }> = [];
+
+          try {
+            const setsResult = await dispatch(
+              enhancedApi.endpoints.GetWorkoutSessionSets.initiate({ sessionId: activeSession.id })
+            ).unwrap();
+
+            completedSetsData = setsResult?.workout_session_setsCollection?.edges?.map((edge: any) => ({
+              workoutEntryId: edge.node.workout_entry_id,
+              exerciseId: edge.node.exercise_id,
+              setNumber: edge.node.set_number,
+              targetReps: edge.node.target_reps,
+              targetWeight: edge.node.target_weight,
+              targetTime: edge.node.target_time,
+              actualReps: edge.node.actual_reps,
+              actualWeight: edge.node.actual_weight,
+              actualTime: edge.node.actual_time,
+              difficulty: edge.node.difficulty,
+              restStartedAt: edge.node.rest_started_at || null,
+              restCompletedAt: edge.node.rest_completed_at || null,
+            })) || [];
+
+            console.log(`📊 Loaded ${completedSetsData.length} completed sets`);
+          } catch (error: any) {
+            console.warn('⚠️ Failed to load completed sets:', error);
+            // Continue with empty sets - workout can still resume
+          }
+
+          // Fetch adjustments for this session
+          let adjustmentsData: Array<{
+            type: string;
+            workoutEntryId?: string | null;
+            exerciseId?: string | null;
+            fromValue: string;
+            toValue: string;
+            reason: string;
+            timestamp: string;
+          }> = [];
+
+          try {
+            const adjustmentsResult = await dispatch(
+              enhancedApi.endpoints.GetWorkoutSessionAdjustments.initiate({ sessionId: activeSession.id })
+            ).unwrap();
+
+            adjustmentsData = adjustmentsResult?.workout_session_adjustmentsCollection?.edges?.map((edge: any) => ({
+              type: edge.node.type,
+              workoutEntryId: edge.node.workout_entry_id,
+              exerciseId: edge.node.exercise_id,
+              fromValue: edge.node.from_value,
+              toValue: edge.node.to_value,
+              reason: edge.node.reason,
+              timestamp: edge.node.created_at,
+            })) || [];
+
+            console.log(`🔧 Loaded ${adjustmentsData.length} adjustments`);
+          } catch (error: any) {
+            console.warn('⚠️ Failed to load adjustments:', error);
+            // Continue with empty adjustments - workout can still resume
+          }
+
+          // Resume workout with full state restoration
+          // Note: resumeWorkoutFromSession is a synchronous reducer action, not an async thunk
+          dispatch(
+            resumeWorkoutFromSession({
+              sessionId: activeSession.id,
               workoutEntries,
               planId: activeSession.workout_plan_id,
               dayName: activeSession.day_name,
+              currentExerciseIndex: activeSession.current_exercise_index || 0,
+              currentSetIndex: activeSession.current_set_index || 0,
+              completedExercises: activeSession.completed_exercises || 0,
+              completedSets: activeSession.completed_sets || 0,
+              totalExercises: activeSession.total_exercises,
+              totalSets: activeSession.total_sets,
+              status: activeSession.status || 'selected',
+              startedAt: activeSession.started_at,
+              totalTimeMs: activeSession.total_time_ms ? Number(activeSession.total_time_ms) : 0,
+              totalPauseTimeMs: activeSession.total_pause_time_ms ? Number(activeSession.total_pause_time_ms) : 0,
+              completedSetsData,
+              adjustmentsData,
             })
-          ).unwrap();
+          );
 
-          console.log('✅ Workout session resumed successfully');
+          // Immediately check state and pause if needed to stop any timers
+          const currentState = store.getState() as any;
+          if (currentState.workout.status === 'exercising' && currentState.workout.activeWorkout?.isPaused) {
+            // Resume paused at start of set segment - ensure timers are stopped immediately
+            console.log('⏸️ [Resume] Ensuring timers are stopped for paused workout');
+            dispatch(pauseSet({ reason: 'Resumed workout - paused at start of set segment' }));
+          } else if (currentState.workout.status === 'resting' && currentState.workout.activeWorkout?.isPaused) {
+            // Resume paused at start of rest segment - ensure timers are stopped immediately
+            console.log('⏸️ [Resume] Ensuring timers are stopped for paused rest');
+            dispatch(pauseSet({ reason: 'Resumed workout - paused at start of rest segment' }));
+          }
+
+          // Session restoration complete - hide loading indicator
+          setIsRestoringSession(false);
+
+          // Check if we resumed to set-complete state and auto-start rest (like normal flow)
+          // Then pause at start of rest segment for natural resume experience
+          setTimeout(() => {
+            const updatedState = store.getState() as any;
+            if (updatedState.workout.status === 'set-complete') {
+              console.log('⏰ [Resume] Auto-starting rest after resuming to set-complete state');
+              dispatch(startRest());
+              
+              // After rest starts, pause at the start of rest segment
+              setTimeout(() => {
+                const finalState = store.getState() as any;
+                if (finalState.workout.status === 'resting' && finalState.workout.activeWorkout) {
+                  console.log('⏸️ [Resume] Pausing at start of rest segment for natural resume');
+                  dispatch(pauseSet({ reason: 'Resumed workout - paused at start of rest segment' }));
+                }
+              }, 100);
+            }
+          }, 500);
+
+          console.log('✅ Workout session resumed successfully with full state restoration');
         } catch (error: any) {
           // If query doesn't exist yet (codegen not run), silently fail
           if (error?.message?.includes('endpoint') || error?.message?.includes('not found')) {
@@ -2344,6 +2562,9 @@ export default function ActiveWorkoutScreen() {
         }
       } catch (error: any) {
         console.error('Error checking for active session:', error);
+      } finally {
+        // Always hide loading indicator, even on error
+        setIsRestoringSession(false);
       }
     };
 
@@ -2805,25 +3026,41 @@ export default function ActiveWorkoutScreen() {
             throw new Error('Current workout entry not found');
           }
           
-          // Find the alternative by slug in current entry's alternatives
-          const alternative = currentEntry.workout_entry_alternativesCollection?.edges?.find(
-            edge => edge.node.exercises?.slug === typedParams.exerciseSlug
-          );
+          // Fetch fresh exercise data for all alternatives to match by slug (NO FALLBACKS to nested cache)
+          const alternativeEdges = currentEntry.workout_entry_alternativesCollection?.edges || [];
+          const alternativeExerciseIds = alternativeEdges.map(edge => edge.node.alternative_exercise_id);
           
-          if (!alternative) {
-            // List available alternatives for better error message
-            const availableAlternatives = currentEntry.workout_entry_alternativesCollection?.edges?.map(
-              edge => `${edge.node.exercises?.name} (${edge.node.exercises?.slug})`
-            ).filter(Boolean).join(', ') || 'none';
+          // Fetch all alternative exercises in parallel
+          const alternativeExerciseMap = new Map<string, any>();
+          const alternativePromises = alternativeExerciseIds.map(async (exerciseId: string) => {
+            const result = await dispatch(
+              enhancedApi.endpoints.GetExerciseById.initiate({ id: exerciseId })
+            ).unwrap();
+            const exercise = result?.exercisesCollection?.edges?.[0]?.node;
+            if (!exercise) {
+              throw new Error(`Failed to fetch alternative exercise ${exerciseId}`);
+            }
+            alternativeExerciseMap.set(exercise.slug, { id: exerciseId, exercise });
+          });
+          
+          await Promise.all(alternativePromises);
+          
+          // Find the alternative by slug using fresh exercise data
+          const matchingSlug = alternativeExerciseMap.get(typedParams.exerciseSlug);
+          if (!matchingSlug) {
+            // List available alternatives for better error message using fresh data
+            const availableAlternatives = Array.from(alternativeExerciseMap.entries())
+              .map(([slug, data]) => `${data.exercise.name} (${slug})`)
+              .join(', ') || 'none';
             
             throw new Error(
-              `Exercise "${typedParams.exerciseSlug}" is not a valid alternative for current exercise "${currentEntry.exercises?.name}". ` +
+              `Exercise "${typedParams.exerciseSlug}" is not a valid alternative. ` +
               `Available alternatives: ${availableAlternatives}`
             );
           }
           
-          const newExerciseId = alternative.node.alternative_exercise_id;
-          const newExerciseName = alternative.node.exercises?.name || 'Unknown Exercise';
+          const newExerciseId = matchingSlug.id;
+          const newExerciseName = matchingSlug.exercise.name;
           const reason = typedParams.reason || `Swapped to alternative: ${newExerciseName}`;
           
           // Call the swap mutation
@@ -3410,6 +3647,28 @@ export default function ActiveWorkoutScreen() {
     // If connecting, do nothing to prevent multiple calls
   };
 
+  // Show loading indicator while restoring session
+  if (isRestoringSession) {
+    return (
+      <View style={[styles.fullScreen, { backgroundColor: nucleus.light.semantic.bg.subtle, justifyContent: 'center', alignItems: 'center' }]}>
+        <SystemBars style="dark" />
+        <SafeAreaView style={[styles.container, { backgroundColor: nucleus.light.semantic.bg.subtle, justifyContent: 'center', alignItems: 'center' }]} edges={['bottom']}>
+          <ActivityIndicator size="large" color={nucleus.light.global.blue["70"]} />
+          <Text 
+            variant="bodyLarge" 
+            style={{ 
+              marginTop: 16, 
+              color: nucleus.light.global.blue["70"],
+              fontFamily: 'PlusJakartaSans-Medium'
+            }}
+          >
+            Restoring workout session...
+          </Text>
+        </SafeAreaView>
+      </View>
+    );
+  }
+
   return (
     <ReanimatedAnimated.View 
       entering={FadeIn.duration(300).delay(100)}
@@ -3429,6 +3688,7 @@ export default function ActiveWorkoutScreen() {
               activeWorkout={activeWorkout}
               onShowFinishAlert={() => setShowFinishAlert(true)}
               onShowAdjustModal={() => setShowAdjustModal(true)}
+              onShowSwitchModal={() => setShowSwitchModal(true)}
               dispatch={dispatch}
               onEndConversation={endConversation}
             />
@@ -3504,6 +3764,23 @@ export default function ActiveWorkoutScreen() {
             // Optionally refresh the workout state here if needed
           }}
           workoutEntryId={currentWorkoutEntryId}
+          currentExerciseId={currentExercise?.id}
+        />
+      )}
+
+      {/* Switch Exercise Modal */}
+      {currentExercise && workoutEntries && activeWorkout && (
+        <SwitchExerciseModal
+          visible={showSwitchModal}
+          onClose={() => setShowSwitchModal(false)}
+          currentExercise={{
+            id: currentExercise.id,
+            name: currentExercise.name,
+            slug: (currentExercise as any).slug, // Type assertion - slug exists at runtime
+          }}
+          workoutEntries={workoutEntries}
+          currentExerciseIndex={activeWorkout.currentExerciseIndex}
+          setsCompleted={activeWorkout.setsCompleted}
         />
       )}
     </ReanimatedAnimated.View>
@@ -3650,6 +3927,11 @@ const styles = StyleSheet.create({
     zIndex: 20,
     pointerEvents: 'box-none',
   },
+  topRightButtonsContainer: {
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    gap: 8,
+  },
   topRightButton: {
     width: 40,
     height: 40,
@@ -3658,9 +3940,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  topRightButtonMargin: {
+    marginRight: 0,
+  },
   topRightIcon: {
     width: 24,
     height: 24,
+    tintColor: nucleus.light.global.white,
+  },
+  swapIconContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+  },
+  swapIconArrow: {
+    width: 12,
+    height: 12,
     tintColor: nucleus.light.global.white,
   },
   controlsOverlay: {

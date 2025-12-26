@@ -1616,6 +1616,7 @@ export type Workout_Entries = Node & {
   /** Globally Unique Record Identifier */
   nodeId: Scalars["ID"]["output"];
   notes?: Maybe<Scalars["String"]["output"]>;
+  position: Scalars["Int"]["output"];
   preset_id?: Maybe<Scalars["UUID"]["output"]>;
   reps: Scalars["String"]["output"];
   sets: Scalars["Int"]["output"];
@@ -1711,6 +1712,7 @@ export type Workout_EntriesFilter = {
   notes?: InputMaybe<StringFilter>;
   /** Returns true if at least one of its inner filters is true, otherwise returns false */
   or?: InputMaybe<Array<Workout_EntriesFilter>>;
+  position?: InputMaybe<IntFilter>;
   preset_id?: InputMaybe<UuidFilter>;
   reps?: InputMaybe<StringFilter>;
   sets?: InputMaybe<IntFilter>;
@@ -1733,6 +1735,7 @@ export type Workout_EntriesInsertInput = {
   id?: InputMaybe<Scalars["UUID"]["input"]>;
   is_adjusted?: InputMaybe<Scalars["Boolean"]["input"]>;
   notes?: InputMaybe<Scalars["String"]["input"]>;
+  position?: InputMaybe<Scalars["Int"]["input"]>;
   preset_id?: InputMaybe<Scalars["UUID"]["input"]>;
   reps?: InputMaybe<Scalars["String"]["input"]>;
   sets?: InputMaybe<Scalars["Int"]["input"]>;
@@ -1763,6 +1766,7 @@ export type Workout_EntriesOrderBy = {
   id?: InputMaybe<OrderByDirection>;
   is_adjusted?: InputMaybe<OrderByDirection>;
   notes?: InputMaybe<OrderByDirection>;
+  position?: InputMaybe<OrderByDirection>;
   preset_id?: InputMaybe<OrderByDirection>;
   reps?: InputMaybe<OrderByDirection>;
   sets?: InputMaybe<OrderByDirection>;
@@ -1785,6 +1789,7 @@ export type Workout_EntriesUpdateInput = {
   id?: InputMaybe<Scalars["UUID"]["input"]>;
   is_adjusted?: InputMaybe<Scalars["Boolean"]["input"]>;
   notes?: InputMaybe<Scalars["String"]["input"]>;
+  position?: InputMaybe<Scalars["Int"]["input"]>;
   preset_id?: InputMaybe<Scalars["UUID"]["input"]>;
   reps?: InputMaybe<Scalars["String"]["input"]>;
   sets?: InputMaybe<Scalars["Int"]["input"]>;
@@ -3281,6 +3286,27 @@ export type Workout_SessionsUpdateResponse = {
   records: Array<Workout_Sessions>;
 };
 
+export type UpdateWorkoutEntryPositionMutationVariables = Exact<{
+  entryId: Scalars["UUID"]["input"];
+  newPosition: Scalars["Int"]["input"];
+}>;
+
+export type UpdateWorkoutEntryPositionMutation = {
+  __typename?: "Mutation";
+  updateworkout_entriesCollection: {
+    __typename?: "workout_entriesUpdateResponse";
+    affectedCount: number;
+    records: Array<{
+      __typename?: "workout_entries";
+      id: any;
+      position: number;
+      workout_plan_id: any;
+      week_number: number;
+      day_name: string;
+    }>;
+  };
+};
+
 export type GetTodosQueryVariables = Exact<{ [key: string]: never }>;
 
 export type GetTodosQuery = {
@@ -3748,6 +3774,7 @@ export type GetWorkoutDayQuery = {
               streak_exercise_notes?: string | null;
               is_adjusted?: boolean | null;
               adjustment_reason?: string | null;
+              position: number;
               exercises: {
                 __typename?: "exercises";
                 id: any;
@@ -3930,6 +3957,7 @@ export type AddWorkoutEntryMutationVariables = Exact<{
   weight?: InputMaybe<Scalars["String"]["input"]>;
   time?: InputMaybe<Scalars["String"]["input"]>;
   notes?: InputMaybe<Scalars["String"]["input"]>;
+  position: Scalars["Int"]["input"];
 }>;
 
 export type AddWorkoutEntryMutation = {
@@ -3954,6 +3982,7 @@ export type AddWorkoutEntryMutation = {
       streak_exercise_notes?: string | null;
       is_adjusted?: boolean | null;
       adjustment_reason?: string | null;
+      position: number;
       exercises: {
         __typename?: "exercises";
         id: any;
@@ -4532,6 +4561,10 @@ export type GetWorkoutSessionSetsQuery = {
         completed_at: any;
         is_completed?: boolean | null;
         skipped?: boolean | null;
+        rest_started_at?: any | null;
+        rest_completed_at?: any | null;
+        rest_duration_seconds?: number | null;
+        rest_extended?: boolean | null;
         created_at: any;
         workout_entries?: {
           __typename?: "workout_entries";
@@ -4976,6 +5009,23 @@ export type GetWorkoutEntriesByDayQuery = {
   } | null;
 };
 
+export const UpdateWorkoutEntryPositionDocument = `
+    mutation UpdateWorkoutEntryPosition($entryId: UUID!, $newPosition: Int!) {
+  updateworkout_entriesCollection(
+    filter: {id: {eq: $entryId}}
+    set: {position: $newPosition}
+  ) {
+    records {
+      id
+      position
+      workout_plan_id
+      week_number
+      day_name
+    }
+    affectedCount
+  }
+}
+    `;
 export const GetTodosDocument = `
     query GetTodos {
   todosCollection {
@@ -5329,7 +5379,7 @@ export const GetWorkoutDayDocument = `
         status
         workout_entriesCollection(
           filter: {week_number: {eq: $weekNumber}, day: {eq: $day}, day_name: {eq: $dayName}}
-          orderBy: [{created_at: AscNullsLast}]
+          orderBy: [{position: AscNullsLast}, {created_at: AscNullsLast}]
         ) {
           edges {
             node {
@@ -5348,6 +5398,7 @@ export const GetWorkoutDayDocument = `
               streak_exercise_notes
               is_adjusted
               adjustment_reason
+              position
               exercises {
                 id
                 name
@@ -5489,9 +5540,9 @@ export const UpdateWorkoutEntryDocument = `
 }
     `;
 export const AddWorkoutEntryDocument = `
-    mutation AddWorkoutEntry($workoutPlanId: UUID!, $weekNumber: Int!, $dayName: String!, $day: weekday!, $date: Date!, $exerciseId: UUID!, $sets: Int!, $reps: String!, $streakExerciseId: UUID!, $weight: String, $time: String, $notes: String) {
+    mutation AddWorkoutEntry($workoutPlanId: UUID!, $weekNumber: Int!, $dayName: String!, $day: weekday!, $date: Date!, $exerciseId: UUID!, $sets: Int!, $reps: String!, $streakExerciseId: UUID!, $weight: String, $time: String, $notes: String, $position: Int!) {
   insertIntoworkout_entriesCollection(
-    objects: [{workout_plan_id: $workoutPlanId, week_number: $weekNumber, day_name: $dayName, day: $day, date: $date, exercise_id: $exerciseId, sets: $sets, reps: $reps, streak_exercise_id: $streakExerciseId, weight: $weight, time: $time, notes: $notes, is_adjusted: false}]
+    objects: [{workout_plan_id: $workoutPlanId, week_number: $weekNumber, day_name: $dayName, day: $day, date: $date, exercise_id: $exerciseId, sets: $sets, reps: $reps, streak_exercise_id: $streakExerciseId, weight: $weight, time: $time, notes: $notes, is_adjusted: false, position: $position}]
   ) {
     records {
       id
@@ -5509,6 +5560,7 @@ export const AddWorkoutEntryDocument = `
       streak_exercise_notes
       is_adjusted
       adjustment_reason
+      position
       exercises {
         id
         name
@@ -5940,7 +5992,7 @@ export const GetActiveWorkoutSessionDocument = `
     query GetActiveWorkoutSession($userId: UUID!) {
   workout_sessionsCollection(
     filter: {user_id: {eq: $userId}, status: {in: ["selected", "preparing", "exercising", "paused"]}}
-    orderBy: [{started_at: DescNullsLast}]
+    orderBy: [{last_activity_at: DescNullsLast}, {started_at: DescNullsLast}]
     first: 1
   ) {
     edges {
@@ -5996,6 +6048,10 @@ export const GetWorkoutSessionSetsDocument = `
         completed_at
         is_completed
         skipped
+        rest_started_at
+        rest_completed_at
+        rest_duration_seconds
+        rest_extended
         created_at
         workout_entries {
           preset_id
@@ -6318,6 +6374,15 @@ export const GetWorkoutEntriesByDayDocument = `
 
 const injectedRtkApi = api.injectEndpoints({
   endpoints: (build) => ({
+    UpdateWorkoutEntryPosition: build.mutation<
+      UpdateWorkoutEntryPositionMutation,
+      UpdateWorkoutEntryPositionMutationVariables
+    >({
+      query: (variables) => ({
+        document: UpdateWorkoutEntryPositionDocument,
+        variables,
+      }),
+    }),
     GetTodos: build.query<GetTodosQuery, GetTodosQueryVariables | void>({
       query: (variables) => ({ document: GetTodosDocument, variables }),
     }),
@@ -6706,6 +6771,7 @@ const injectedRtkApi = api.injectEndpoints({
 
 export { injectedRtkApi as api };
 export const {
+  useUpdateWorkoutEntryPositionMutation,
   useGetTodosQuery,
   useLazyGetTodosQuery,
   useGetTodoByIdQuery,

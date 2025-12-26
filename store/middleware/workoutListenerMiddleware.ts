@@ -925,7 +925,38 @@ startAppListening({
     
     if (currentStatus === 'exercising') {
       const setTimer = state.workout.timers.setTimer;
-      if (!setTimer) return;
+      const activeWorkout = state.workout.activeWorkout;
+      
+      if (!activeWorkout) return;
+      
+      // If timer doesn't exist, create it with full duration
+      if (!setTimer) {
+        const targetTime = activeWorkout.currentSet?.targetTime || 45;
+        const fullDuration = targetTime * 1000;
+        console.log('⏰ [Resume] No timer found, creating with full duration:', fullDuration);
+        
+        // Create timer with full duration
+        dispatch(updateSetTimer({ remaining: fullDuration, elapsed: 0 }));
+        
+        // Pause at start of set segment
+        dispatch(pauseSet({ reason: 'No timer found - reset to beginning and paused' }));
+        return;
+      }
+      
+      // Check if timer is expired (remaining <= 0)
+      // If expired, reset to full duration and pause at start
+      if (setTimer.remaining <= 0) {
+        console.log('⏰ [Resume] Timer expired, resetting to full duration and pausing at start');
+        const targetTime = activeWorkout.currentSet?.targetTime || 45;
+        const fullDuration = targetTime * 1000;
+        
+        // Update timer state to full duration
+        dispatch(updateSetTimer({ remaining: fullDuration, elapsed: 0 }));
+        
+        // Pause at start of set segment
+        dispatch(pauseSet({ reason: 'Timer expired - reset to beginning and paused' }));
+        return;
+      }
       
       // Resume with remaining time
       startTimerUpdates(0, setTimer.remaining, 'set', dispatch);
@@ -933,7 +964,38 @@ startAppListening({
       
     } else if (currentStatus === 'resting' || currentStatus === 'rest-ending') {
       const restTimer = state.workout.timers.restTimer;
-      if (!restTimer) return;
+      const activeWorkout = state.workout.activeWorkout;
+      
+      if (!activeWorkout) return;
+      
+      // If timer doesn't exist, create it with full duration
+      if (!restTimer) {
+        const restTimeAfter = activeWorkout.currentSet?.restTimeAfter || 90;
+        const fullDuration = restTimeAfter * 1000;
+        console.log('⏰ [Resume] No rest timer found, creating with full duration:', fullDuration);
+        
+        // Create timer with full duration
+        dispatch(updateRestTimer({ remaining: fullDuration, elapsed: 0 }));
+        
+        // Pause at start of rest segment
+        dispatch(pauseSet({ reason: 'No rest timer found - reset to beginning and paused' }));
+        return;
+      }
+      
+      // Check if rest timer is expired (remaining <= 0)
+      // If expired, reset to full duration and pause at start
+      if (restTimer.remaining <= 0) {
+        console.log('⏰ [Resume] Rest timer expired, resetting to full duration and pausing at start');
+        const restTimeAfter = activeWorkout.currentSet?.restTimeAfter || 90;
+        const fullDuration = restTimeAfter * 1000;
+        
+        // Update timer state to full duration
+        dispatch(updateRestTimer({ remaining: fullDuration, elapsed: 0 }));
+        
+        // Pause at start of rest segment
+        dispatch(pauseSet({ reason: 'Rest timer expired - reset to beginning and paused' }));
+        return;
+      }
       
       // Resume with remaining time
       startTimerUpdates(0, restTimer.remaining, 'rest', dispatch);
@@ -1072,7 +1134,7 @@ startAppListening({
   },
 });
 
-// Listener for rest timer expiration - prompt agent to start next set
+// Listener for rest timer expiration - prompt agent to start next set or complete exercise
 startAppListening({
   actionCreator: restTimerExpired,
   effect: async (action, listenerApi) => {
@@ -1081,6 +1143,13 @@ startAppListening({
     const workoutState = state.workout;
     
     console.log('😴 [Workout Middleware] Rest timer expired');
+    
+    // Check if we should complete exercise (status is exercise-transition)
+    if (workoutState.status === 'exercise-transition') {
+      console.log('🏁 [Workout Middleware] Last set completed, auto-completing exercise');
+      dispatch(completeExercise());
+      return;
+    }
     
     // Generate context message for rest complete
     if (workoutState.activeWorkout?.currentExercise) {

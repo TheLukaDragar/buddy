@@ -9553,6 +9553,7 @@ Please generate a complete single workout session that meets these requirements.
           is_adjusted: false,
           adjustment_reason: null,
           preset_id: null, // No preset reference for generated workouts
+          position: i + 1, // Position starts at 1, increments for each exercise
         });
 
         // Collect alternatives for this entry (skip first one as it's the streak exercise)
