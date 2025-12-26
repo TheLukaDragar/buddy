@@ -519,12 +519,20 @@ export default function WorkoutScreen() {
 
   // Create exercises summary from dynamic data with thumbnail URLs and equipment groups
   // Use ONLY fresh exercise data from map (NO FALLBACKS to nested cache)
-  const exercises = workoutEntries.map((entry, index) => {
-    // Get fresh exercise data from map
-    const exercise = exerciseDataMap.get(entry.node.exercise_id);
-    if (!exercise) {
-      throw new Error(`Missing fresh exercise data for ${entry.node.exercise_id}`);
+  const exercises = useMemo(() => {
+    // Wait for exercise data to be loaded - return empty array if not ready
+    if (workoutEntries.length === 0 || exerciseDataMap.size === 0 || exerciseDataMap.size < workoutEntries.length) {
+      return [];
     }
+    
+    return workoutEntries.map((entry, index) => {
+      // Get fresh exercise data from map
+      const exercise = exerciseDataMap.get(entry.node.exercise_id);
+      if (!exercise) {
+        // Don't throw error, just skip this exercise if data isn't ready yet
+        console.warn(`Missing fresh exercise data for ${entry.node.exercise_id}, skipping`);
+        return null;
+      }
     
     // Get fresh slug from map
     const slug = exerciseSlugMap.get(entry.node.exercise_id);
@@ -549,17 +557,18 @@ export default function WorkoutScreen() {
       parsedGroups = equipmentGroups.groups || [];
     }
 
-    return {
-      id: index + 1,
-      name: cleanName,
-      sets: `${entry.node.sets} sets`,
-      muscles: exercise.muscle_categories?.join(', ') || '', 
-      description: exercise.instructions || 'Exercise instructions',
-      thumbnailUrl: thumbnailUrl,
-      slug: slug,
-      equipmentGroups: parsedGroups, // [[item1, item2], [item3]] means (item1 OR item2) AND item3
-    };
-  });
+      return {
+        id: index + 1,
+        name: cleanName,
+        sets: `${entry.node.sets} sets`,
+        muscles: exercise.muscle_categories?.join(', ') || '', 
+        description: exercise.instructions || 'Exercise instructions',
+        thumbnailUrl: thumbnailUrl,
+        slug: slug,
+        equipmentGroups: parsedGroups, // [[item1, item2], [item3]] means (item1 OR item2) AND item3
+      };
+    }).filter((ex): ex is NonNullable<typeof ex> => ex !== null); // Filter out null entries
+  }, [workoutEntries, exerciseDataMap, exerciseSlugMap]);
 
 
 
