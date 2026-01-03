@@ -157,7 +157,60 @@ export default function ChatScreen() {
     }
   );
 
-  const trainNowEntries = trainNowEntriesData?.workout_entriesCollection?.edges?.map((edge: any) => edge.node) || [];
+  const allTrainNowEntries = trainNowEntriesData?.workout_entriesCollection?.edges?.map((edge: any) => edge.node) || [];
+  
+  // Filter to only show the most recent workout instance
+  const trainNowEntries = React.useMemo(() => {
+    if (allTrainNowEntries.length === 0) return [];
+    
+    console.log('🔍 Filtering Train Now entries. Total entries:', allTrainNowEntries.length);
+    
+    // Filter out entries without a valid workout_instance_id (old data before the migration)
+    const validEntries = allTrainNowEntries.filter((entry: any) => 
+      entry.workout_instance_id != null && entry.workout_instance_id !== undefined
+    );
+    
+    console.log('🔍 Valid entries with workout_instance_id:', validEntries.length);
+    
+    if (validEntries.length === 0) {
+      console.log('⚠️ No valid entries found - all entries are missing workout_instance_id');
+      return [];
+    }
+    
+    // Group by workout_instance_id
+    const instanceMap = new Map<string, { created_at: string; entries: typeof allTrainNowEntries }>();
+    
+    validEntries.forEach((entry: any) => {
+      const instanceId = entry.workout_instance_id;
+      const createdAt = entry.created_at || new Date().toISOString();
+      
+      if (!instanceMap.has(instanceId)) {
+        instanceMap.set(instanceId, { created_at: createdAt, entries: [] });
+      }
+      instanceMap.get(instanceId)!.entries.push(entry);
+    });
+    
+    console.log('🔍 Found', instanceMap.size, 'unique workout instances');
+    instanceMap.forEach((value, key) => {
+      console.log(`  Instance ${key}: ${value.entries.length} entries, created at ${value.created_at}`);
+    });
+    
+    // Find the most recent instance
+    let mostRecentEntries: typeof allTrainNowEntries = [];
+    let mostRecentDate = '';
+    
+    instanceMap.forEach((value) => {
+      if (value.created_at > mostRecentDate) {
+        mostRecentDate = value.created_at;
+        mostRecentEntries = value.entries;
+      }
+    });
+    
+    console.log('✅ Using most recent instance with', mostRecentEntries.length, 'entries (created at', mostRecentDate, ')');
+    
+    return mostRecentEntries;
+  }, [allTrainNowEntries]);
+  
   const [exerciseNameMap, setExerciseNameMap] = React.useState<Map<string, string>>(new Map());
   
   // Fetch fresh exercise data for entries (NO FALLBACKS to nested cache)
@@ -433,7 +486,8 @@ export default function ChatScreen() {
                   muscleGroups: params.muscleGroups,
                   duration: params.duration,
                   equipment: params.equipment,
-                  difficulty: params.difficulty
+                  difficulty: params.difficulty,
+                  clientDate: new Date().toISOString() // Pass client's current date/time
                 });
                 console.log('✨ Workout generation started successfully');
               } catch (error) {
@@ -1201,10 +1255,6 @@ export default function ChatScreen() {
                             if (trainNowEntries.length === 0 || !activeWorkoutPlan) return;
                             console.log('Starting Train Now workout with', trainNowEntries.length, 'exercises');
 
-                            // Clear chat before starting workout
-                            setAiMessages([]);
-                            dispatch(clearMessages());
-
                             // Calculate week number and day for navigation
                             const today = new Date();
                             const dateString = today.toISOString().split('T')[0];
@@ -1224,6 +1274,21 @@ export default function ChatScreen() {
                                 date: dateString,
                               }
                             });
+
+                            // FULLY clear all chat and workout generation state after navigation
+                            setTimeout(() => {
+                              // Clear all chat messages
+                              setAiMessages([]);
+                              dispatch(clearMessages());
+                              
+                              // Clear all workout generation state
+                              clearGeneration();
+                              
+                              // Reset to general chat mode
+                              setSelectedCategory('general');
+                              
+                              console.log('✅ Fully cleared chat and workout generation state');
+                            }, 100);
                           }}
                           disabled={trainNowEntries.length === 0}
                         >

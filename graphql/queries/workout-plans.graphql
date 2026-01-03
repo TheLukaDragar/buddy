@@ -306,6 +306,8 @@ query GetWorkoutDay($planId: UUID!, $weekNumber: Int!, $day: weekday!, $dayName:
               is_adjusted
               adjustment_reason
               position
+              workout_instance_id
+              created_at
               exercises {
                 id
                 name

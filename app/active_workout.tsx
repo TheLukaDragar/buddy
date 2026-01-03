@@ -59,8 +59,11 @@ import {
   resumeSet,
   resumeWorkoutFromSession,
   showAd,
+  skipWarmup,
   startExercisePreparation,
-  startRest
+  startRest,
+  // Warmup actions
+  startWarmup,
 } from '../store/actions/workoutActions';
 import { useAppDispatch } from '../store/hooks';
 import { hideMiniPlayer, selectMiniPlayerVisible, showMiniPlayer } from '../store/slices/musicSlice';
@@ -72,10 +75,12 @@ import {
   selectSessionId,
   selectTimers,
   selectVoiceAgentStatus,
+  // Warmup selector
+  selectWarmup,
   selectWorkoutSession,
   selectWorkoutStatus,
   setVoiceAgentStatus,
-  trackConversation
+  trackConversation,
 } from '../store/slices/workoutSlice';
 
 import type { ConversationEvent, ConversationStatus, Mode, Role } from '@elevenlabs/react-native';
@@ -249,6 +254,8 @@ const WorkoutSummary: React.FC<WorkoutSummaryProps> = ({ activeWorkout, session 
 const ExerciseVideo: React.FC<ExerciseVideoProps> = ({ videoUrl, exerciseName, isPaused = false, status }) => {
   // Get session data from Redux for WorkoutSummary component
   const session = useSelector(selectWorkoutSession);
+  const warmup = useSelector(selectWarmup);
+  
   // Map video URLs to required assets or return remote URLs
   const getVideoAsset = (url?: string) => {
     if (!url) return null;
@@ -288,29 +295,46 @@ const ExerciseVideo: React.FC<ExerciseVideoProps> = ({ videoUrl, exerciseName, i
     player.loop = true;
     player.muted = true;
     if (videoAsset) {
-      // Preload video but don't play when status is 'selected'
-      // Video will be ready when transitioning from warmup
-      if (status !== 'selected') {
+      // Check if we're in warmup phase during selected state
+      const isWarmupActive = status === 'selected' && (warmup.phase === 'ready' || warmup.phase === 'active');
+      
+      if (isWarmupActive) {
+        // Play warmup video immediately
+        player.play();
+      } else if (status === 'selected') {
+        // Preload exercise video but keep it paused (warmup completed, waiting to start exercise)
+        player.pause();
+      } else {
+        // Play exercise video
         player.play();
       }
     }
   });
 
   // Handle pause/resume based on workout state
-  // Preload video when status is 'selected' but keep it paused
   useEffect(() => {
     if (player && videoAsset) {
-      if (status === 'selected') {
-        // Preload video in background but keep it paused
+      // Check if we're in warmup phase during selected state
+      const isWarmupActive = status === 'selected' && (warmup.phase === 'ready' || warmup.phase === 'active');
+      
+      if (isWarmupActive) {
+        // Play warmup video during warmup phase
+        if (!isPaused) {
+          player.play();
+        } else {
+          player.pause();
+        }
+      } else if (status === 'selected') {
+        // Preload exercise video in background but keep it paused (after warmup)
         player.pause();
       } else if (!isPaused) {
-        // Play video when not in selected state and not paused
+        // Play exercise video when not in selected state and not paused
         player.play();
       } else {
         player.pause();
       }
     }
-  }, [isPaused, player, videoAsset, status]);
+  }, [isPaused, player, videoAsset, status, warmup.phase]);
 
   if (!videoAsset) {
     return (
@@ -406,6 +430,7 @@ const VideoContainer: React.FC<VideoContainerProps> = ({
   const miniPlayerVisible = useSelector(selectMiniPlayerVisible);
   const musicProvider = useSelector((state: any) => state.music?.selectedMusicOption);
   const isSpotifyAuth = useSelector((state: any) => state.spotifyAuth?.accessToken && state.spotifyAuth?.user);
+  const warmup = useSelector(selectWarmup);
   
   // Check if there's actually a music player available (not just visible)
   // MusicPlayerMini returns null for 'app' music, so we only have a player for 'spotify' (with auth) or 'partynet'
@@ -431,14 +456,18 @@ const VideoContainer: React.FC<VideoContainerProps> = ({
   const animatedTopRightStyle = useAnimatedStyle(() => ({
     top: topRightButtonTop.value,
   }));
-  
-  // Fade animations for warmup/video transition
-  const warmupOpacity = useSharedValue(status === 'selected' ? 1 : 0);
-  const videoOpacity = useSharedValue(status === 'selected' ? 0 : 1);
 
   // Auto-show controls when paused/preparing/selected, hide when exercising
   useEffect(() => {
-    if (status === 'paused' || activeWorkout?.isPaused || status === 'preparing' || status === 'selected') {
+    // Treat active warmup like exercising - hide controls immediately
+    const isWarmupActive = status === 'selected' && warmup.phase === 'active';
+    
+    if (isWarmupActive) {
+      // Hide controls during active warmup (like exercising)
+      setControlsVisible(false);
+      controlsOpacity.value = withTiming(0, { duration: 300 });
+      dispatch(hideMiniPlayer());
+    } else if (status === 'paused' || activeWorkout?.isPaused || status === 'preparing' || status === 'selected') {
       setControlsVisible(true);
       controlsOpacity.value = withTiming(1, { duration: 300 });
       dispatch(showMiniPlayer()); // Show mini player when START button appears
@@ -448,12 +477,15 @@ const VideoContainer: React.FC<VideoContainerProps> = ({
       controlsOpacity.value = withTiming(0, { duration: 300 });
       dispatch(hideMiniPlayer());
     }
-  }, [status, activeWorkout?.isPaused]);
+  }, [status, activeWorkout?.isPaused, warmup.phase]);
 
   // Auto-hide controls after 5 seconds when not paused
-  // BUT keep controls visible when status is 'selected' (no auto-hide)
+  // BUT keep controls visible when status is 'selected' (no auto-hide) UNLESS warmup is active
   useEffect(() => {
-    if (controlsVisible && status !== 'paused' && !activeWorkout?.isPaused && status !== 'preparing' && status !== 'selected') {
+    const isWarmupActive = status === 'selected' && warmup.phase === 'active';
+    const shouldKeepVisible = status === 'selected' && !isWarmupActive;
+    
+    if (controlsVisible && status !== 'paused' && !activeWorkout?.isPaused && status !== 'preparing' && !shouldKeepVisible) {
       const timeout = setTimeout(() => {
         setControlsVisible(false);
         controlsOpacity.value = withTiming(0, { duration: 300 });
@@ -462,7 +494,7 @@ const VideoContainer: React.FC<VideoContainerProps> = ({
 
       return () => clearTimeout(timeout);
     }
-  }, [controlsVisible, status, activeWorkout?.isPaused]);
+  }, [controlsVisible, status, activeWorkout?.isPaused, warmup.phase]);
 
   const showControls = () => {
     setControlsVisible(true);
@@ -471,35 +503,19 @@ const VideoContainer: React.FC<VideoContainerProps> = ({
   };
 
   const hideControls = () => {
-    // Don't hide controls when status is 'selected' or 'preparing' or paused
-    if (status !== 'paused' && !activeWorkout?.isPaused && status !== 'preparing' && status !== 'selected') {
+    const isWarmupActive = status === 'selected' && warmup.phase === 'active';
+    const shouldKeepVisible = status === 'selected' && !isWarmupActive;
+    
+    // Don't hide controls when status is 'selected' or 'preparing' or paused, UNLESS warmup is active
+    if (status !== 'paused' && !activeWorkout?.isPaused && status !== 'preparing' && !shouldKeepVisible) {
       setControlsVisible(false);
       controlsOpacity.value = withTiming(0, { duration: 300 });
       dispatch(hideMiniPlayer());
     }
   };
 
-  // Animate warmup/video transition when status changes
-  useEffect(() => {
-    if (status === 'selected') {
-      warmupOpacity.value = withTiming(1, { duration: 300 });
-      videoOpacity.value = withTiming(0, { duration: 300 });
-    } else if (status !== 'workout-completed') {
-      warmupOpacity.value = withTiming(0, { duration: 300 });
-      videoOpacity.value = withTiming(1, { duration: 300 });
-    }
-  }, [status]);
-
   const animatedOverlayStyle = useAnimatedStyle(() => ({
     opacity: controlsOpacity.value,
-  }));
-
-  const animatedWarmupStyle = useAnimatedStyle(() => ({
-    opacity: warmupOpacity.value,
-  }));
-
-  const animatedVideoStyle = useAnimatedStyle(() => ({
-    opacity: videoOpacity.value,
   }));
 
   return (
@@ -558,23 +574,26 @@ const VideoContainer: React.FC<VideoContainerProps> = ({
         </View>
       ) : (
         <>
-          {/* Warmup Placeholder - fade in/out */}
-          <ReanimatedAnimated.View style={[animatedWarmupStyle, StyleSheet.absoluteFill]}>
-            <WarmupPlaceholder />
-          </ReanimatedAnimated.View>
-          
-          {/* Exercise Video - preload in background, fade in/out */}
-          <ReanimatedAnimated.View style={[animatedVideoStyle, StyleSheet.absoluteFill]}>
+          {/* Exercise/Warmup Video - show warmup video during warmup phase, exercise video otherwise */}
+          <View style={StyleSheet.absoluteFill}>
             <ExerciseVideo 
-              videoUrl={currentExercise?.videoUrl} 
-              exerciseName={currentExercise?.name || 'Exercise'} 
+              videoUrl={
+                status === 'selected' && (warmup.phase === 'ready' || warmup.phase === 'active')
+                  ? 'https://kmtddcpdqkeqipyetwjs.supabase.co/storage/v1/object/public/workouts/processed/warmup/warmup.mp4'
+                  : currentExercise?.videoUrl
+              }
+              exerciseName={
+                status === 'selected' && (warmup.phase === 'ready' || warmup.phase === 'active')
+                  ? 'Warmup'
+                  : (currentExercise?.name || 'Exercise')
+              }
               isPaused={activeWorkout?.isPaused}
               status={status}
             />
-          </ReanimatedAnimated.View>
+          </View>
           
-          {/* Tap area to show controls - only when not in 'selected' state */}
-          {status !== 'selected' && (
+          {/* Tap area to show controls - enabled during warmup and other states except initial 'selected' (pre-warmup) */}
+          {(status !== 'selected' || warmup.phase === 'active') && (
             <TouchableWithoutFeedback onPress={showControls}>
               <View style={styles.videoTouchArea} />
             </TouchableWithoutFeedback>
@@ -669,7 +688,7 @@ const VideoContainer: React.FC<VideoContainerProps> = ({
   );
 };
 
-const WorkoutProgress: React.FC<WorkoutProgressProps> = ({
+const WorkoutProgress: React.FC<WorkoutProgressProps> = ({ 
   segments
 }) => {
   // Get workout state from Redux
@@ -677,7 +696,16 @@ const WorkoutProgress: React.FC<WorkoutProgressProps> = ({
   const currentSet = useSelector(selectCurrentSet);
   const timers = useSelector(selectTimers);
   const status = useSelector(selectWorkoutStatus);
+  const warmup = useSelector(selectWarmup);
   const dispatch = useAppDispatch();
+  
+  // Check if we're in warmup phase
+  const isWarmupActive = status === 'selected' && (warmup.phase === 'ready' || warmup.phase === 'active');
+  
+  // Use warmup segments if warmup is active, otherwise use exercise segments
+  const displaySegments = isWarmupActive 
+    ? [{ type: 'set' as const, duration: 600 }] // 1 set of 10 minutes (600 seconds)
+    : segments;
   
   // Calculate current values from Redux state
   const currentWeight = currentSet?.targetWeight ? `${currentSet.targetWeight} kg` : 'Body';
@@ -846,8 +874,8 @@ const WorkoutProgress: React.FC<WorkoutProgressProps> = ({
 
   // Memoize total duration calculation to prevent recalculation on every render
   const totalDuration = useMemo(() => 
-    segments.reduce((sum, segment) => sum + segment.duration, 0), 
-    [segments]
+    displaySegments.reduce((sum, segment) => sum + segment.duration, 0), 
+    [displaySegments]
   );
 
   // Format time as MM:SS
@@ -860,6 +888,20 @@ const WorkoutProgress: React.FC<WorkoutProgressProps> = ({
 
   // Memoize expensive getCurrentSegmentInfo calculation
   const getCurrentSegmentInfo = useMemo(() => {
+    // Handle warmup phase
+    if (isWarmupActive) {
+      const warmupDuration = 600; // 10 minutes in seconds
+      const elapsed = warmupDuration - warmup.remaining;
+      const progress = warmup.phase === 'active' ? (elapsed / warmupDuration) * 100 : 0;
+      
+      return {
+        activeIndex: 0,
+        progress: Math.max(0, Math.min(100, progress)),
+        remainingTime: warmup.remaining,
+        segmentType: 'set' as const
+      };
+    }
+    
     if (!activeWorkout || !currentSet) {
       return {
         activeIndex: 0,
@@ -951,7 +993,7 @@ const WorkoutProgress: React.FC<WorkoutProgressProps> = ({
       remainingTime: Math.max(0, remainingTime), // Ensure non-negative
       segmentType: segments[segmentIndex]?.type || 'set'
     };
-  }, [activeWorkout, currentSet, segments, status, timers, elapsedTime]);
+  }, [activeWorkout, currentSet, segments, status, timers, elapsedTime, isWarmupActive, warmup.remaining, warmup.phase]);
 
   const currentInfo = getCurrentSegmentInfo;
 
@@ -987,7 +1029,7 @@ const WorkoutProgress: React.FC<WorkoutProgressProps> = ({
     <View style={styles.progressContainer}>
       {/* Progress Bar */}
       <View style={styles.progressBarContainer}>
-        {segments.map((segment, index) => {
+        {displaySegments.map((segment, index) => {
           const segmentWidth = getSegmentWidth(segment);
           const segmentColor = getSegmentColor(segment, index);
           const progress = getSegmentProgress(index);
@@ -1021,89 +1063,96 @@ const WorkoutProgress: React.FC<WorkoutProgressProps> = ({
       </View>
 
       {/* Info Row */}
-      <View style={styles.infoContainer}>
-        {/* Weight - Centered in Left Section with Adjusters */}
-        <View style={styles.infoItemLeft}>
-          {/* Always show up arrow */}
-          <TouchableOpacity 
-            style={styles.adjusterButton}
-            onPressIn={() => startHoldIncrement(() => adjustWeightValue(1), weightHoldIntervalRef, weightHoldTimeoutRef)}
-            onPressOut={() => stopHoldIncrement(weightHoldIntervalRef, weightHoldTimeoutRef)}
-            activeOpacity={0.5}
-          >
-            <Image
-              source={require('../assets/icons/back.svg')}
-              style={[styles.adjusterIcon, { transform: [{ rotate: '90deg' }] }]}
-              contentFit="contain"
-            />
-          </TouchableOpacity>
-          <Text style={[styles.infoValue, { color: nucleus.light.global.blue["60"] }]}>
-            {parseWeight(currentWeight) ? `${parseWeight(currentWeight)?.value}kg` : currentWeight}
-          </Text>
-          <Text style={[styles.infoLabel, { color: nucleus.light.global.grey["90"] }]}>
-            WEIGHT
-          </Text>
-          {/* Always show down arrow */}
-          <TouchableOpacity 
-            style={styles.adjusterButton}
-            onPressIn={() => startHoldIncrement(() => adjustWeightValue(-1), weightHoldIntervalRef, weightHoldTimeoutRef)}
-            onPressOut={() => stopHoldIncrement(weightHoldIntervalRef, weightHoldTimeoutRef)}
-            activeOpacity={0.5}
-          >
-            <Image
-              source={require('../assets/icons/back.svg')}
-              style={[styles.adjusterIcon, { transform: [{ rotate: '-90deg' }] }]}
-              contentFit="contain"
-            />
-          </TouchableOpacity>
-        </View>
+      <View style={[styles.infoContainer, isWarmupActive && { justifyContent: 'center' }]}>
+        {/* Weight - Centered in Left Section with Adjusters - Hidden during warmup */}
+        {!isWarmupActive && (
+          <View style={styles.infoItemLeft}>
+            {/* Always show up arrow */}
+            <TouchableOpacity 
+              style={styles.adjusterButton}
+              onPressIn={() => startHoldIncrement(() => adjustWeightValue(1), weightHoldIntervalRef, weightHoldTimeoutRef)}
+              onPressOut={() => stopHoldIncrement(weightHoldIntervalRef, weightHoldTimeoutRef)}
+              activeOpacity={0.5}
+            >
+              <Image
+                source={require('../assets/icons/back.svg')}
+                style={[styles.adjusterIcon, { transform: [{ rotate: '90deg' }] }]}
+                contentFit="contain"
+              />
+            </TouchableOpacity>
+            <Text style={[styles.infoValue, { color: nucleus.light.global.blue["60"] }]}>
+              {parseWeight(currentWeight) ? `${parseWeight(currentWeight)?.value}kg` : currentWeight}
+            </Text>
+            <Text style={[styles.infoLabel, { color: nucleus.light.global.grey["90"] }]}>
+              WEIGHT
+            </Text>
+            {/* Always show down arrow */}
+            <TouchableOpacity 
+              style={styles.adjusterButton}
+              onPressIn={() => startHoldIncrement(() => adjustWeightValue(-1), weightHoldIntervalRef, weightHoldTimeoutRef)}
+              onPressOut={() => stopHoldIncrement(weightHoldIntervalRef, weightHoldTimeoutRef)}
+              activeOpacity={0.5}
+            >
+              <Image
+                source={require('../assets/icons/back.svg')}
+                style={[styles.adjusterIcon, { transform: [{ rotate: '-90deg' }] }]}
+                contentFit="contain"
+              />
+            </TouchableOpacity>
+          </View>
+        )}
 
-        {/* Separator */}
-        <View style={styles.separator} />
+        {/* Separator - Hidden during warmup */}
+        {!isWarmupActive && <View style={styles.separator} />}
 
         {/* Timer - Centered in Middle Section */}
         <View style={styles.timerContainer}>
           <Text style={[styles.timerValue, { color: nucleus.light.global.grey["70"] }]}>
-            {formatTime(Math.floor(currentInfo.remainingTime))}
+            {status === 'selected' && warmup.phase === 'active' 
+              ? formatTime(warmup.remaining)
+              : formatTime(Math.floor(currentInfo.remainingTime))
+            }
           </Text>
         </View>
 
-        {/* Separator */}
-        <View style={styles.separator} />
+        {/* Separator - Hidden during warmup */}
+        {!isWarmupActive && <View style={styles.separator} />}
 
-        {/* Reps - Centered in Right Section with Adjusters */}
-        <View style={styles.infoItemRight}>
-          <TouchableOpacity 
-            style={styles.adjusterButton}
-            onPressIn={() => startHoldIncrement(() => adjustRepsValue(1), repsHoldIntervalRef, repsHoldTimeoutRef)}
-            onPressOut={() => stopHoldIncrement(repsHoldIntervalRef, repsHoldTimeoutRef)}
-            activeOpacity={0.5}
-          >
-            <Image
-              source={require('../assets/icons/back.svg')}
-              style={[styles.adjusterIcon, { transform: [{ rotate: '90deg' }] }]}
-              contentFit="contain"
-            />
-          </TouchableOpacity>
-          <Text style={[styles.infoValue, { color: nucleus.light.global.blue["60"] }]}>
-            {currentReps}
-          </Text>
-          <Text style={[styles.infoLabel, { color: nucleus.light.global.grey["90"] }]}>
-            REPS
-          </Text>
-          <TouchableOpacity 
-            style={styles.adjusterButton}
-            onPressIn={() => startHoldIncrement(() => adjustRepsValue(-1), repsHoldIntervalRef, repsHoldTimeoutRef)}
-            onPressOut={() => stopHoldIncrement(repsHoldIntervalRef, repsHoldTimeoutRef)}
-            activeOpacity={0.5}
-          >
-            <Image
-              source={require('../assets/icons/back.svg')}
-              style={[styles.adjusterIcon, { transform: [{ rotate: '-90deg' }] }]}
-              contentFit="contain"
-            />
-          </TouchableOpacity>
-        </View>
+        {/* Reps - Centered in Right Section with Adjusters - Hidden during warmup */}
+        {!isWarmupActive && (
+          <View style={styles.infoItemRight}>
+            <TouchableOpacity 
+              style={styles.adjusterButton}
+              onPressIn={() => startHoldIncrement(() => adjustRepsValue(1), repsHoldIntervalRef, repsHoldTimeoutRef)}
+              onPressOut={() => stopHoldIncrement(repsHoldIntervalRef, repsHoldTimeoutRef)}
+              activeOpacity={0.5}
+            >
+              <Image
+                source={require('../assets/icons/back.svg')}
+                style={[styles.adjusterIcon, { transform: [{ rotate: '90deg' }] }]}
+                contentFit="contain"
+              />
+            </TouchableOpacity>
+            <Text style={[styles.infoValue, { color: nucleus.light.global.blue["60"] }]}>
+              {currentReps}
+            </Text>
+            <Text style={[styles.infoLabel, { color: nucleus.light.global.grey["90"] }]}>
+              REPS
+            </Text>
+            <TouchableOpacity 
+              style={styles.adjusterButton}
+              onPressIn={() => startHoldIncrement(() => adjustRepsValue(-1), repsHoldIntervalRef, repsHoldTimeoutRef)}
+              onPressOut={() => stopHoldIncrement(repsHoldIntervalRef, repsHoldTimeoutRef)}
+              activeOpacity={0.5}
+            >
+              <Image
+                source={require('../assets/icons/back.svg')}
+                style={[styles.adjusterIcon, { transform: [{ rotate: '-90deg' }] }]}
+                contentFit="contain"
+              />
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -1122,6 +1171,7 @@ const WorkoutControls: React.FC<WorkoutControlsProps> = ({ onShowFinishAlert, on
   const currentExercise = useSelector(selectCurrentExercise);
   const currentSet = useSelector(selectCurrentSet);
   const timers = useSelector(selectTimers);
+  const warmup = useSelector(selectWarmup);
   
   // State for adjustment inputs
   const [showAdjustments, setShowAdjustments] = useState(false);
@@ -1131,10 +1181,23 @@ const WorkoutControls: React.FC<WorkoutControlsProps> = ({ onShowFinishAlert, on
   // 3-Button Control Logic - Left/Right for workflow progression
   const getLeftButtonText = () => {
     if (status === 'inactive') return '←';
+    if (status === 'selected' && warmup.phase === 'active') return 'SKIP';
     return '←'; // Always show left button
   };
 
   const getCenterButtonText = () => {
+    // Handle warmup phase in 'selected' state
+    if (status === 'selected') {
+      if (warmup.phase === 'ready') {
+        return 'START WARMUP';
+      } else if (warmup.phase === 'active') {
+        // During warmup, button shows "COMPLETE" to allow early completion
+        return 'COMPLETE';
+      }
+      // warmup.phase === 'completed' - will auto-transition to preparing
+      return "I'm ready!";
+    }
+    
     switch (status) {
       case 'preparing':
       case 'rest-ending':
@@ -1146,8 +1209,6 @@ const WorkoutControls: React.FC<WorkoutControlsProps> = ({ onShowFinishAlert, on
         return activeWorkout?.isPaused ? 'RESUME' : 'PAUSE';
       case 'set-complete':
         return 'REST';
-      case 'selected':
-        return "I'm ready!";
       case 'workout-completed':
         return 'FINISH';
       case 'inactive':
@@ -1163,7 +1224,16 @@ const WorkoutControls: React.FC<WorkoutControlsProps> = ({ onShowFinishAlert, on
 
   const handleLeftButton = async () => {
     // Left button goes back ONE STATE in workflow and clears progress
+    // Special case: SKIP during warmup
     try {
+      if (status === 'selected' && warmup.phase === 'active') {
+        // Skip warmup
+        const skipResult = await dispatch(skipWarmup());
+        const skipData = unwrapResult(skipResult);
+        console.log('Skip warmup result:', skipData);
+        return;
+      }
+      
       switch (status) {
         case 'inactive':
           // Can't go back from inactive
@@ -1206,6 +1276,24 @@ const WorkoutControls: React.FC<WorkoutControlsProps> = ({ onShowFinishAlert, on
 
   const handleCenterButton = async () => {
     try {
+      // Handle warmup phase in 'selected' state
+      if (status === 'selected') {
+        if (warmup.phase === 'ready') {
+          // Start warmup
+          const warmupResult = await dispatch(startWarmup());
+          const warmupData = unwrapResult(warmupResult);
+          console.log('Start warmup result:', warmupData);
+          return;
+        } else if (warmup.phase === 'active') {
+          // Complete warmup early
+          const completeResult = await dispatch(skipWarmup());
+          const completeData = unwrapResult(completeResult);
+          console.log('Complete warmup result:', completeData);
+          return;
+        }
+        // warmup.phase === 'completed' falls through to start exercise preparation
+      }
+      
       switch (status) {
         case 'inactive':
           // START - Check if workout is in Redux but status hasn't updated yet
@@ -1220,7 +1308,7 @@ const WorkoutControls: React.FC<WorkoutControlsProps> = ({ onShowFinishAlert, on
           }
           break;
         case 'selected':
-          // BEGIN - Start exercise preparation
+          // BEGIN - Start exercise preparation (warmup.phase must be 'completed' to reach here)
           const prepResult = await dispatch(startExercisePreparation());
           const prepData = unwrapResult(prepResult);
           console.log('Start exercise preparation result:', prepData);

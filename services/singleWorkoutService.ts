@@ -5,6 +5,7 @@ export interface SingleWorkoutGenerationRequest {
   duration: number
   equipment: string[]
   difficulty: 'easy' | 'medium' | 'hard'
+  clientDate?: string // ISO string of client's current date/time to handle timezones
 }
 
 export interface SingleWorkoutGenerationResponse {

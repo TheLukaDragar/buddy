@@ -125,7 +125,39 @@ export default function WorkoutScreen() {
   }, [workoutData, isLoading, isFetching]);
 
   // Extract workout entries from the query response
-  const workoutEntries = workoutData?.workout_plansCollection?.edges?.[0]?.node?.workout_entriesCollection?.edges || [];
+  const allWorkoutEntries = workoutData?.workout_plansCollection?.edges?.[0]?.node?.workout_entriesCollection?.edges || [];
+  
+  // Filter to only show the most recent workout instance
+  // This handles cases where multiple workouts exist for the same day (e.g., regenerated "Train Now")
+  const workoutEntries = useMemo(() => {
+    if (allWorkoutEntries.length === 0) return [];
+    
+    // Get all unique instance IDs and find the most recent one
+    const instanceMap = new Map<string, { created_at: string; entries: typeof allWorkoutEntries }>();
+    
+    allWorkoutEntries.forEach((entry: any) => {
+      const instanceId = entry.node.workout_instance_id;
+      const createdAt = entry.node.created_at || new Date().toISOString();
+      
+      if (!instanceMap.has(instanceId)) {
+        instanceMap.set(instanceId, { created_at: createdAt, entries: [] });
+      }
+      instanceMap.get(instanceId)!.entries.push(entry);
+    });
+    
+    // Find the most recent instance (by created_at)
+    let mostRecentInstance: typeof allWorkoutEntries = [];
+    let mostRecentDate = '';
+    
+    instanceMap.forEach((value) => {
+      if (value.created_at > mostRecentDate) {
+        mostRecentDate = value.created_at;
+        mostRecentInstance = value.entries;
+      }
+    });
+    
+    return mostRecentInstance;
+  }, [allWorkoutEntries]);
 
   // Memoize exercise IDs to create stable dependency
   const exerciseIds = useMemo(() => {

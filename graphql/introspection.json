@@ -14520,6 +14520,22 @@
             "deprecationReason": null
           },
           {
+            "name": "workout_instance_id",
+            "description": null,
+            "args": [],
+            "type": {
+              "kind": "NON_NULL",
+              "name": null,
+              "ofType": {
+                "kind": "SCALAR",
+                "name": "UUID",
+                "ofType": null
+              }
+            },
+            "isDeprecated": false,
+            "deprecationReason": null
+          },
+          {
             "name": "workout_plan_id",
             "description": null,
             "args": [],
@@ -15229,6 +15245,18 @@
             "deprecationReason": null
           },
           {
+            "name": "workout_instance_id",
+            "description": null,
+            "type": {
+              "kind": "INPUT_OBJECT",
+              "name": "UUIDFilter",
+              "ofType": null
+            },
+            "defaultValue": null,
+            "isDeprecated": false,
+            "deprecationReason": null
+          },
+          {
             "name": "workout_plan_id",
             "description": null,
             "type": {
@@ -15474,6 +15502,18 @@
             "type": {
               "kind": "SCALAR",
               "name": "String",
+              "ofType": null
+            },
+            "defaultValue": null,
+            "isDeprecated": false,
+            "deprecationReason": null
+          },
+          {
+            "name": "workout_instance_id",
+            "description": null,
+            "type": {
+              "kind": "SCALAR",
+              "name": "UUID",
               "ofType": null
             },
             "defaultValue": null,
@@ -15785,6 +15825,18 @@
             "deprecationReason": null
           },
           {
+            "name": "workout_instance_id",
+            "description": null,
+            "type": {
+              "kind": "ENUM",
+              "name": "OrderByDirection",
+              "ofType": null
+            },
+            "defaultValue": null,
+            "isDeprecated": false,
+            "deprecationReason": null
+          },
+          {
             "name": "workout_plan_id",
             "description": null,
             "type": {
@@ -16030,6 +16082,18 @@
             "type": {
               "kind": "SCALAR",
               "name": "String",
+              "ofType": null
+            },
+            "defaultValue": null,
+            "isDeprecated": false,
+            "deprecationReason": null
+          },
+          {
+            "name": "workout_instance_id",
+            "description": null,
+            "type": {
+              "kind": "SCALAR",
+              "name": "UUID",
               "ofType": null
             },
             "defaultValue": null,

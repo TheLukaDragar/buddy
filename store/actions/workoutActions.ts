@@ -9,6 +9,7 @@ import {
   adjustWeight as adjustWeightReducer,
   completeExercise as completeExerciseReducer,
   completeSet as completeSetReducer,
+  completeWarmup as completeWarmupReducer,
   completeWorkout as completeWorkoutReducer,
   confirmReadyAndStartSet as confirmReadyAndStartSetReducer,
   extendRest as extendRestReducer,
@@ -23,10 +24,13 @@ import {
   resumeWorkoutFromSession as resumeWorkoutFromSessionReducer,
   selectWorkoutFromEntries as selectWorkoutFromEntriesReducer,
   selectWorkout as selectWorkoutReducer,
+  skipWarmup as skipWarmupReducer,
   startExercisePreparation as startExercisePreparationReducer,
   startRest as startRestReducer,
+  // Warmup reducers
+  startWarmup as startWarmupReducer,
   triggerRestEnding as triggerRestEndingReducer,
-  type WorkoutEntryNode
+  type WorkoutEntryNode,
 } from '../slices/workoutSlice'
 
 // =============================================================================
@@ -898,6 +902,80 @@ export const showAd = createAsyncThunk(
 )
 
 export const show_ad = showAd
+
+// =============================================================================
+// WARMUP ACTIONS
+// =============================================================================
+
+export const startWarmup = createAsyncThunk(
+  'workout/startWarmup',
+  async (_, { getState, dispatch, rejectWithValue }) => {
+    const state = getState() as RootState
+    
+    if (state.workout.status !== 'selected') {
+      return rejectWithValue(`Cannot start warmup from state: ${state.workout.status}`)
+    }
+    
+    if (state.workout.warmup.phase !== 'ready') {
+      return rejectWithValue(`Warmup phase is ${state.workout.warmup.phase}, expected 'ready'`)
+    }
+
+    dispatch(startWarmupReducer())
+
+    return { 
+      success: true,
+      message: 'Warmup started - 10 minute timer active',
+      duration: 600
+    }
+  }
+)
+
+export const completeWarmup = createAsyncThunk(
+  'workout/completeWarmup',
+  async (_, { getState, dispatch, rejectWithValue }) => {
+    const state = getState() as RootState
+    
+    if (state.workout.warmup.phase !== 'active') {
+      return rejectWithValue(`Cannot complete warmup from phase: ${state.workout.warmup.phase}`)
+    }
+
+    dispatch(completeWarmupReducer())
+    
+    // Auto-transition to preparing for first exercise
+    dispatch(startExercisePreparationReducer())
+
+    return { 
+      success: true,
+      message: 'Warmup completed - starting first exercise'
+    }
+  }
+)
+
+export const skipWarmup = createAsyncThunk(
+  'workout/skipWarmup',
+  async (_, { getState, dispatch, rejectWithValue }) => {
+    const state = getState() as RootState
+    
+    if (state.workout.warmup.phase !== 'ready' && state.workout.warmup.phase !== 'active') {
+      return rejectWithValue(`Cannot skip warmup from phase: ${state.workout.warmup.phase}`)
+    }
+
+    dispatch(skipWarmupReducer())
+    
+    // Auto-transition to preparing for first exercise
+    dispatch(startExercisePreparationReducer())
+
+    return { 
+      success: true,
+      message: 'Warmup skipped - starting first exercise'
+    }
+  }
+)
+
+// Tool aliases for warmup
+export const start_warmup = startWarmup
+export const complete_warmup = completeWarmup
+export const skip_warmup = skipWarmup
 
 // =============================================================================
 // RESUME WORKOUT FROM SESSION (direct reducer action, no async logic needed)

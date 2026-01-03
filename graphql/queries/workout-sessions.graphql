@@ -663,6 +663,7 @@ mutation CompleteWorkoutSession(
 }
 
 # Query to get workout entries by day name (for Train Now workouts)
+# Returns ALL entries ordered by created_at DESC so we can filter to most recent instance in the app
 query GetWorkoutEntriesByDay($planId: UUID!, $dayName: String!) {
   workout_entriesCollection(
     filter: {
@@ -681,6 +682,8 @@ query GetWorkoutEntriesByDay($planId: UUID!, $dayName: String!) {
         time
         notes
         day_name
+        workout_instance_id
+        created_at
         exercises {
           id
           name

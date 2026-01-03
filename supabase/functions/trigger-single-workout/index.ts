@@ -6,7 +6,7 @@ import type { generateSingleWorkoutTask } from "../../../trigger/single-workout-
 
 Deno.serve(async (req: Request) => {
   try {
-    const { muscleGroups, duration, equipment, difficulty } = await req.json();
+    const { muscleGroups, duration, equipment, difficulty, clientDate } = await req.json();
 
     // Validate required fields
     if (!muscleGroups || !duration || !equipment || !difficulty) {
@@ -100,6 +100,7 @@ Deno.serve(async (req: Request) => {
       equipment,
       difficulty,
       userProfile: profileData.profile_text,
+      clientDate, // Pass client date to handle timezone differences
     });
 
     console.log('Trigger.dev task started successfully');

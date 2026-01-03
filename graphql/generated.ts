@@ -1628,6 +1628,7 @@ export type Workout_Entries = Node & {
   weight?: Maybe<Scalars["String"]["output"]>;
   workout_entry_alternativesCollection?: Maybe<Workout_Entry_AlternativesConnection>;
   workout_entry_exercise_notesCollection?: Maybe<Workout_Entry_Exercise_NotesConnection>;
+  workout_instance_id: Scalars["UUID"]["output"];
   workout_plan_id: Scalars["UUID"]["output"];
   workout_plans?: Maybe<Workout_Plans>;
   workout_presets?: Maybe<Workout_Presets>;
@@ -1722,6 +1723,7 @@ export type Workout_EntriesFilter = {
   updated_at?: InputMaybe<DatetimeFilter>;
   week_number?: InputMaybe<IntFilter>;
   weight?: InputMaybe<StringFilter>;
+  workout_instance_id?: InputMaybe<UuidFilter>;
   workout_plan_id?: InputMaybe<UuidFilter>;
 };
 
@@ -1745,6 +1747,7 @@ export type Workout_EntriesInsertInput = {
   updated_at?: InputMaybe<Scalars["Datetime"]["input"]>;
   week_number?: InputMaybe<Scalars["Int"]["input"]>;
   weight?: InputMaybe<Scalars["String"]["input"]>;
+  workout_instance_id?: InputMaybe<Scalars["UUID"]["input"]>;
   workout_plan_id?: InputMaybe<Scalars["UUID"]["input"]>;
 };
 
@@ -1776,6 +1779,7 @@ export type Workout_EntriesOrderBy = {
   updated_at?: InputMaybe<OrderByDirection>;
   week_number?: InputMaybe<OrderByDirection>;
   weight?: InputMaybe<OrderByDirection>;
+  workout_instance_id?: InputMaybe<OrderByDirection>;
   workout_plan_id?: InputMaybe<OrderByDirection>;
 };
 
@@ -1799,6 +1803,7 @@ export type Workout_EntriesUpdateInput = {
   updated_at?: InputMaybe<Scalars["Datetime"]["input"]>;
   week_number?: InputMaybe<Scalars["Int"]["input"]>;
   weight?: InputMaybe<Scalars["String"]["input"]>;
+  workout_instance_id?: InputMaybe<Scalars["UUID"]["input"]>;
   workout_plan_id?: InputMaybe<Scalars["UUID"]["input"]>;
 };
 
@@ -3775,6 +3780,8 @@ export type GetWorkoutDayQuery = {
               is_adjusted?: boolean | null;
               adjustment_reason?: string | null;
               position: number;
+              workout_instance_id: any;
+              created_at?: any | null;
               exercises: {
                 __typename?: "exercises";
                 id: any;
@@ -4997,6 +5004,8 @@ export type GetWorkoutEntriesByDayQuery = {
         time?: string | null;
         notes?: string | null;
         day_name: string;
+        workout_instance_id: any;
+        created_at?: any | null;
         exercises: {
           __typename?: "exercises";
           id: any;
@@ -5399,6 +5408,8 @@ export const GetWorkoutDayDocument = `
               is_adjusted
               adjustment_reason
               position
+              workout_instance_id
+              created_at
               exercises {
                 id
                 name
@@ -5992,7 +6003,7 @@ export const GetActiveWorkoutSessionDocument = `
     query GetActiveWorkoutSession($userId: UUID!) {
   workout_sessionsCollection(
     filter: {user_id: {eq: $userId}, status: {in: ["selected", "preparing", "exercising", "paused"]}}
-    orderBy: [{last_activity_at: DescNullsLast}, {started_at: DescNullsLast}]
+    orderBy: [{started_at: DescNullsLast}]
     first: 1
   ) {
     edges {
@@ -6360,6 +6371,8 @@ export const GetWorkoutEntriesByDayDocument = `
         time
         notes
         day_name
+        workout_instance_id
+        created_at
         exercises {
           id
           name

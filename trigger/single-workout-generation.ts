@@ -9098,10 +9098,14 @@ Important Notes:
 
 🧩 7. SINGLE WORKOUT STRUCTURE
 
+**IMPORTANT: Follow these exercise counts based on requested duration:**
+
 Duration	Exercises
-30–45 min	4
-45–60 min	5–6
-60–90 min	7–9
+30–45 min	4 exercises
+45–60 min	5–6 exercises (prefer 5 for 45-50min, 6 for 55-60min)
+60–90 min	7–9 exercises
+
+**Do not exceed the maximum exercise count for the requested duration.** Each exercise takes ~10 minutes (4 sets × ~2.5 min per set including rest), so exceeding the limit creates workouts that are too long.
 
 Generate ONE complete workout session based on user requirements (muscle groups, duration, equipment, difficulty).
 
@@ -9353,6 +9357,7 @@ export const generateSingleWorkoutTask = task({
     equipment: string[];
     difficulty: 'easy' | 'medium' | 'hard';
     userProfile: string;
+    clientDate?: string; // ISO string of client's current date/time to handle timezones
   }) => {
     try {
       console.log('Starting single workout generation for request:', payload.requestId);
@@ -9491,31 +9496,101 @@ Please generate a complete single workout session that meets these requirements.
         console.log('Using existing workout plan:', activePlan.id);
       }
 
-      // Step 4: Delete old "Train Now" entries for this user (regeneration)
-      console.log('Deleting old Train Now entries...');
-      const { error: deleteError } = await supabase
+      // Step 4: Delete old unused "Train Now" workout instances for this user (regeneration)
+      // We delete by workout_instance_id to remove entire workout generations at once
+      // Only delete instances that haven't been used in workout sessions (preserve history)
+      console.log('Cleaning up unused Train Now workout instances...');
+      
+      // Get all unique "Train Now" workout instance IDs
+      const { data: oldInstances, error: fetchError } = await supabase
         .from('workout_entries')
-        .delete()
+        .select('workout_instance_id, created_at')
         .eq('workout_plan_id', activePlan.id)
-        .eq('day_name', 'Train Now');
+        .eq('day_name', 'Train Now')
+        .order('created_at', { ascending: false });
 
-      if (deleteError) {
-        console.error('Failed to delete old Train Now entries:', deleteError);
-        // Don't throw - continue with creation
+      if (fetchError) {
+        console.error('Failed to fetch old Train Now instances:', fetchError);
+        // Continue anyway - might not exist
+      } else if (oldInstances && oldInstances.length > 0) {
+        // Get unique instance IDs
+        const uniqueInstances = Array.from(
+          new Set(oldInstances.map((i: any) => i.workout_instance_id))
+        );
+        console.log(`Found ${uniqueInstances.length} old Train Now workout instances`);
+
+        // Check which instances have been used in workout sessions
+        const { data: usedSets, error: usedError } = await supabase
+          .from('workout_session_sets')
+          .select('workout_entry_id')
+          .in('workout_entry_id', 
+            await supabase
+              .from('workout_entries')
+              .select('id')
+              .in('workout_instance_id', uniqueInstances)
+              .then(r => r.data?.map((e: any) => e.id) || [])
+          );
+
+        if (usedError) {
+          console.error('Failed to check used instances:', usedError);
+        }
+
+        const usedEntryIds = new Set((usedSets || []).map((s: any) => s.workout_entry_id));
+        
+        // Find instances with no used entries
+        const unusedInstances: string[] = [];
+        for (const instanceId of uniqueInstances) {
+          const { data: instanceEntries } = await supabase
+            .from('workout_entries')
+            .select('id')
+            .eq('workout_instance_id', instanceId);
+          
+          const hasUsedEntries = instanceEntries?.some((e: any) => usedEntryIds.has(e.id));
+          if (!hasUsedEntries) {
+            unusedInstances.push(instanceId);
+          }
+        }
+
+        if (unusedInstances.length > 0) {
+          console.log(`Deleting ${unusedInstances.length} unused Train Now instances (preserving ${uniqueInstances.length - unusedInstances.length} with session history)`);
+          
+          // Delete all entries for unused instances
+          const { error: deleteError } = await supabase
+            .from('workout_entries')
+            .delete()
+            .in('workout_instance_id', unusedInstances);
+
+          if (deleteError) {
+            console.error('Failed to delete unused Train Now instances:', deleteError);
+            // Don't throw - continue with creation
+          } else {
+            console.log(`Deleted ${unusedInstances.length} unused workout instances`);
+          }
+        } else {
+          console.log('All Train Now instances have session history - keeping them all');
+        }
       } else {
-        console.log('Old Train Now entries deleted');
+        console.log('No old Train Now instances found');
       }
 
       // Step 5: Insert workout entries into user's plan
-      const today = new Date();
-      const todayDateString = today.toISOString().split('T')[0]; // YYYY-MM-DD
-      const dayOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][today.getDay()];
+      // Use client's date if provided (to handle timezone differences), otherwise use server time
+      const clientDate = payload.clientDate ? new Date(payload.clientDate) : new Date();
+      const todayDateString = clientDate.toISOString().split('T')[0]; // YYYY-MM-DD
+      const dayOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][clientDate.getDay()];
+      console.log('Using date:', todayDateString, 'dayOfWeek:', dayOfWeek, '(from client:', !!payload.clientDate, ')');
 
       // Calculate week number based on plan start date
       const planStartDate = new Date(activePlan.start_date);
-      const daysSinceStart = Math.floor((today.getTime() - planStartDate.getTime()) / (1000 * 60 * 60 * 24));
+      const daysSinceStart = Math.floor((clientDate.getTime() - planStartDate.getTime()) / (1000 * 60 * 60 * 24));
       const weekNumber = Math.min(8, Math.max(1, Math.floor(daysSinceStart / 7) + 1));
       console.log('Calculated week number:', weekNumber, 'from start date:', activePlan.start_date);
+
+      // Generate a single workout_instance_id for ALL entries in this generation
+      // This groups them together so queries can get the most recent generation
+      const { randomUUID } = await import('crypto');
+      const workoutInstanceId = randomUUID();
+      console.log('Generated workout_instance_id:', workoutInstanceId, 'for this Train Now generation');
 
       const workoutEntries = [];
       const entryAlternativesMap = new Map<number, Array<{
@@ -9523,6 +9598,46 @@ Please generate a complete single workout session that meets these requirements.
         note: string;
         position: number;
       }>>();
+
+      // Step 5.1: Fetch user's workout history for these exercises to copy previous weights/reps
+      console.log('Fetching user workout history for smart weight recommendations...');
+      const exerciseIdsToCheck = workout.exercises.map(ex => {
+        const exerciseSlug = slugify(ex.exercise);
+        return exerciseIds[exerciseSlug];
+      }).filter(Boolean);
+
+      // Get the most recent workout_entries for each exercise directly (no need to join with sets)
+      // Just look at the latest weight/reps that were set in workout_entries
+      const { data: workoutHistory, error: historyError } = await supabase
+        .from('workout_entries')
+        .select('exercise_id, weight, reps, created_at')
+        .eq('workout_plan_id', activePlan.id)
+        .in('exercise_id', exerciseIdsToCheck)
+        .order('created_at', { ascending: false });
+
+      if (historyError) {
+        console.warn('Could not fetch workout history:', historyError);
+      }
+
+      console.log('Workout history:', JSON.stringify(workoutHistory, null, 2));
+
+      // Create a map of exercise_id -> most recent weight/reps
+      const exerciseHistoryMap = new Map<string, { weight: string | null; reps: string }>();
+      if (workoutHistory && workoutHistory.length > 0) {
+        workoutHistory.forEach((entry: any) => {
+          const exerciseId = entry.exercise_id;
+          // Only keep the first (most recent) entry for each exercise
+          if (!exerciseHistoryMap.has(exerciseId)) {
+            exerciseHistoryMap.set(exerciseId, {
+              weight: entry.weight,
+              reps: entry.reps
+            });
+          }
+        });
+        console.log(`Found workout history for ${exerciseHistoryMap.size} exercises`);
+      } else {
+        console.log('No workout history found - using AI-generated weights');
+      }
 
       for (let i = 0; i < workout.exercises.length; i++) {
         const exercise = workout.exercises[i];
@@ -9534,6 +9649,15 @@ Please generate a complete single workout session that meets these requirements.
           ? exerciseIds[slugify(exercise.similar_alternative_exercises[0])]
           : exerciseId; // Use same exercise as fallback
 
+        // Check if user has done this exercise before and use their last weight/reps
+        const history = exerciseHistoryMap.get(exerciseId);
+        const finalWeight = history?.weight || exercise.weight || null;
+        const finalReps = history?.reps || exercise.reps; // reps is already a string in both history and exercise
+
+        if (history) {
+          console.log(`Using historical data for ${exercise.exercise}: weight=${history.weight}, reps=${history.reps}`);
+        }
+
         workoutEntries.push({
           workout_plan_id: activePlan.id,
           week_number: weekNumber, // Use calculated week number based on plan start date
@@ -9542,8 +9666,8 @@ Please generate a complete single workout session that meets these requirements.
           date: todayDateString,
           exercise_id: exerciseId,
           sets: exercise.sets,
-          reps: exercise.reps,
-          weight: exercise.weight || null,
+          reps: finalReps, // Use historical reps if available
+          weight: finalWeight, // Use historical weight if available
           time: exercise.time || null,
           notes: exercise.notes || null,
           streak_exercise_id: streakExerciseId,
@@ -9554,6 +9678,7 @@ Please generate a complete single workout session that meets these requirements.
           adjustment_reason: null,
           preset_id: null, // No preset reference for generated workouts
           position: i + 1, // Position starts at 1, increments for each exercise
+          workout_instance_id: workoutInstanceId, // All entries share same instance ID
         });
 
         // Collect alternatives for this entry (skip first one as it's the streak exercise)

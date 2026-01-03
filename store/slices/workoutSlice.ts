@@ -28,6 +28,14 @@ export interface WorkoutState {
   // Active workout tracking (cached in Redux, synced to DB)
   activeWorkout: ActiveWorkoutState | null;
   
+  // Warmup phase tracking (ephemeral - stays in Redux)
+  warmup: {
+    phase: 'inactive' | 'ready' | 'active' | 'completed';
+    startTime: number | null;
+    duration: number; // 600 seconds = 10 minutes
+    remaining: number;
+  };
+  
   // Timers state (ephemeral - stays in Redux)
   timers: {
     setTimer: {
@@ -72,6 +80,12 @@ const initialState: WorkoutState = {
   planId: null,
   dayName: null,
   activeWorkout: null,
+  warmup: {
+    phase: 'inactive',
+    startTime: null,
+    duration: 600, // 10 minutes in seconds
+    remaining: 600,
+  },
   timers: {
     setTimer: null,
     restTimer: null,
@@ -114,6 +128,14 @@ const workoutSlice = createSlice({
           exerciseConfirmed: false,
           setsCompleted: [],
           adjustmentsMade: [],
+        };
+
+        // Initialize warmup phase as 'ready' when workout is selected
+        state.warmup = {
+          phase: 'ready',
+          startTime: null,
+          duration: 600,
+          remaining: 600,
         };
 
         // Middleware will handle context message generation
@@ -240,6 +262,14 @@ const workoutSlice = createSlice({
           exerciseConfirmed: false,
           setsCompleted: [],
           adjustmentsMade: [],
+        };
+
+        // Initialize warmup phase as 'ready' when workout is selected
+        state.warmup = {
+          phase: 'ready',
+          startTime: null,
+          duration: 600,
+          remaining: 600,
         };
 
         // Middleware will handle context message generation
@@ -1894,6 +1924,71 @@ const workoutSlice = createSlice({
         });
       }
     },
+
+    // Warmup phase actions
+    startWarmup: (state) => {
+      if (state.warmup.phase !== 'ready') {
+        console.warn('⚠️ Cannot start warmup from phase:', state.warmup.phase);
+        return;
+      }
+      
+      state.warmup.phase = 'active';
+      state.warmup.startTime = Date.now();
+      state.warmup.remaining = state.warmup.duration;
+      
+      console.log('🔥 [Warmup] Started - 10 minute timer active');
+      // Middleware will handle timer updates
+    },
+
+    updateWarmupTimer: (state, action: PayloadAction<number>) => {
+      state.warmup.remaining = action.payload;
+    },
+
+    completeWarmup: (state) => {
+      if (state.warmup.phase !== 'active') {
+        console.warn('⚠️ Cannot complete warmup from phase:', state.warmup.phase);
+        return;
+      }
+      
+      state.warmup.phase = 'completed';
+      state.warmup.remaining = 0;
+      
+      console.log('✅ [Warmup] Completed - transitioning to preparing');
+      // Middleware will handle transition to preparing state
+    },
+
+    skipWarmup: (state) => {
+      if (state.warmup.phase !== 'ready' && state.warmup.phase !== 'active') {
+        console.warn('⚠️ Cannot skip warmup from phase:', state.warmup.phase);
+        return;
+      }
+      
+      state.warmup.phase = 'completed';
+      state.warmup.remaining = 0;
+      
+      console.log('⏭️ [Warmup] Skipped - transitioning to preparing');
+      // Middleware will handle transition to preparing state
+    },
+
+    pauseWarmup: (state) => {
+      if (state.warmup.phase !== 'active') {
+        console.warn('⚠️ Cannot pause warmup from phase:', state.warmup.phase);
+        return;
+      }
+      
+      // Timer will be paused in middleware
+      console.log('⏸️ [Warmup] Paused');
+    },
+
+    resumeWarmup: (state) => {
+      if (state.warmup.phase !== 'active') {
+        console.warn('⚠️ Cannot resume warmup from phase:', state.warmup.phase);
+        return;
+      }
+      
+      // Timer will be resumed in middleware
+      console.log('▶️ [Warmup] Resumed');
+    },
   },
 });
 
@@ -1932,6 +2027,13 @@ export const {
   syncWorkoutEntryUpdate,
   cleanup,
   jumpToExerciseAndQueueCurrent,
+  // Warmup actions
+  startWarmup,
+  updateWarmupTimer,
+  completeWarmup,
+  skipWarmup,
+  pauseWarmup,
+  resumeWarmup,
 } = workoutSlice.actions;
 
 // Selectors
@@ -1946,6 +2048,7 @@ export const selectVoiceAgentStatus = (state: { workout: WorkoutState }) => stat
 export const selectContextMessages = (state: { workout: WorkoutState }) => state.workout.contextMessages;
 export const selectUnsentContextMessages = (state: { workout: WorkoutState }) => 
   state.workout.contextMessages.filter(msg => !msg.sent);
+export const selectWarmup = (state: { workout: WorkoutState }) => state.workout.warmup; // New warmup selector
 
 // Complex selectors
 export const selectWorkoutProgress = createSelector(

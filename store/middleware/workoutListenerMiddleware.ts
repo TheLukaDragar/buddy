@@ -12,6 +12,7 @@ import {
   clearProcessedContextMessages,
   completeExercise,
   completeSet,
+  completeWarmup,
   completeWorkout,
   confirmReadyAndStartSet,
   extendRest,
@@ -26,13 +27,17 @@ import {
   selectWorkout,
   setTimerExpired,
   setVoiceAgentStatus,
+  skipWarmup,
   startExercisePreparation,
   startRest,
+  // Warmup actions
+  startWarmup,
   syncWorkoutEntryUpdate,
   trackConversation,
   triggerRestEnding,
   updateRestTimer,
   updateSetTimer,
+  updateWarmupTimer,
 } from '../slices/workoutSlice';
 
 // Create the listener middleware with proper typing
@@ -46,9 +51,11 @@ const startAppListening = workoutListenerMiddleware.startListening.withTypes<Roo
 let activeTimers: {
   setTimer?: ReturnType<typeof setTimeout>;
   restTimer?: ReturnType<typeof setTimeout>;
+  warmupTimer?: ReturnType<typeof setTimeout>;
   userActivityPing?: ReturnType<typeof setTimeout>;
   setUpdateInterval?: ReturnType<typeof setInterval>;
   restUpdateInterval?: ReturnType<typeof setInterval>;
+  warmupUpdateInterval?: ReturnType<typeof setInterval>;
 } = {};
 
 // Debounce timers for adjustments to prevent rapid database updates
@@ -2160,6 +2167,160 @@ startAppListening({
   },
 });
 
+// =============================================================================
+// WARMUP TIMER LISTENERS
+// =============================================================================
+
+// Listener for warmup start - handles 10-minute timer setup
+startAppListening({
+  actionCreator: startWarmup,
+  effect: async (action, listenerApi) => {
+    const { dispatch, getState } = listenerApi;
+    const state = getState() as RootState;
+    const warmupState = state.workout.warmup;
+    
+    console.log('🔥 [Warmup Middleware] Starting warmup timer: 10 minutes');
+    
+    // Clear any existing warmup timers
+    if (activeTimers.warmupUpdateInterval) {
+      clearInterval(activeTimers.warmupUpdateInterval);
+      delete activeTimers.warmupUpdateInterval;
+    }
+    if (activeTimers.warmupTimer) {
+      clearTimeout(activeTimers.warmupTimer);
+      delete activeTimers.warmupTimer;
+    }
+    
+    const startTime = warmupState.startTime || Date.now();
+    const duration = warmupState.duration * 1000; // Convert to milliseconds
+    
+    // Update timer every second
+    activeTimers.warmupUpdateInterval = setInterval(() => {
+      const currentState = listenerApi.getState() as RootState;
+      const currentWarmup = currentState.workout.warmup;
+      
+      if (currentWarmup.phase !== 'active') {
+        // Timer was stopped/completed
+        if (activeTimers.warmupUpdateInterval) {
+          clearInterval(activeTimers.warmupUpdateInterval);
+          delete activeTimers.warmupUpdateInterval;
+        }
+        return;
+      }
+      
+      const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      const remaining = Math.max(0, currentWarmup.duration - elapsed);
+      
+      dispatch(updateWarmupTimer(remaining));
+      
+      if (remaining === 0) {
+        // Timer completed - dispatch completeWarmup
+        if (activeTimers.warmupUpdateInterval) {
+          clearInterval(activeTimers.warmupUpdateInterval);
+          delete activeTimers.warmupUpdateInterval;
+        }
+        // Import the thunk version from actions
+        import('../actions/workoutActions').then(({ completeWarmup: completeWarmupThunk }) => {
+          dispatch(completeWarmupThunk());
+        });
+      }
+    }, 1000);
+    
+    // Auto-complete after duration
+    activeTimers.warmupTimer = setTimeout(() => {
+      const currentState = listenerApi.getState() as RootState;
+      if (currentState.workout.warmup.phase === 'active') {
+        console.log('⏰ [Warmup Middleware] Warmup timer expired, auto-completing');
+        // Import the thunk version from actions
+        import('../actions/workoutActions').then(({ completeWarmup: completeWarmupThunk }) => {
+          dispatch(completeWarmupThunk());
+        });
+      }
+    }, duration);
+    
+    // Generate context message
+    const contextMessage = `SYSTEM: warmup-started - 10 minute warmup timer active. User warming up.`;
+    
+    dispatch(addContextMessage({
+      event: 'warmup-started',
+      message: contextMessage,
+      data: {
+        duration: 600,
+      },
+    }));
+    
+    contextBridgeService.sendContextualUpdate(contextMessage).catch(err => 
+      console.log('🎙️ Could not send warmup started context:', err)
+    );
+  },
+});
+
+// Listener for warmup completion - cleanup timers
+startAppListening({
+  actionCreator: completeWarmup,
+  effect: async (action, listenerApi) => {
+    const { dispatch } = listenerApi;
+    
+    console.log('✅ [Warmup Middleware] Warmup completed, clearing timers');
+    
+    // Clear warmup timer updates
+    if (activeTimers.warmupUpdateInterval) {
+      clearInterval(activeTimers.warmupUpdateInterval);
+      delete activeTimers.warmupUpdateInterval;
+    }
+    if (activeTimers.warmupTimer) {
+      clearTimeout(activeTimers.warmupTimer);
+      delete activeTimers.warmupTimer;
+    }
+    
+    // Generate context message
+    const contextMessage = `SYSTEM: warmup-completed - Warmup finished, transitioning to first exercise.`;
+    
+    dispatch(addContextMessage({
+      event: 'warmup-completed',
+      message: contextMessage,
+      data: {},
+    }));
+    
+    contextBridgeService.sendContextualUpdate(contextMessage).catch(err => 
+      console.log('🎙️ Could not send warmup completed context:', err)
+    );
+  },
+});
+
+// Listener for warmup skip - cleanup timers
+startAppListening({
+  actionCreator: skipWarmup,
+  effect: async (action, listenerApi) => {
+    const { dispatch } = listenerApi;
+    
+    console.log('⏭️ [Warmup Middleware] Warmup skipped, clearing timers');
+    
+    // Clear warmup timer updates
+    if (activeTimers.warmupUpdateInterval) {
+      clearInterval(activeTimers.warmupUpdateInterval);
+      delete activeTimers.warmupUpdateInterval;
+    }
+    if (activeTimers.warmupTimer) {
+      clearTimeout(activeTimers.warmupTimer);
+      delete activeTimers.warmupTimer;
+    }
+    
+    // Generate context message
+    const contextMessage = `SYSTEM: warmup-skipped - Warmup skipped, transitioning to first exercise.`;
+    
+    dispatch(addContextMessage({
+      event: 'warmup-skipped',
+      message: contextMessage,
+      data: {},
+    }));
+    
+    contextBridgeService.sendContextualUpdate(contextMessage).catch(err => 
+      console.log('🎙️ Could not send warmup skipped context:', err)
+    );
+  },
+});
+
 // Export the middleware instance
 export { workoutListenerMiddleware };
 
@@ -2168,5 +2329,6 @@ export const workoutTimerHelpers = {
   clearAllTimers,
   isSetTimerActive: () => !!activeTimers.setUpdateInterval,
   isRestTimerActive: () => !!activeTimers.restUpdateInterval,
+  isWarmupTimerActive: () => !!activeTimers.warmupUpdateInterval,
   isUserActivityPingActive: () => !!activeTimers.userActivityPing,
 };

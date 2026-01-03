@@ -73,3 +73,4 @@ CHECK (position > 0);
 COMMENT ON COLUMN public.workout_entries.position IS 
 'Order position of exercise within a workout day. Lower numbers come first. Used for exercise reordering during workout sessions.';
 
+
