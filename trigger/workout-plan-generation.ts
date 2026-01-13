@@ -9576,7 +9576,9 @@ export const generateWorkoutPlanTask = task({
       let entryIndex = 0;
       // Track position per day within each week
       const dayPositionMap = new Map<string, number>();
-      
+      // Track workout_instance_id per day per week (one instance ID per workout day)
+      const workoutInstanceMap = new Map<string, string>();
+
       for (let week = 1; week <= 8; week++) {
         for (const entry of workoutPlanWithData.entries) {
           // Calculate the proper date for this week and day
@@ -9591,6 +9593,14 @@ export const generateWorkoutPlanTask = task({
           const dayKey = `${week}-${entry.dayName}`;
           const currentPosition = (dayPositionMap.get(dayKey) || 0) + 1;
           dayPositionMap.set(dayKey, currentPosition);
+
+          // Get or create workout_instance_id for this specific day
+          // All exercises in the same day/week share the same instance ID
+          if (!workoutInstanceMap.has(dayKey)) {
+            const { randomUUID } = await import('crypto');
+            workoutInstanceMap.set(dayKey, randomUUID());
+          }
+          const workoutInstanceId = workoutInstanceMap.get(dayKey);
 
           allEntries.push({
             workout_plan_id: planData.id,
@@ -9608,6 +9618,7 @@ export const generateWorkoutPlanTask = task({
             streak_exercise_notes: entry.streakExerciseNotes,
             is_adjusted: false,
             position: currentPosition, // Position within this day/week combination
+            workout_instance_id: workoutInstanceId, // ✅ All exercises in same day share this ID
           });
 
           // Store alternative exercises for this entry using the array index

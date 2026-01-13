@@ -1148,16 +1148,13 @@ startAppListening({
     const { dispatch, getState } = listenerApi;
     const state = getState() as RootState;
     const workoutState = state.workout;
-    
+
     console.log('😴 [Workout Middleware] Rest timer expired');
-    
-    // Check if we should complete exercise (status is exercise-transition)
-    if (workoutState.status === 'exercise-transition') {
-      console.log('🏁 [Workout Middleware] Last set completed, auto-completing exercise');
-      dispatch(completeExercise());
-      return;
-    }
-    
+
+    // NOTE: Do NOT auto-complete exercise here - it's already handled by the setTimeout
+    // in the startRest listener (line 484-486) for the last set. Calling completeExercise()
+    // here would cause a double-completion, skipping an exercise.
+
     // Generate context message for rest complete
     if (workoutState.activeWorkout?.currentExercise) {
       const setNumber = workoutState.activeWorkout.currentSetIndex + 1;

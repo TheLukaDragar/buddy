@@ -6,21 +6,18 @@ import { AutoSkeletonView } from 'react-native-auto-skeleton';
 import { PanGestureHandler } from 'react-native-gesture-handler';
 import { Button, Text } from 'react-native-paper';
 import Animated, {
-  Easing,
-  Extrapolate,
-  interpolate,
   Layout,
   runOnJS,
   useAnimatedGestureHandler,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
-  withTiming,
+  withTiming
 } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { nucleus } from '../Buddy_variables';
-import { useGetExerciseByIdQuery } from '../store/api/enhancedApi';
 import { jumpToExerciseAndQueueCurrent } from '../store/actions/workoutActions';
+import { useGetExerciseByIdQuery } from '../store/api/enhancedApi';
 import { useAppDispatch } from '../store/hooks';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
