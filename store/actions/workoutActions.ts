@@ -4,33 +4,33 @@ import { WorkoutSession } from '../../types/workout'
 import { enhancedApi } from '../api/enhancedApi'
 import type { RootState } from '../index'
 import {
-  adjustReps as adjustRepsReducer,
-  adjustRestTime as adjustRestTimeReducer,
-  adjustWeight as adjustWeightReducer,
-  completeExercise as completeExerciseReducer,
-  completeSet as completeSetReducer,
-  completeWarmup as completeWarmupReducer,
-  completeWorkout as completeWorkoutReducer,
-  confirmReadyAndStartSet as confirmReadyAndStartSetReducer,
-  extendRest as extendRestReducer,
-  finishWorkoutEarly as finishWorkoutEarlyReducer,
-  jumpToExerciseAndQueueCurrent as jumpToExerciseAndQueueCurrentReducer,
-  jumpToExercise as jumpToExerciseReducer,
-  jumpToSet as jumpToSetReducer,
-  nextSet as nextSetReducer,
-  pauseSet as pauseSetReducer,
-  previousSet as previousSetReducer,
-  resumeSet as resumeSetReducer,
-  resumeWorkoutFromSession as resumeWorkoutFromSessionReducer,
-  selectWorkoutFromEntries as selectWorkoutFromEntriesReducer,
-  selectWorkout as selectWorkoutReducer,
-  skipWarmup as skipWarmupReducer,
-  startExercisePreparation as startExercisePreparationReducer,
-  startRest as startRestReducer,
-  // Warmup reducers
-  startWarmup as startWarmupReducer,
-  triggerRestEnding as triggerRestEndingReducer,
-  type WorkoutEntryNode,
+    adjustReps as adjustRepsReducer,
+    adjustRestTime as adjustRestTimeReducer,
+    adjustWeight as adjustWeightReducer,
+    completeExercise as completeExerciseReducer,
+    completeSet as completeSetReducer,
+    completeWarmup as completeWarmupReducer,
+    completeWorkout as completeWorkoutReducer,
+    confirmReadyAndStartSet as confirmReadyAndStartSetReducer,
+    extendRest as extendRestReducer,
+    finishWorkoutEarly as finishWorkoutEarlyReducer,
+    jumpToExerciseAndQueueCurrent as jumpToExerciseAndQueueCurrentReducer,
+    jumpToExercise as jumpToExerciseReducer,
+    jumpToSet as jumpToSetReducer,
+    nextSet as nextSetReducer,
+    pauseSet as pauseSetReducer,
+    previousSet as previousSetReducer,
+    resumeSet as resumeSetReducer,
+    resumeWorkoutFromSession as resumeWorkoutFromSessionReducer,
+    selectWorkoutFromEntries as selectWorkoutFromEntriesReducer,
+    selectWorkout as selectWorkoutReducer,
+    skipWarmup as skipWarmupReducer,
+    startExercisePreparation as startExercisePreparationReducer,
+    startRest as startRestReducer,
+    // Warmup reducers
+    startWarmup as startWarmupReducer,
+    triggerRestEnding as triggerRestEndingReducer,
+    type WorkoutEntryNode,
 } from '../slices/workoutSlice'
 
 // =============================================================================
@@ -280,7 +280,11 @@ export const completeSet = createAsyncThunk(
   async ({ actualReps }: { actualReps?: number }, { getState, dispatch, rejectWithValue }) => {
     const state = getState() as RootState
     
-    if (state.workout.status !== 'exercising' || !state.workout.activeWorkout) {
+    // Allow completion if: (1) exercising, OR (2) selected status with active warmup (treating warmup as a set)
+    const isWarmupCompletion = state.workout.status === 'selected' && state.workout.warmup.phase === 'active';
+    const isValidState = state.workout.status === 'exercising' || isWarmupCompletion;
+    
+    if (!isValidState || !state.workout.activeWorkout) {
       return rejectWithValue(`Cannot complete set from state: ${state.workout.status}`)
     }
 
@@ -749,6 +753,43 @@ export const getWorkoutStatus = createAsyncThunk(
       }
     }
     
+    // Check warmup phase first - if warmup is active or ready, user is NOT in exercises yet
+    const warmupPhase = state.workout.warmup.phase
+    const workoutName = state.workout.session?.name || state.workout.dayName || 'Workout'
+    
+    // If warmup is ready or active, return warmup status instead of exercise status
+    if (warmupPhase === 'ready' || warmupPhase === 'active') {
+      const warmupRemaining = Math.floor(state.workout.warmup.remaining)
+      const warmupMinutes = Math.floor(warmupRemaining / 60)
+      const warmupSeconds = warmupRemaining % 60
+      const warmupTimeStr = warmupPhase === 'active' 
+        ? `${warmupMinutes}:${warmupSeconds.toString().padStart(2, '0')} remaining`
+        : 'ready to start'
+      
+      return {
+        success: true,
+        message: `Workout: ${workoutName} | Warmup Phase: ${warmupPhase} (${warmupTimeStr}) | State: ${state.workout.status}`,
+        hasActiveWorkout: true,
+        isWarmup: true,
+        data: {
+          workoutName: workoutName,
+          isWarmup: true,
+          warmupPhase: warmupPhase,
+          warmupRemaining: warmupRemaining,
+          status: state.workout.status,
+          exerciseName: null,
+          exerciseProgress: null,
+          setProgress: null,
+          isPaused: false,
+          allExercises: [],
+          currentExerciseIndex: -1,
+          currentExerciseSlug: null,
+          currentExerciseAlternatives: [],
+          currentWorkoutEntryId: null
+        }
+      }
+    }
+    
     const exercise = state.workout.activeWorkout.currentExercise
     const setNum = state.workout.activeWorkout.currentSetIndex + 1
     const totalSets = exercise?.sets.length || 0
@@ -759,7 +800,6 @@ export const getWorkoutStatus = createAsyncThunk(
       || state.workout.session?.exercises.length 
       || 0
     
-    const workoutName = state.workout.session?.name || state.workout.dayName || 'Workout'
     const statusMessage = `Workout: ${workoutName} | Exercise ${exerciseNum}/${totalExercises}: ${exercise?.name} | Set ${setNum}/${totalSets} | State: ${state.workout.status}`
     
     const currentExerciseIndex = state.workout.activeWorkout.currentExerciseIndex
@@ -797,6 +837,7 @@ export const getWorkoutStatus = createAsyncThunk(
       success: true,
       message: statusMessage,
       hasActiveWorkout: true,
+      isWarmup: false,
       data: {
         workoutName: workoutName,
         exerciseName: exercise?.name,
@@ -810,7 +851,8 @@ export const getWorkoutStatus = createAsyncThunk(
         currentExerciseSlug: currentEntry?.exercises?.slug || '',
         // Alternatives ONLY for current exercise
         currentExerciseAlternatives: currentExerciseAlternatives,
-        currentWorkoutEntryId: currentEntry?.id || null
+        currentWorkoutEntryId: currentEntry?.id || null,
+        isWarmup: false
       }
     }
   }

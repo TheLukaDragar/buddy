@@ -5,39 +5,39 @@ import { getWorkoutStatus } from '../actions/workoutActions';
 import { enhancedApi } from '../api/enhancedApi';
 import type { AppDispatch, RootState } from '../index';
 import {
-  addContextMessage,
-  adjustReps,
-  adjustRestTime,
-  adjustWeight,
-  clearProcessedContextMessages,
-  completeExercise,
-  completeSet,
-  completeWarmup,
-  completeWorkout,
-  confirmReadyAndStartSet,
-  extendRest,
-  finishWorkoutEarly,
-  jumpToSet,
-  nextSet,
-  pauseSet,
-  previousSet,
-  restTimerExpired,
-  resumeSet,
-  selectSessionId,
-  selectWorkout,
-  setTimerExpired,
-  setVoiceAgentStatus,
-  skipWarmup,
-  startExercisePreparation,
-  startRest,
-  // Warmup actions
-  startWarmup,
-  syncWorkoutEntryUpdate,
-  trackConversation,
-  triggerRestEnding,
-  updateRestTimer,
-  updateSetTimer,
-  updateWarmupTimer,
+    addContextMessage,
+    adjustReps,
+    adjustRestTime,
+    adjustWeight,
+    clearProcessedContextMessages,
+    completeExercise,
+    completeSet,
+    completeWarmup,
+    completeWorkout,
+    confirmReadyAndStartSet,
+    extendRest,
+    finishWorkoutEarly,
+    jumpToSet,
+    nextSet,
+    pauseSet,
+    previousSet,
+    restTimerExpired,
+    resumeSet,
+    selectSessionId,
+    selectWorkout,
+    setTimerExpired,
+    setVoiceAgentStatus,
+    skipWarmup,
+    startExercisePreparation,
+    startRest,
+    // Warmup actions
+    startWarmup,
+    syncWorkoutEntryUpdate,
+    trackConversation,
+    triggerRestEnding,
+    updateRestTimer,
+    updateSetTimer,
+    updateWarmupTimer,
 } from '../slices/workoutSlice';
 
 // Create the listener middleware with proper typing
@@ -304,13 +304,91 @@ startAppListening({
   },
 });
 
-// Listener for set start - handles timer setup
+// Listener for set start - handles timer setup (also handles warmup if warmup phase is "ready")
 startAppListening({
   actionCreator: confirmReadyAndStartSet,
   effect: async (action, listenerApi) => {
     const { dispatch, getState } = listenerApi;
     const state = getState() as RootState;
     const workoutState = state.workout;
+    
+    // CRITICAL: If warmup phase is "active" and status is "selected", warmup was started via start_set()
+    if (workoutState.warmup.phase === 'active' && workoutState.status === 'selected' && !workoutState.timers.setTimer) {
+      // Warmup was started via start_set() - handle warmup timer using existing warmup timer logic
+      console.log('🔥 [Workout Middleware] Warmup started via start_set() - starting warmup timer');
+      const warmupState = workoutState.warmup;
+      const startTime = warmupState.startTime || Date.now();
+      const duration = warmupState.duration * 1000; // Convert to milliseconds
+      
+      // Clear any existing warmup timers
+      if (activeTimers.warmupUpdateInterval) {
+        clearInterval(activeTimers.warmupUpdateInterval);
+        delete activeTimers.warmupUpdateInterval;
+      }
+      if (activeTimers.warmupTimer) {
+        clearTimeout(activeTimers.warmupTimer);
+        delete activeTimers.warmupTimer;
+      }
+      
+      // Update timer every second
+      activeTimers.warmupUpdateInterval = setInterval(() => {
+        const currentState = listenerApi.getState() as RootState;
+        const currentWarmup = currentState.workout.warmup;
+        
+        if (currentWarmup.phase !== 'active') {
+          // Timer was stopped/completed
+          if (activeTimers.warmupUpdateInterval) {
+            clearInterval(activeTimers.warmupUpdateInterval);
+            delete activeTimers.warmupUpdateInterval;
+          }
+          return;
+        }
+        
+        const elapsed = Math.floor((Date.now() - startTime) / 1000);
+        const remaining = Math.max(0, currentWarmup.duration - elapsed);
+        
+        dispatch(updateWarmupTimer(remaining));
+        
+        if (remaining === 0) {
+          // Timer completed - dispatch completeWarmup
+          if (activeTimers.warmupUpdateInterval) {
+            clearInterval(activeTimers.warmupUpdateInterval);
+            delete activeTimers.warmupUpdateInterval;
+          }
+          import('../actions/workoutActions').then(({ completeWarmup: completeWarmupThunk }) => {
+            dispatch(completeWarmupThunk());
+          });
+        }
+      }, 1000);
+      
+      // Auto-complete after duration
+      activeTimers.warmupTimer = setTimeout(() => {
+        const currentState = listenerApi.getState() as RootState;
+        if (currentState.workout.warmup.phase === 'active') {
+          console.log('⏰ [Warmup Middleware] Warmup timer expired, auto-completing');
+          import('../actions/workoutActions').then(({ completeWarmup: completeWarmupThunk }) => {
+            dispatch(completeWarmupThunk());
+          });
+        }
+      }, duration);
+      
+      // Generate context message for warmup started
+      const contextMessage = `SYSTEM: warmup-started - 10 minute warmup timer active. User warming up.`;
+      
+      dispatch(addContextMessage({
+        event: 'warmup-started',
+        message: contextMessage,
+        data: {
+          duration: Math.floor(duration / 1000),
+        },
+      }));
+      
+      contextBridgeService.sendContextualUpdate(contextMessage).catch(err => 
+        console.log('🎙️ Could not send warmup started context:', err)
+      );
+      
+      return; // Don't proceed to set timer logic
+    }
     
     // Clear any existing rest timer intervals when starting a new set
     if (activeTimers.restUpdateInterval) {
@@ -386,13 +464,43 @@ startAppListening({
   },
 });
 
-// Listener for set completion - cleanup timers
+// Listener for set completion - cleanup timers (also handles warmup completion)
 startAppListening({
   actionCreator: completeSet,
   effect: async (action, listenerApi) => {
     const { dispatch, getState } = listenerApi;
     const state = getState() as RootState;
     const workoutState = state.workout;
+    
+    // CRITICAL: If warmup was just completed via complete_set(), handle warmup cleanup
+    if (workoutState.warmup.phase === 'completed' && workoutState.status === 'preparing') {
+      console.log('✅ [Workout Middleware] Warmup completed via complete_set(), clearing warmup timers');
+      
+      // Clear warmup timer updates
+      if (activeTimers.warmupUpdateInterval) {
+        clearInterval(activeTimers.warmupUpdateInterval);
+        delete activeTimers.warmupUpdateInterval;
+      }
+      if (activeTimers.warmupTimer) {
+        clearTimeout(activeTimers.warmupTimer);
+        delete activeTimers.warmupTimer;
+      }
+      
+      // Generate context message for warmup completion
+      const contextMessage = `SYSTEM: warmup-completed - Warmup finished, transitioning to first exercise.`;
+      
+      dispatch(addContextMessage({
+        event: 'warmup-completed',
+        message: contextMessage,
+        data: {},
+      }));
+      
+      contextBridgeService.sendContextualUpdate(contextMessage).catch(err => 
+        console.log('🎙️ Could not send warmup completed context:', err)
+      );
+      
+      return; // Don't proceed to set completion logic
+    }
     
     console.log('✅ [Workout Middleware] Set completed, clearing timers');
     
@@ -1053,13 +1161,30 @@ startAppListening({
             
             if (getWorkoutStatus.fulfilled.match(workoutStatusResult)) {
               const statusData = workoutStatusResult.payload;
-              contextMessage += `WORKOUT STATUS: ${statusData.message}`;
               
-              if (statusData.data) {
-                const data = statusData.data;
-                contextMessage += ` | Details: ${data.exerciseName}, Set ${data.setProgress}, State: ${data.status}`;
-                if (data.isPaused) {
-                  contextMessage += ' (PAUSED)';
+              // Check if user is in warmup phase
+              if (statusData.isWarmup || statusData.data?.isWarmup) {
+                const warmupPhase = statusData.data?.warmupPhase || 'ready';
+                const warmupRemaining = statusData.data?.warmupRemaining || 0;
+                const workoutName = statusData.data?.workoutName || 'Workout';
+                
+                if (warmupPhase === 'ready') {
+                  contextMessage += `WORKOUT STATUS: Workout: ${workoutName} | Warmup Phase: ready (user needs to start warmup) | State: selected. User is in warmup preparation phase - announce today's workout and explain the purpose of warmup. DO NOT talk about exercise 1 yet - user must complete warmup first.`;
+                } else if (warmupPhase === 'active') {
+                  const minutes = Math.floor(warmupRemaining / 60);
+                  const seconds = warmupRemaining % 60;
+                  contextMessage += `WORKOUT STATUS: Workout: ${workoutName} | Warmup Phase: active (${minutes}:${seconds.toString().padStart(2, '0')} remaining) | State: exercising. User is currently warming up - DO NOT talk about exercise 1 yet.`;
+                }
+              } else {
+                // Normal exercise status
+                contextMessage += `WORKOUT STATUS: ${statusData.message}`;
+                
+                if (statusData.data) {
+                  const data = statusData.data;
+                  contextMessage += ` | Details: ${data.exerciseName}, Set ${data.setProgress}, State: ${data.status}`;
+                  if (data.isPaused) {
+                    contextMessage += ' (PAUSED)';
+                  }
                 }
               }
             }
@@ -1368,6 +1493,12 @@ startAppListening({
   effect: async (action, listenerApi) => {
     const { dispatch, getState } = listenerApi;
     const state = getState() as RootState;
+    
+    // Skip database sync if warmup was just completed (warmup doesn't have sets to sync)
+    if (state.workout.warmup.phase === 'completed' && state.workout.status === 'preparing') {
+      return;
+    }
+    
     const sessionId = selectSessionId(state);
     
     if (!sessionId || sessionId.startsWith('temp-')) {

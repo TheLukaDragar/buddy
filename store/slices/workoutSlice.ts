@@ -652,6 +652,16 @@ const workoutSlice = createSlice({
     },
 
     confirmReadyAndStartSet: (state) => {
+      // CRITICAL: If warmup phase is "ready", start warmup instead of a set
+      if (state.warmup.phase === 'ready') {
+        state.warmup.phase = 'active';
+        state.warmup.startTime = Date.now();
+        state.warmup.remaining = state.warmup.duration;
+        // Keep status as 'selected' so UI shows warmup screen, not exercise screen
+        state.status = 'selected';
+        console.log('🔥 [Warmup] Started via start_set() - 10 minute timer active');
+        return; // Don't proceed to set logic
+      }
 
       // Handle different states where user can start a set
       const currentSetIndex = state.activeWorkout!.currentSetIndex;
@@ -767,6 +777,20 @@ const workoutSlice = createSlice({
     completeSet: {
       reducer: (state, action: PayloadAction<{ actualReps?: number; timestamp: number }>) => {
         const { actualReps, timestamp } = action.payload;
+
+        // CRITICAL: If warmup phase is "active", complete warmup instead of a set
+        if (state.warmup.phase === 'active' && state.status === 'selected') {
+          state.warmup.phase = 'completed';
+          state.warmup.remaining = 0;
+          // Transition to preparing state for first exercise
+          state.status = 'preparing';
+          if (state.activeWorkout) {
+            state.activeWorkout.phase = 'preparing';
+            state.activeWorkout.currentPhaseStartTime = new Date();
+          }
+          console.log('🔥 [Warmup] Completed via complete_set() - transitioning to first exercise');
+          return; // Don't proceed to set completion logic
+        }
 
         // Capture pause time BEFORE clearing timer/resetting state
         const finalPauseTime = state.activeWorkout!.totalPauseTime ?? 0;

@@ -64,6 +64,7 @@ import {
   startRest,
   // Warmup actions
   startWarmup,
+  completeWarmup,
 } from '../store/actions/workoutActions';
 import { useAppDispatch } from '../store/hooks';
 import { hideMiniPlayer, selectMiniPlayerVisible, showMiniPlayer } from '../store/slices/musicSlice';
@@ -3376,6 +3377,43 @@ export default function ActiveWorkoutScreen() {
         } catch (error) {
           console.error('❌ [Client Tool] get_music_status failed:', error);
           return JSON.stringify({ success: false, message: `Failed to get music status: ${error}` });
+        }
+      },
+      
+      // Warmup Tools (3)
+      start_warmup: async (params: unknown) => {
+        try {
+          const result = await dispatch(startWarmup());
+          const data = unwrapResult(result);
+          console.log('🔥 [Client Tool] start_warmup result:', data);
+          return JSON.stringify(data);
+        } catch (error) {
+          console.error('❌ [Client Tool] start_warmup failed:', error);
+          return JSON.stringify({ success: false, message: `Failed to start warmup: ${error}` });
+        }
+      },
+      
+      complete_warmup: async (params: unknown) => {
+        try {
+          const result = await dispatch(completeWarmup());
+          const data = unwrapResult(result);
+          console.log('✅ [Client Tool] complete_warmup result:', data);
+          return JSON.stringify(data);
+        } catch (error) {
+          console.error('❌ [Client Tool] complete_warmup failed:', error);
+          return JSON.stringify({ success: false, message: `Failed to complete warmup: ${error}` });
+        }
+      },
+      
+      skip_warmup: async (params: unknown) => {
+        try {
+          const result = await dispatch(skipWarmup());
+          const data = unwrapResult(result);
+          console.log('⏭️ [Client Tool] skip_warmup result:', data);
+          return JSON.stringify(data);
+        } catch (error) {
+          console.error('❌ [Client Tool] skip_warmup failed:', error);
+          return JSON.stringify({ success: false, message: `Failed to skip warmup: ${error}` });
         }
       }
     },
