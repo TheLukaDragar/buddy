@@ -5,39 +5,41 @@ import { getWorkoutStatus } from '../actions/workoutActions';
 import { enhancedApi } from '../api/enhancedApi';
 import type { AppDispatch, RootState } from '../index';
 import {
-    addContextMessage,
-    adjustReps,
-    adjustRestTime,
-    adjustWeight,
-    clearProcessedContextMessages,
-    completeExercise,
-    completeSet,
-    completeWarmup,
-    completeWorkout,
-    confirmReadyAndStartSet,
-    extendRest,
-    finishWorkoutEarly,
-    jumpToSet,
-    nextSet,
-    pauseSet,
-    previousSet,
-    restTimerExpired,
-    resumeSet,
-    selectSessionId,
-    selectWorkout,
-    setTimerExpired,
-    setVoiceAgentStatus,
-    skipWarmup,
-    startExercisePreparation,
-    startRest,
-    // Warmup actions
-    startWarmup,
-    syncWorkoutEntryUpdate,
-    trackConversation,
-    triggerRestEnding,
-    updateRestTimer,
-    updateSetTimer,
-    updateWarmupTimer,
+  addContextMessage,
+  adjustReps,
+  adjustRestTime,
+  adjustWeight,
+  clearProcessedContextMessages,
+  completeExercise,
+  completeSet,
+  completeWarmup,
+  completeWorkout,
+  confirmReadyAndStartSet,
+  extendRest,
+  finishWorkoutEarly,
+  jumpToExercise,
+  jumpToExerciseAndQueueCurrent,
+  jumpToSet,
+  nextSet,
+  pauseSet,
+  previousSet,
+  restTimerExpired,
+  resumeSet,
+  selectSessionId,
+  selectWorkout,
+  setTimerExpired,
+  setVoiceAgentStatus,
+  skipWarmup,
+  startExercisePreparation,
+  startRest,
+  // Warmup actions
+  startWarmup,
+  syncWorkoutEntryUpdate,
+  trackConversation,
+  triggerRestEnding,
+  updateRestTimer,
+  updateSetTimer,
+  updateWarmupTimer,
 } from '../slices/workoutSlice';
 
 // Create the listener middleware with proper typing
@@ -519,7 +521,11 @@ startAppListening({
     // Generate context message for set completion
     if (workoutState.activeWorkout) {
       const setNumber = workoutState.activeWorkout.currentSetIndex + 1;
-      const systemMessage = `SYSTEM: set-completed - Set ${setNumber} finished. User needs feedback and next instructions.`;
+      const totalSets = workoutState.activeWorkout.currentExercise?.sets.length || 0;
+      const isLastSet = setNumber === totalSets;
+      const systemMessage = isLastSet
+        ? `SYSTEM: set-completed - Set ${setNumber} finished (LAST SET). Rest will start automatically, but user can ask to skip rest and move to next exercise anytime.`
+        : `SYSTEM: set-completed - Set ${setNumber} finished.`;
       
       dispatch(addContextMessage({
         event: 'set-completed',
@@ -528,6 +534,7 @@ startAppListening({
           setNumber,
           actualReps: workoutState.activeWorkout.currentSet?.actualReps,
           targetReps: workoutState.activeWorkout.currentSet?.targetReps,
+          isLastSet,
         },
       }));
       
@@ -564,9 +571,10 @@ startAppListening({
     if (state.workout.activeWorkout) {
       const setJustCompleted = state.workout.activeWorkout.currentSetIndex + 1;
       const durationSeconds = Math.floor(duration / 1000);
+      const currentExerciseName = state.workout.activeWorkout.currentExercise?.name || 'exercise';
       const restMessage = `SYSTEM: rest-started - ${durationSeconds}s rest period active after set ${setJustCompleted}`;
       const contextMessage = isLastSet 
-        ? `${restMessage}. This is the LAST SET of the exercise, no next set warning will be sent.`
+        ? `${restMessage}. This is the LAST SET of ${currentExerciseName}. The system will automatically send "exercise-changed" after ${durationSeconds}s. During this rest: ONLY chat with the user about how the completed set felt. STAY SILENT about the next exercise until "exercise-changed" arrives. If user wants to skip rest and move to next exercise early, call next_exercise() tool immediately.`
         : `${restMessage}.`;
       
       dispatch(addContextMessage({
@@ -929,6 +937,118 @@ startAppListening({
           console.log('🎙️ Could not send exercise change message:', err)
         );
       }
+    }
+  },
+});
+
+// Listener for manual exercise jump - clear timers and send context message
+startAppListening({
+  actionCreator: jumpToExercise,
+  effect: async (action, listenerApi) => {
+    const { dispatch, getState } = listenerApi;
+    const state = getState() as RootState;
+    const workoutState = state.workout;
+    
+    console.log('🔄 [Jump & Queue] Manual exercise jump detected - clearing timers');
+    
+    // Clear all active timers when jumping to a different exercise
+    if (activeTimers.restTimer) {
+      clearTimeout(activeTimers.restTimer);
+      activeTimers.restTimer = undefined;
+      console.log('⏰ Cleared rest timer');
+    }
+    if (activeTimers.setTimer) {
+      clearTimeout(activeTimers.setTimer);
+      activeTimers.setTimer = undefined;
+      console.log('⏰ Cleared set timer');
+    }
+    if (activeTimers.restUpdateInterval) {
+      clearInterval(activeTimers.restUpdateInterval);
+      activeTimers.restUpdateInterval = undefined;
+    }
+    if (activeTimers.setUpdateInterval) {
+      clearInterval(activeTimers.setUpdateInterval);
+      activeTimers.setUpdateInterval = undefined;
+    }
+    
+    // Send exercise-changed context message to ElevenLabs
+    if (workoutState.activeWorkout?.currentExercise) {
+      const newExercise = workoutState.activeWorkout.currentExercise.name;
+      const systemMessage = `SYSTEM: exercise-changed - Jumped to ${newExercise}.`;
+      
+      dispatch(addContextMessage({
+        event: 'exercise-changed',
+        message: systemMessage,
+        data: {
+          newExercise,
+          exerciseIndex: workoutState.activeWorkout.currentExerciseIndex + 1,
+          totalExercises: workoutState.session?.exercises.length || 0,
+          description: workoutState.activeWorkout.currentExercise.description,
+          sets: workoutState.activeWorkout.currentExercise.sets.length,
+          targetReps: workoutState.activeWorkout.currentSet?.targetReps,
+          targetWeight: workoutState.activeWorkout.currentSet?.targetWeight,
+        },
+      }));
+      
+      contextBridgeService.sendMessage(systemMessage).catch(err => 
+        console.log('🎙️ Could not send exercise jump message:', err)
+      );
+    }
+  },
+});
+
+// Listener for UI-triggered exercise swap (jump and queue) - clear timers and send context message
+startAppListening({
+  actionCreator: jumpToExerciseAndQueueCurrent,
+  effect: async (action, listenerApi) => {
+    const { dispatch, getState } = listenerApi;
+    const state = getState() as RootState;
+    const workoutState = state.workout;
+    
+    console.log('🔄 [Jump & Queue] UI exercise swap detected - clearing timers');
+    
+    // Clear all active timers when swapping to a different exercise via UI
+    if (activeTimers.restTimer) {
+      clearTimeout(activeTimers.restTimer);
+      activeTimers.restTimer = undefined;
+      console.log('⏰ Cleared rest timer');
+    }
+    if (activeTimers.setTimer) {
+      clearTimeout(activeTimers.setTimer);
+      activeTimers.setTimer = undefined;
+      console.log('⏰ Cleared set timer');
+    }
+    if (activeTimers.restUpdateInterval) {
+      clearInterval(activeTimers.restUpdateInterval);
+      activeTimers.restUpdateInterval = undefined;
+    }
+    if (activeTimers.setUpdateInterval) {
+      clearInterval(activeTimers.setUpdateInterval);
+      activeTimers.setUpdateInterval = undefined;
+    }
+    
+    // Send exercise-changed context message to ElevenLabs
+    if (workoutState.activeWorkout?.currentExercise) {
+      const newExercise = workoutState.activeWorkout.currentExercise.name;
+      const systemMessage = `SYSTEM: exercise-changed - Swapped to ${newExercise}.`;
+      
+      dispatch(addContextMessage({
+        event: 'exercise-changed',
+        message: systemMessage,
+        data: {
+          newExercise,
+          exerciseIndex: workoutState.activeWorkout.currentExerciseIndex + 1,
+          totalExercises: workoutState.session?.exercises.length || 0,
+          description: workoutState.activeWorkout.currentExercise.description,
+          sets: workoutState.activeWorkout.currentExercise.sets.length,
+          targetReps: workoutState.activeWorkout.currentSet?.targetReps,
+          targetWeight: workoutState.activeWorkout.currentSet?.targetWeight,
+        },
+      }));
+      
+      contextBridgeService.sendMessage(systemMessage).catch(err => 
+        console.log('🎙️ Could not send exercise swap message:', err)
+      );
     }
   },
 });

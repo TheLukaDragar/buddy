@@ -48,6 +48,7 @@ import {
   adjustWeight,
   completeExercise,
   completeSet,
+  completeWarmup,
   completeWorkout,
   confirmReadyAndStartSet,
   finishWorkoutEarly,
@@ -64,7 +65,6 @@ import {
   startRest,
   // Warmup actions
   startWarmup,
-  completeWarmup,
 } from '../store/actions/workoutActions';
 import { useAppDispatch } from '../store/hooks';
 import { hideMiniPlayer, selectMiniPlayerVisible, showMiniPlayer } from '../store/slices/musicSlice';
@@ -2872,9 +2872,21 @@ export default function ActiveWorkoutScreen() {
   // Initialize conversation with handlers and client tools
   const conversation = useConversation({
     clientTools: {
-      // Workout Tools (13)
+      // Workout Tools (18)
       start_set: async (params: unknown) => {
         try {
+          // Guard: Block during last-set rest period
+          const state = store.getState() as RootState;
+          const { status, timers } = state.workout;
+          
+          if (status === 'resting' && timers.restTimer?.isLastSet) {
+            console.warn('⚠️ [Client Tool] start_set blocked - use next_exercise() instead');
+            return JSON.stringify({ 
+              success: false, 
+              message: 'Cannot start set - this exercise is complete. User wants to move to next exercise. Call next_exercise() tool instead to skip rest and continue workout.'
+            });
+          }
+          
           const result = await dispatch(confirmReadyAndStartSet());
           const data = unwrapResult(result);
           console.log('🎯 [Client Tool] start_set result:', data);
@@ -3059,6 +3071,18 @@ export default function ActiveWorkoutScreen() {
       
       get_exercise_instructions: async (params: unknown) => {
         try {
+          // Guard: Block during last-set rest period
+          const state = store.getState() as RootState;
+          const { status, timers } = state.workout;
+          
+          if (status === 'resting' && timers.restTimer?.isLastSet) {
+            console.warn('⚠️ [Client Tool] get_exercise_instructions blocked - use next_exercise() instead');
+            return JSON.stringify({ 
+              success: false, 
+              message: 'Current exercise is complete (last set done). If user wants next exercise now, call next_exercise() tool to skip rest. Otherwise wait for automatic "exercise-changed" message.'
+            });
+          }
+          
           const result = await dispatch(getExerciseInstructions());
           const data = unwrapResult(result);
           console.log('🎯 [Client Tool] get_exercise_instructions result:', data);
@@ -3071,6 +3095,18 @@ export default function ActiveWorkoutScreen() {
       
       jump_to_exercise: async (params: unknown) => {
         try {
+          // Guard: Block during last-set rest period
+          const state = store.getState() as RootState;
+          const { status, timers } = state.workout;
+          
+          if (status === 'resting' && timers.restTimer?.isLastSet) {
+            console.warn('⚠️ [Client Tool] jump_to_exercise blocked - use next_exercise() instead');
+            return JSON.stringify({ 
+              success: false, 
+              message: 'Cannot jump manually after last set. If user wants to continue now, call next_exercise() tool to skip rest and move to next exercise.'
+            });
+          }
+          
           const typedParams = params as { exerciseSlug: string; reason?: string };
           if (!typedParams.exerciseSlug) {
             throw new Error('Missing exerciseSlug parameter');
@@ -3414,6 +3450,18 @@ export default function ActiveWorkoutScreen() {
         } catch (error) {
           console.error('❌ [Client Tool] skip_warmup failed:', error);
           return JSON.stringify({ success: false, message: `Failed to skip warmup: ${error}` });
+        }
+      },
+      
+      next_exercise: async (params: unknown) => {
+        try {
+          const result = await dispatch(completeExercise());
+          const data = unwrapResult(result);
+          console.log('⏭️ [Client Tool] next_exercise result:', data);
+          return JSON.stringify(data);
+        } catch (error) {
+          console.error('❌ [Client Tool] next_exercise failed:', error);
+          return JSON.stringify({ success: false, message: `Failed to move to next exercise: ${error}` });
         }
       }
     },
