@@ -148,7 +148,8 @@ const startTimerUpdates = (
   _originalStartTime: number, // Ignored - we use our own timing
   duration: number,
   type: 'set' | 'rest',
-  dispatch: any
+  dispatch: any,
+  getState: () => RootState
 ) => {
   const intervalKey = type === 'set' ? 'setUpdateInterval' : 'restUpdateInterval';
   const updateAction = type === 'set' ? updateSetTimer : updateRestTimer;
@@ -196,6 +197,21 @@ const startTimerUpdates = (
     
     // Check if timer expired
     if (remainingSeconds <= 0) {
+      // CRITICAL: Check current state to prevent race condition
+      // If set was completed manually while timer was about to expire, don't dispatch expiration
+      const currentState = getState();
+      
+      if (type === 'set') {
+        // For set timer: check if set is already completed
+        const isAlreadyCompleted = currentState.workout.activeWorkout?.currentSet?.isCompleted;
+        if (isAlreadyCompleted) {
+          console.log('⏭️ [Timer] Set already completed manually, skipping expiration dispatch');
+          clearInterval(activeTimers[intervalKey]);
+          delete activeTimers[intervalKey];
+          return;
+        }
+      }
+      
       clearInterval(activeTimers[intervalKey]);
       delete activeTimers[intervalKey];
       dispatch(expiredAction());
@@ -410,7 +426,7 @@ startAppListening({
     console.log('⏰ [Workout Middleware] Starting set timer:', duration / 1000, 'seconds');
     
     // Start timer updates
-    startTimerUpdates(startTime, duration, 'set', dispatch);
+    startTimerUpdates(startTime, duration, 'set', dispatch, getState);
     
     // Start user activity ping
     startUserActivityPing();
@@ -565,7 +581,7 @@ startAppListening({
     console.log('😴 [Workout Middleware] Starting rest timer:', duration / 1000, 'seconds', isLastSet ? '(last set)' : '');
     
     // Start rest timer updates
-    startTimerUpdates(startTime, duration, 'rest', dispatch);
+    startTimerUpdates(startTime, duration, 'rest', dispatch, getState);
     
     // Generate context message for rest started
     if (state.workout.activeWorkout) {
@@ -653,7 +669,7 @@ startAppListening({
       // Restart with new duration (from the updated slice state)
       const restTimer = workoutState.timers.restTimer;
       if (restTimer) {
-        startTimerUpdates(0, restTimer.remaining, 'rest', dispatch);
+        startTimerUpdates(0, restTimer.remaining, 'rest', dispatch, getState);
         
         // Only set warning timer if we have more than 10 seconds left
         if (restTimer.remaining > 10000) {
@@ -712,7 +728,7 @@ startAppListening({
       
       if (restTimer) {
         // Start timer updates with the new extended time
-        startTimerUpdates(0, restTimer.remaining, 'rest', dispatch);
+        startTimerUpdates(0, restTimer.remaining, 'rest', dispatch, getState);
         
         // Set up warning timer if we have more than 10 seconds left
         if (restTimer.remaining > 10000) {
@@ -1194,7 +1210,7 @@ startAppListening({
       }
       
       // Resume with remaining time
-      startTimerUpdates(0, setTimer.remaining, 'set', dispatch);
+      startTimerUpdates(0, setTimer.remaining, 'set', dispatch, getState);
       startUserActivityPing();
       
     } else if (currentStatus === 'resting' || currentStatus === 'rest-ending') {
@@ -1233,7 +1249,7 @@ startAppListening({
       }
       
       // Resume with remaining time
-      startTimerUpdates(0, restTimer.remaining, 'rest', dispatch);
+      startTimerUpdates(0, restTimer.remaining, 'rest', dispatch, getState);
       
       // Restart main rest timer if needed (with 10-second warning)
       if (restTimer.remaining > 10000 && currentStatus === 'resting') {
@@ -2090,14 +2106,14 @@ startAppListening({
         exerciseId: updatedEntry.exercise_id,
         exerciseData: exerciseData, // Use fresh data from GetExerciseById
         isAdjusted: updatedEntry.is_adjusted,
-        adjustmentReason: updatedEntry.adjustment_reason,
+        adjustmentReason: updatedEntry.adjustment_reason || undefined,
         // Pass fresh entry data if refetch succeeded
         ...(freshEntry ? {
           sets: freshEntry.sets,
           reps: freshEntry.reps,
-          weight: freshEntry.weight,
-          time: freshEntry.time,
-          notes: freshEntry.notes,
+          weight: freshEntry.weight || undefined,
+          time: freshEntry.time || undefined,
+          notes: freshEntry.notes || undefined,
         } : {}),
       },
     }));
