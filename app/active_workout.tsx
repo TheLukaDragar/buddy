@@ -3516,20 +3516,15 @@ export default function ActiveWorkoutScreen() {
       contextBridgeService.setConversationMode(mode);
     },
     onStatusChange: ({ status }: { status: ConversationStatus }) => {
-      console.log('ElevenLabs conversation status changed:', status);
-
-
-      //bug never in state connected! upon change to state connecting wait 3 seonds then dispach 
-      if (status === 'connecting') {
-        setTimeout(() => {
-          dispatch(setVoiceAgentStatus(true));
-        }, 3000);
-      }
-
-
-
-
+      console.log('🔄 ElevenLabs conversation status changed:', status);
       setConversationStatus(status);
+      
+      // Update Redux voice agent status
+      if (status === 'connected') {
+        dispatch(setVoiceAgentStatus(true));
+      } else if (status === 'disconnected') {
+        dispatch(setVoiceAgentStatus(false));
+      }
     },
     onCanSendFeedbackChange: ({ canSendFeedback: canSend }: { canSendFeedback: boolean }) => {
       console.log('ElevenLabs can send feedback changed:', canSend);
@@ -3568,9 +3563,14 @@ export default function ActiveWorkoutScreen() {
 
   // Function to start conversation
   const startConversation = async () => {
-    if (conversation.status === 'connecting' || conversation.status === 'connected') return;
+    if (conversation.status === 'connecting' || conversation.status === 'connected') {
+      console.log('🔄 Already connecting or connected, ignoring start request');
+      return;
+    }
     
     try {
+      console.log('🎤 Starting conversation...');
+      
       // Request microphone permission first
       const permissionGranted = await requestMicrophonePermission();
       if (!permissionGranted) {
@@ -3584,7 +3584,7 @@ export default function ActiveWorkoutScreen() {
         token = await fetchConversationToken();
         if (!token) {
           console.error('Could not get conversation token');
-          return;
+        return;
         }
       }
 
@@ -3610,9 +3610,10 @@ export default function ActiveWorkoutScreen() {
         trainer_notes: '',
       };
 
+      console.log('🎯 Starting session with agent:', agentId);
       await conversation.startSession({
         agentId: agentId,
-        conversationToken: token,
+        conversationToken: token, // Use fresh token
         dynamicVariables: {
           user_name: user?.user_metadata?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || "User",
           user_activity: "starting_workout_session",
@@ -3625,8 +3626,12 @@ export default function ActiveWorkoutScreen() {
           trainer_notes: exerciseProgressionRules.trainer_notes,
         }
       });
+      
+      console.log('✅ Session started successfully');
     } catch (error) {
-      console.error('Failed to start ElevenLabs conversation:', error);
+      console.error('❌ Failed to start ElevenLabs conversation:', error);
+      // Reset status to disconnected on error to allow retry
+      setConversationStatus('disconnected');
     }
   };
 
@@ -3635,23 +3640,26 @@ export default function ActiveWorkoutScreen() {
   const endConversation = useCallback(async () => {
     // Prevent multiple simultaneous disconnection calls
     if (isDisconnectingRef.current) {
-      console.log('Disconnection already in progress, skipping...');
+      console.log('⚠️ Disconnection already in progress, skipping...');
       return;
     }
 
     try {
+      isDisconnectingRef.current = true;
+      
       // Only end if actually connected or connecting
-      if (conversation.status === 'connected' || conversation.status === 'connecting') {
-        isDisconnectingRef.current = true;
-        console.log('Disconnecting voice agent...');
+      if (conversationStatus === 'connected' || conversationStatus === 'connecting') {
+        console.log('🔴 Disconnecting voice agent from status:', conversationStatus);
         await conversation.endSession();
-        console.log('Voice agent disconnected successfully');
+        console.log('✅ Voice agent disconnected successfully');
       } else {
-        console.log('Voice agent already disconnected, status:', conversation.status);
+        console.log('ℹ️ Voice agent already disconnected, status:', conversationStatus);
       }
     } catch (error) {
-      console.error('Failed to end ElevenLabs conversation:', error);
-      // Even if endSession fails, unregister callbacks to prevent further communication
+      console.error('❌ Failed to end ElevenLabs conversation:', error);
+      // Even if endSession fails, force status to disconnected
+      setConversationStatus('disconnected');
+      // Unregister callbacks to prevent further communication
       contextBridgeService.unregisterCallbacks();
     } finally {
       // Reset flag after a delay to allow for cleanup
@@ -3659,7 +3667,7 @@ export default function ActiveWorkoutScreen() {
         isDisconnectingRef.current = false;
       }, 1000);
     }
-  }, [conversation]);
+  }, [conversationStatus, conversation]);
 
 
 
@@ -3813,12 +3821,19 @@ export default function ActiveWorkoutScreen() {
 
   // Handle buddy AI button press
   const handleBuddyAIPress = async () => {
-    if (conversation.status === 'connected') {
+    console.log('🎤 BiXo button pressed - current status:', conversationStatus);
+    
+    if (conversationStatus === 'connected') {
+      console.log('🔴 Disconnecting...');
       await endConversation();
-    } else if (conversation.status === 'disconnected') {
+    } else if (conversationStatus === 'disconnected') {
+      console.log('🟢 Connecting...');
       await startConversation();
+    } else if (conversationStatus === 'connecting') {
+      console.log('⏳ Already connecting, canceling connection attempt...');
+      // Allow canceling during connection
+      await endConversation();
     }
-    // If connecting, do nothing to prevent multiple calls
   };
 
   // Show loading indicator while restoring session
@@ -3893,10 +3908,10 @@ export default function ActiveWorkoutScreen() {
 
       <AnimatedAIButton
         style={[styles.buddyAiButton, { bottom: insets.bottom }]}
-        isActive={conversation.status === 'connected'}
+        isActive={conversationStatus === 'connected'}
         onPress={handleBuddyAIPress}
-        disabled={conversation.status === 'connecting'}
-        conversationStatus={conversation.status}
+        disabled={false}
+        conversationStatus={conversationStatus}
       />
 
       {/* Custom Alert */}
