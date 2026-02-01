@@ -59,12 +59,11 @@ import {
   pauseSet,
   resumeSet,
   resumeWorkoutFromSession,
-  showAd,
   skipWarmup,
   startExercisePreparation,
   startRest,
   // Warmup actions
-  startWarmup,
+  startWarmup
 } from '../store/actions/workoutActions';
 import { useAppDispatch } from '../store/hooks';
 import { hideMiniPlayer, selectMiniPlayerVisible, showMiniPlayer } from '../store/slices/musicSlice';

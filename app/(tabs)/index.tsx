@@ -10,11 +10,11 @@ import Animated, {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { nucleus } from '../../Buddy_variables.js';
 import Statistics from '../../components/Statistics';
-import { supabase } from '../../lib/supabase';
 import TrainNowCard, { PresetData } from '../../components/TrainNowCard';
 import WorkoutItem, { WorkoutItemData } from '../../components/WorkoutItem';
 import { useBuddyTheme } from '../../constants/BuddyTheme';
 import { useAuth } from '../../contexts/AuthContext';
+import { supabase } from '../../lib/supabase';
 import type { RootState } from '../../store';
 import { useGetUserWorkoutPlansQuery, useGetWorkoutPlanByWeekQuery, useGetWorkoutPresetsWithCountsQuery } from '../../store/api/enhancedApi';
 import { useAppSelector } from '../../store/hooks';
