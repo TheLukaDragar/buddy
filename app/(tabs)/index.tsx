@@ -514,6 +514,13 @@ export default function ExploreScreen() {
       const entries = preset.workout_preset_entriesCollection?.edges || [];
       const exerciseCount = entries.length;
       const totalSets = entries.reduce((sum: number, e: any) => sum + (e.node.sets || 0), 0);
+      
+      // Calculate estimated duration based on actual sets (same formula as workout page)
+      // 60 seconds per set + 90 seconds rest between sets
+      const SET_DURATION_SECONDS = 60;
+      const REST_DURATION_SECONDS = 90;
+      const totalWorkoutSeconds = (totalSets * SET_DURATION_SECONDS) + ((totalSets - 1) * REST_DURATION_SECONDS);
+      const calculatedDuration = Math.round(totalWorkoutSeconds / 60);
 
       return {
         id: preset.id,
@@ -522,7 +529,7 @@ export default function ExploreScreen() {
         day_name: preset.day_name,
         image_key: preset.image_key,
         difficulty: preset.difficulty as 'easy' | 'medium' | 'hard',
-        estimated_duration: preset.estimated_duration,
+        estimated_duration: calculatedDuration,
         exercise_count: exerciseCount,
         total_sets: totalSets
       };

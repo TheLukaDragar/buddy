@@ -3233,18 +3233,19 @@ export default function ActiveWorkoutScreen() {
         }
       },
       
+      // PROTEIN AD COMMENTED OUT
       // Ad Tool (1)
-      show_ad: async (params: unknown) => {
-        try {
-          const result = await dispatch(showAd());
-          const data = unwrapResult(result);
-          console.log('🎯 [Client Tool] show_ad result:', data);
-          return JSON.stringify(data);
-        } catch (error) {
-          console.error('❌ [Client Tool] show_ad failed:', error);
-          return JSON.stringify({ success: false, message: `Failed to show ad: ${error}` });
-        }
-      },
+      // show_ad: async (params: unknown) => {
+      //   try {
+      //     const result = await dispatch(showAd());
+      //     const data = unwrapResult(result);
+      //     console.log('🎯 [Client Tool] show_ad result:', data);
+      //     return JSON.stringify(data);
+      //   } catch (error) {
+      //     console.error('❌ [Client Tool] show_ad failed:', error);
+      //     return JSON.stringify({ success: false, message: `Failed to show ad: ${error}` });
+      //   }
+      // },
       
       // Music Tools (10) - Real implementations using musicActions
       get_playlists: async (params: unknown) => {

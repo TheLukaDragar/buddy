@@ -905,7 +905,8 @@ startAppListening({
       }
       
       // Generate context message for workout completion
-      const systemMessage = `SYSTEM: workout-completed - User finished entire workout. Call the show_ad tool immediately, then introduce the product naturally.`;
+      // PROTEIN AD COMMENTED OUT - no longer calling show_ad tool
+      const systemMessage = `SYSTEM: workout-completed - User finished entire workout. Great job!`;
       
       // Get workout summary data
       const workoutSummary = {
