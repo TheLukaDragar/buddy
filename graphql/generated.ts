@@ -3965,6 +3965,7 @@ export type AddWorkoutEntryMutationVariables = Exact<{
   time?: InputMaybe<Scalars["String"]["input"]>;
   notes?: InputMaybe<Scalars["String"]["input"]>;
   position: Scalars["Int"]["input"];
+  workoutInstanceId?: InputMaybe<Scalars["UUID"]["input"]>;
 }>;
 
 export type AddWorkoutEntryMutation = {
@@ -5551,9 +5552,9 @@ export const UpdateWorkoutEntryDocument = `
 }
     `;
 export const AddWorkoutEntryDocument = `
-    mutation AddWorkoutEntry($workoutPlanId: UUID!, $weekNumber: Int!, $dayName: String!, $day: weekday!, $date: Date!, $exerciseId: UUID!, $sets: Int!, $reps: String!, $streakExerciseId: UUID!, $weight: String, $time: String, $notes: String, $position: Int!) {
+    mutation AddWorkoutEntry($workoutPlanId: UUID!, $weekNumber: Int!, $dayName: String!, $day: weekday!, $date: Date!, $exerciseId: UUID!, $sets: Int!, $reps: String!, $streakExerciseId: UUID!, $weight: String, $time: String, $notes: String, $position: Int!, $workoutInstanceId: UUID) {
   insertIntoworkout_entriesCollection(
-    objects: [{workout_plan_id: $workoutPlanId, week_number: $weekNumber, day_name: $dayName, day: $day, date: $date, exercise_id: $exerciseId, sets: $sets, reps: $reps, streak_exercise_id: $streakExerciseId, weight: $weight, time: $time, notes: $notes, is_adjusted: false, position: $position}]
+    objects: [{workout_plan_id: $workoutPlanId, week_number: $weekNumber, day_name: $dayName, day: $day, date: $date, exercise_id: $exerciseId, sets: $sets, reps: $reps, streak_exercise_id: $streakExerciseId, weight: $weight, time: $time, notes: $notes, is_adjusted: false, position: $position, workout_instance_id: $workoutInstanceId}]
   ) {
     records {
       id

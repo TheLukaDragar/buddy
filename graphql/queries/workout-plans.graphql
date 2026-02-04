@@ -492,6 +492,7 @@ mutation AddWorkoutEntry(
   $time: String
   $notes: String
   $position: Int!
+  $workoutInstanceId: UUID
 ) {
   insertIntoworkout_entriesCollection(
     objects: [{
@@ -509,6 +510,7 @@ mutation AddWorkoutEntry(
       notes: $notes
       is_adjusted: false
       position: $position
+      workout_instance_id: $workoutInstanceId
     }]
   ) {
     records {

@@ -9331,7 +9331,9 @@ Finnaly provide a summary of the workout plan for the user to read and understan
 `
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
+  apiKey: process.env.OPENAI_API_KEY,
+  timeout: 300000, // 5 minutes timeout for gpt-5 with reasoning
+  maxRetries: 2,
 });
 
 // Create Supabase client with service role key for admin access
@@ -9590,7 +9592,10 @@ export const generateWorkoutPlanTask = task({
           const workoutDate = weekStartDate.toISOString().split('T')[0]; // YYYY-MM-DD format
 
           // Calculate position for this day within this week
-          const dayKey = `${week}-${entry.dayName}`;
+          // Use entry.day (Monday, Tuesday, etc.) for consistent grouping instead of dayName
+          // This ensures all exercises on the same calendar day share the same instance ID
+          // even if the AI generates slightly different dayName values
+          const dayKey = `${week}-${entry.day}`;
           const currentPosition = (dayPositionMap.get(dayKey) || 0) + 1;
           dayPositionMap.set(dayKey, currentPosition);
 

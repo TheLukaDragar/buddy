@@ -3563,7 +3563,9 @@ export default function ActiveWorkoutScreen() {
 
   // Function to start conversation
   const startConversation = async () => {
-    if (conversation.status === 'connecting' || conversation.status === 'connected') {
+    // Check local state (conversationStatus) not library state (conversation.status)
+    // because we manually set conversationStatus on errors to allow retries
+    if (conversationStatus === 'connecting' || conversationStatus === 'connected') {
       console.log('🔄 Already connecting or connected, ignoring start request');
       return;
     }
@@ -3574,19 +3576,22 @@ export default function ActiveWorkoutScreen() {
       // Request microphone permission first
       const permissionGranted = await requestMicrophonePermission();
       if (!permissionGranted) {
-        console.error('Microphone permission denied');
+        console.error('❌ Microphone permission denied');
+        setConversationStatus('disconnected'); // Reset status on failure
         return;
       }
 
-      let token = conversationToken;
-      
+      // ALWAYS fetch a fresh token for each new session
+      // Tokens are single-use and cleared after endSession()
+      const token = await fetchConversationToken();
       if (!token) {
-        token = await fetchConversationToken();
-        if (!token) {
-          console.error('Could not get conversation token');
+        console.error('❌ Could not get conversation token');
+        setConversationStatus('disconnected'); // Reset status on failure
         return;
-        }
       }
+      
+      // Store the fresh token
+      setConversationToken(token);
 
       // Get current state for dynamic variables - ALWAYS get fresh data
       const currentState = store.getState();

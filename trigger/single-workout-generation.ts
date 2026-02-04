@@ -9277,6 +9277,8 @@ const supabase = createClient(
 // Initialize OpenAI client
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
+  timeout: 300000, // 5 minutes timeout for gpt-5 with reasoning
+  maxRetries: 2,
 });
 
 // Zod schema for single workout - based on WorkoutEntry pattern (without streak exercises)

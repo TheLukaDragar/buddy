@@ -5,7 +5,9 @@ import { zodTextFormat } from 'openai/helpers/zod';
 import { z } from 'zod';
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
+  apiKey: process.env.OPENAI_API_KEY,
+  timeout: 300000, // 5 minutes timeout for gpt-5 with reasoning
+  maxRetries: 2,
 });
 
 // Create Supabase client with service role key for admin access

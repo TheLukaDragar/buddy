@@ -57,6 +57,7 @@ export default function WorkoutScreen() {
     streak_exercise_id: string;
     streak_exercise_notes: string | null;
     position: number;
+    workout_instance_id: string | null;
   } | null>(null);
   const undoTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollViewRef = useRef<Animated.ScrollView>(null);
@@ -953,6 +954,7 @@ export default function WorkoutScreen() {
                           streak_exercise_id: entryToDelete.streak_exercise_id,
                           streak_exercise_notes: entryToDelete.streak_exercise_notes ?? null,
                           position: entryToDelete.position,
+                          workout_instance_id: entryToDelete.workout_instance_id ?? null,
                         });
                         
                         try {
@@ -1042,6 +1044,10 @@ export default function WorkoutScreen() {
                   
                   try {
                     // Restore the exercise using AddWorkoutEntry
+                    // Use stored workout_instance_id or get from existing entries
+                    const instanceId = deletedExercise.workout_instance_id ||
+                      (workoutEntries.length > 0 ? workoutEntries[0].node.workout_instance_id : undefined);
+
                     const result = await addWorkoutEntry({
                       workoutPlanId: planId,
                       weekNumber: parseInt(weekNumber),
@@ -1056,6 +1062,7 @@ export default function WorkoutScreen() {
                       time: deletedExercise.time,
                       notes: deletedExercise.notes,
                       position: deletedExercise.position,
+                      workoutInstanceId: instanceId,
                     }).unwrap();
                     
                     console.log('✅ Exercise restored successfully');
@@ -1273,6 +1280,11 @@ export default function WorkoutScreen() {
               : 0;
             const nextPosition = maxPosition + 1;
 
+            // Get existing workout_instance_id so new exercise joins the same group
+            const existingInstanceId = existingEntries.length > 0
+              ? existingEntries[0].workout_instance_id
+              : undefined;
+
             const result = await addWorkoutEntry({
               workoutPlanId: planId,
               weekNumber: parseInt(weekNumber),
@@ -1287,6 +1299,7 @@ export default function WorkoutScreen() {
               time: null,
               notes: null,
               position: nextPosition,
+              workoutInstanceId: existingInstanceId,
             }).unwrap();
             
             console.log('✅ Exercise added successfully');
