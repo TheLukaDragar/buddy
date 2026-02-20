@@ -9582,11 +9582,20 @@ Please generate a complete single workout session that meets these requirements.
       const dayOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][clientDate.getDay()];
       console.log('Using date:', todayDateString, 'dayOfWeek:', dayOfWeek, '(from client:', !!payload.clientDate, ')');
 
-      // Calculate week number based on plan start date
+      // Calculate week number by calendar week (Mon–Sun), same as app main screen
       const planStartDate = new Date(activePlan.start_date);
-      const daysSinceStart = Math.floor((clientDate.getTime() - planStartDate.getTime()) / (1000 * 60 * 60 * 24));
-      const weekNumber = Math.min(8, Math.max(1, Math.floor(daysSinceStart / 7) + 1));
-      console.log('Calculated week number:', weekNumber, 'from start date:', activePlan.start_date);
+      const getMondayOfWeek = (d: Date) => {
+        const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        const day = x.getDay();
+        const daysToMonday = day === 0 ? 6 : day - 1;
+        x.setDate(x.getDate() - daysToMonday);
+        return x;
+      };
+      const referenceMonday = getMondayOfWeek(planStartDate);
+      const thisWeekMonday = getMondayOfWeek(clientDate);
+      const daysBetween = Math.floor((thisWeekMonday.getTime() - referenceMonday.getTime()) / (1000 * 60 * 60 * 24));
+      const weekNumber = Math.min(8, Math.max(1, Math.floor(daysBetween / 7) + 1));
+      console.log('Calculated week number:', weekNumber, '(calendar week) from start date:', activePlan.start_date);
 
       // Generate a single workout_instance_id for ALL entries in this generation
       // This groups them together so queries can get the most recent generation

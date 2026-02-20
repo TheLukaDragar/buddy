@@ -3103,7 +3103,7 @@ export default function ActiveWorkoutScreen() {
         try {
           // Guard: Block during last-set rest period
           const state = store.getState() as RootState;
-          const { status, timers } = state.workout;
+          const { status, timers, workoutEntries, activeWorkout } = state.workout;
           
           if (status === 'resting' && timers.restTimer?.isLastSet) {
             console.warn('⚠️ [Client Tool] jump_to_exercise blocked - use next_exercise() instead');
@@ -3116,6 +3116,25 @@ export default function ActiveWorkoutScreen() {
           const typedParams = params as { exerciseSlug: string; reason?: string };
           if (!typedParams.exerciseSlug) {
             throw new Error('Missing exerciseSlug parameter');
+          }
+          
+          // Guard: Block jumping to an already-completed exercise
+          const targetEntry = workoutEntries?.find(
+            (e) => e.exercises?.slug === typedParams.exerciseSlug
+          );
+          if (targetEntry && activeWorkout?.setsCompleted) {
+            const completedSets = activeWorkout.setsCompleted.filter(
+              (sc) => sc.setId.startsWith(`${targetEntry.id}-set-`)
+            ).length;
+            const totalSets = targetEntry.sets ?? 0;
+            if (totalSets > 0 && completedSets >= totalSets) {
+              const name = targetEntry.exercises?.name?.replace(/\s*\([^)]*\)/g, '').trim() || typedParams.exerciseSlug;
+              console.warn('⚠️ [Client Tool] jump_to_exercise blocked - exercise already completed');
+              return JSON.stringify({
+                success: false,
+                message: `"${name}" is already completed (all ${totalSets} sets done). Use get_workout_status() to see remaining exercises and pick an incomplete one`
+              });
+            }
           }
           
           const reason = typedParams.reason || 'Agent navigation';

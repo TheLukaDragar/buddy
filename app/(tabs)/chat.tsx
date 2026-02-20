@@ -1284,12 +1284,21 @@ export default function ChatScreen() {
                             if (trainNowEntries.length === 0 || !activeWorkoutPlan) return;
                             console.log('Starting Train Now workout with', trainNowEntries.length, 'exercises');
 
-                            // Calculate week number and day for navigation
+                            // Calculate week number (calendar week Mon–Sun, same as main screen)
                             const today = new Date();
                             const dateString = today.toISOString().split('T')[0];
                             const planStartDate = new Date(activeWorkoutPlan.start_date);
-                            const daysDiff = Math.floor((today.getTime() - planStartDate.getTime()) / (1000 * 60 * 60 * 24));
-                            const weekNumber = Math.min(8, Math.max(1, Math.floor(daysDiff / 7) + 1));
+                            const getMondayOfWeek = (d: Date) => {
+                              const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+                              const day = x.getDay();
+                              const daysToMonday = day === 0 ? 6 : day - 1;
+                              x.setDate(x.getDate() - daysToMonday);
+                              return x;
+                            };
+                            const referenceMonday = getMondayOfWeek(planStartDate);
+                            const thisWeekMonday = getMondayOfWeek(today);
+                            const daysBetween = Math.floor((thisWeekMonday.getTime() - referenceMonday.getTime()) / (1000 * 60 * 60 * 24));
+                            const weekNumber = Math.min(8, Math.max(1, Math.floor(daysBetween / 7) + 1));
                             const dayOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][today.getDay()];
 
                             // Navigate to workout screen with Train Now entries

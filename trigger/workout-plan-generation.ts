@@ -9547,13 +9547,21 @@ export const generateWorkoutPlanTask = task({
 
       console.log('Workout plan with data:', JSON.stringify(workoutPlanWithData, null, 2));
 
-      // Step 4: Insert workout plan
+      // Calculate start date for the workout plan (next Monday from today)
+      // Must match the date we use for building entries so app calendar-week logic aligns.
+      const today = new Date();
+      const nextMonday = new Date(today);
+      const daysUntilMonday = (8 - today.getDay()) % 7;
+      nextMonday.setDate(today.getDate() + daysUntilMonday);
+      const startDateString = nextMonday.toISOString().split('T')[0];
+
+      // Step 4: Insert workout plan (start_date = next Monday, same as week 1 entries)
       const { data: planData, error: planError } = await supabase
         .from('workout_plans')
         .insert({
           user_id: payload.userId,
           summary: workoutPlanWithData.summary,
-          start_date: new Date().toISOString().split('T')[0], // Today
+          start_date: startDateString,
           status: 'active'
         })
         .select()
@@ -9568,12 +9576,6 @@ export const generateWorkoutPlanTask = task({
         note: string;
         position: number;
       }>> = new Map();
-      
-      // Calculate start date for the workout plan (next Monday from today)
-      const today = new Date();
-      const nextMonday = new Date(today);
-      const daysUntilMonday = (8 - today.getDay()) % 7;
-      nextMonday.setDate(today.getDate() + daysUntilMonday);
       
       let entryIndex = 0;
       // Track position per day within each week

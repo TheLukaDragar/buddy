@@ -42,7 +42,15 @@ export default function ExploreScreen() {
   
   const userWorkoutPlans = workoutPlansData?.workout_plansCollection?.edges?.map(edge => edge.node) || [];
   const activeWorkoutPlan = userWorkoutPlans.find(plan => plan.status === 'active');
-  console.log('🏠 [MAIN] Active workout plan:', activeWorkoutPlan?.id || 'none');
+  if (activeWorkoutPlan) {
+    console.log('🏠 [MAIN] Active plan:', {
+      id: activeWorkoutPlan.id,
+      start_date: activeWorkoutPlan.start_date,
+      summary: activeWorkoutPlan.summary ?? '(no summary)'
+    });
+  } else {
+    console.log('🏠 [MAIN] Active workout plan: none');
+  }
   
   // Function to generate personalized morning message
   const getPersonalizedGreeting = () => {
@@ -150,19 +158,19 @@ export default function ExploreScreen() {
   const workoutOpacity = useSharedValue(0);
   const statsOpacity = useSharedValue(0);
   
-  // Show the intro popup when the screen loads
-  useEffect(() => {
-    console.log('🏠 [MAIN] Setting up intro popup timer');
-    const timer = setTimeout(() => {
-      console.log('🏠 [MAIN] Showing intro popup');
-      setShowIntro(true);
-    }, 1000); // Show after 1 second delay
+  // Meet Buddy modal on every startup – commented out
+  // useEffect(() => {
+  //   console.log('🏠 [MAIN] Setting up intro popup timer');
+  //   const timer = setTimeout(() => {
+  //     console.log('🏠 [MAIN] Showing intro popup');
+  //     setShowIntro(true);
+  //   }, 1000); // Show after 1 second delay
 
-    return () => {
-      console.log('🏠 [MAIN] Cleaning up intro popup timer');
-      clearTimeout(timer);
-    };
-  }, [setShowIntro]);
+  //   return () => {
+  //     console.log('🏠 [MAIN] Cleaning up intro popup timer');
+  //     clearTimeout(timer);
+  //   };
+  // }, [setShowIntro]);
 
   // Start entrance animations
   useEffect(() => {
@@ -218,20 +226,41 @@ export default function ExploreScreen() {
     return monday;
   };
 
-  // Helper function to calculate current week based on workout plan start date
+  // Returns Monday 00:00 local for the week containing the given date (calendar week Mon–Sun)
+  const getMondayOfWeek = (date: Date): Date => {
+    const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const day = d.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    const daysToMonday = day === 0 ? 6 : day - 1;
+    d.setDate(d.getDate() - daysToMonday);
+    return d;
+  };
+
+  // Current week based on calendar week (Mon–Sun), not 7-day anniversary of plan start.
+  // Week 1 = the Monday–Sunday that contains plan start; only advances on Monday.
   const getCurrentWeekNumber = () => {
     if (!activeWorkoutPlan?.start_date) {
+      console.log('📅 [WEEK] No plan start_date, defaulting to week 1');
       return 1; // Default to week 1 if no active plan
     }
 
     const today = new Date();
     const planStartDate = new Date(activeWorkoutPlan.start_date);
 
-    // Calculate days since plan started
-    const daysDiff = Math.floor((today.getTime() - planStartDate.getTime()) / (1000 * 60 * 60 * 24));
+    const referenceMonday = getMondayOfWeek(planStartDate);
+    const thisWeekMonday = getMondayOfWeek(today);
 
-    // Calculate week number (1-based, max 8 weeks)
-    const weekNumber = Math.min(8, Math.max(1, Math.floor(daysDiff / 7) + 1));
+    const daysBetween = Math.floor((thisWeekMonday.getTime() - referenceMonday.getTime()) / (1000 * 60 * 60 * 24));
+    const weekNumber = Math.min(8, Math.max(1, Math.floor(daysBetween / 7) + 1));
+
+    console.log('📅 [WEEK] getCurrentWeekNumber:', {
+      start_date_raw: activeWorkoutPlan.start_date,
+      planStartDate_local: planStartDate.toDateString(),
+      referenceMonday: referenceMonday.toDateString(),
+      today: today.toDateString(),
+      thisWeekMonday: thisWeekMonday.toDateString(),
+      daysBetween,
+      weekNumber
+    });
 
     return weekNumber;
   };
@@ -552,10 +581,8 @@ export default function ExploreScreen() {
       const today = new Date();
       const dateString = today.toISOString().split('T')[0];
 
-      // Calculate week number based on plan start date
-      const planStartDate = new Date(activeWorkoutPlan.start_date);
-      const daysDiff = Math.floor((today.getTime() - planStartDate.getTime()) / (1000 * 60 * 60 * 24));
-      const weekNumber = Math.min(8, Math.max(1, Math.floor(daysDiff / 7) + 1));
+      // Use same calendar-week logic as main display (week advances on Monday)
+      const weekNumber = getCurrentWeekNumber();
 
       // Get day of week as weekday enum
       const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
