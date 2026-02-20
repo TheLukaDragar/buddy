@@ -1,7 +1,7 @@
 import { router } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { Text } from 'react-native-paper';
+import { Button, Text } from 'react-native-paper';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -10,13 +10,11 @@ import Animated, {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { nucleus } from '../../Buddy_variables.js';
 import Statistics from '../../components/Statistics';
-import TrainNowCard, { PresetData } from '../../components/TrainNowCard';
 import WorkoutItem, { WorkoutItemData } from '../../components/WorkoutItem';
 import { useBuddyTheme } from '../../constants/BuddyTheme';
 import { useAuth } from '../../contexts/AuthContext';
-import { supabase } from '../../lib/supabase';
 import type { RootState } from '../../store';
-import { useGetUserWorkoutPlansQuery, useGetWorkoutPlanByWeekQuery, useGetWorkoutPresetsWithCountsQuery } from '../../store/api/enhancedApi';
+import { useGetUserWorkoutPlansQuery, useGetWorkoutPlanByWeekQuery } from '../../store/api/enhancedApi';
 import { useAppSelector } from '../../store/hooks';
 import { getDayNameImage } from '../../utils';
 import { useIntro } from '../_layout';
@@ -531,110 +529,8 @@ export default function ExploreScreen() {
     }
   }, [refetchWorkoutPlans, refetchWorkoutPlan]);
 
-  // Fetch workout presets
-  const { data: presetsData, isLoading: isLoadingPresets } = useGetWorkoutPresetsWithCountsQuery();
-
-  // Transform preset data to PresetData format
-  const presets: PresetData[] = useMemo(() => {
-    if (!presetsData?.workout_presetsCollection?.edges) return [];
-
-    return presetsData.workout_presetsCollection.edges.map((edge: any) => {
-      const preset = edge.node;
-      const entries = preset.workout_preset_entriesCollection?.edges || [];
-      const exerciseCount = entries.length;
-      const totalSets = entries.reduce((sum: number, e: any) => sum + (e.node.sets || 0), 0);
-      
-      // Calculate estimated duration based on actual sets (same formula as workout page)
-      // 60 seconds per set + 90 seconds rest between sets
-      const SET_DURATION_SECONDS = 60;
-      const REST_DURATION_SECONDS = 90;
-      const totalWorkoutSeconds = (totalSets * SET_DURATION_SECONDS) + ((totalSets - 1) * REST_DURATION_SECONDS);
-      const calculatedDuration = Math.round(totalWorkoutSeconds / 60);
-
-      return {
-        id: preset.id,
-        name: preset.name,
-        description: preset.description,
-        day_name: preset.day_name,
-        image_key: preset.image_key,
-        difficulty: preset.difficulty as 'easy' | 'medium' | 'hard',
-        estimated_duration: calculatedDuration,
-        exercise_count: exerciseCount,
-        total_sets: totalSets
-      };
-    });
-  }, [presetsData]);
-
-  // Handle preset selection
-  const handlePresetPress = async (preset: PresetData) => {
-    console.log('Selected preset:', preset.name);
-
-    // Check if user has an active workout plan
-    if (!activeWorkoutPlan?.id) {
-      console.error('No active workout plan found');
-      // TODO: Show alert or prompt user to create a plan first
-      return;
-    }
-
-    try {
-      // Get today's date and day info
-      const today = new Date();
-      const dateString = today.toISOString().split('T')[0];
-
-      // Use same calendar-week logic as main display (week advances on Monday)
-      const weekNumber = getCurrentWeekNumber();
-
-      // Get day of week as weekday enum
-      const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-      const dayOfWeek = dayNames[today.getDay()];
-
-      console.log('Copying preset to plan:', {
-        presetId: preset.id,
-        planId: activeWorkoutPlan.id,
-        date: dateString,
-        weekNumber,
-        dayOfWeek
-      });
-
-      // Call the RPC function to copy preset entries to user's plan
-      const { data, error } = await supabase.rpc('copy_preset_to_plan', {
-        p_preset_id: preset.id,
-        p_workout_plan_id: activeWorkoutPlan.id,
-        p_date: dateString,
-        p_week_number: weekNumber,
-        p_day: dayOfWeek
-      });
-
-      if (error) {
-        console.error('Error copying preset:', error);
-        // TODO: Show error alert
-        return;
-      }
-
-      console.log('Preset copied successfully:', data);
-
-      // Refetch workout data to show the new entries
-      await refetchWorkoutPlan();
-
-      // Navigate to the workout
-      router.push({
-        pathname: '/workout',
-        params: {
-          planId: activeWorkoutPlan.id,
-          weekNumber: weekNumber.toString(),
-          day: dayOfWeek,
-          dayName: preset.day_name,
-          date: dateString,
-        }
-      });
-    } catch (err) {
-      console.error('Failed to copy preset:', err);
-      // TODO: Show error alert
-    }
-  };
-
-  // Handle generate custom workout press
-  const handleGeneratePress = () => {
+  // Train now: open chat in train_now mode to generate/start a custom workout
+  const handleTrainNowPress = () => {
     console.log('Generate custom workout pressed');
     router.push({
       pathname: '/(tabs)/chat',
@@ -756,11 +652,23 @@ export default function ExploreScreen() {
 
         {/* Agenda Section */}
         <Animated.View style={[styles.agendaContainer, agendaAnimatedStyle]}>
-          {/* Agenda Title */}
+          {/* Agenda Title + Train now button */}
           <View style={styles.agendaTitleContainer}>
-            <Text style={styles.agendaLabel}>Agenda</Text>
-            <Text style={styles.agendaSeparator}>/</Text>
-            <Text style={styles.agendaWeek}>Week {activeWeek}</Text>
+            <View style={styles.agendaTitleRow}>
+              <Text style={styles.agendaLabel}>Agenda</Text>
+              <Text style={styles.agendaSeparator}>/</Text>
+              <Text style={styles.agendaWeek}>Week {activeWeek}</Text>
+            </View>
+            <Button
+              mode="contained"
+              onPress={handleTrainNowPress}
+              style={[styles.trainNowButton, { backgroundColor: nucleus.light.global.blue['70'] }]}
+              labelStyle={[styles.trainNowButtonLabel, { color: nucleus.light.global.blue['10'] }]}
+              contentStyle={styles.trainNowButtonContent}
+              compact={false}
+            >
+              Train now
+            </Button>
           </View>
 
           {/* Workout Items */}
@@ -805,18 +713,6 @@ export default function ExploreScreen() {
               </View>
             )}
           </View>
-
-          {/* Train Now Card - Shows preset workouts */}
-          <TrainNowCard
-            presets={presets}
-            onPresetPress={handlePresetPress}
-            onGeneratePress={handleGeneratePress}
-            onViewAllPress={() => {
-              // TODO: Navigate to full preset list screen
-              console.log('View all presets');
-            }}
-            isLoading={isLoadingPresets}
-          />
         </Animated.View>
 
         {/* Activities Section */}
@@ -1067,7 +963,30 @@ const styles = StyleSheet.create({
   agendaTitleContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  agendaTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
+  },
+  trainNowButton: {
+    borderRadius: 40,
+    minHeight: 40,
+    justifyContent: 'center',
+  },
+  trainNowButtonContent: {
+    minHeight: 40,
+    paddingHorizontal: 16,
+    paddingVertical: 0,
+  },
+  trainNowButtonLabel: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 13,
+    lineHeight: 18,
+    marginVertical: 0,
+    includeFontPadding: false,
   },
   agendaLabel: {
     fontFamily: 'PlusJakartaSans-Bold',
