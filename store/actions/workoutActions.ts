@@ -14,6 +14,7 @@ import {
     confirmReadyAndStartSet as confirmReadyAndStartSetReducer,
     extendRest as extendRestReducer,
     finishWorkoutEarly as finishWorkoutEarlyReducer,
+    leaveWorkoutForLater as leaveWorkoutForLaterReducer,
     jumpToExerciseAndQueueCurrent as jumpToExerciseAndQueueCurrentReducer,
     jumpToExercise as jumpToExerciseReducer,
     jumpToSet as jumpToSetReducer,
@@ -373,6 +374,53 @@ export const finishWorkoutEarly = createAsyncThunk(
       success: true,
       message: 'Workout finished early'
     }
+  }
+)
+
+/** Save progress to DB as paused and clear Redux. Session stays resumable (GetActiveWorkoutSession will find it). */
+export const saveWorkoutForLater = createAsyncThunk(
+  'workout/saveWorkoutForLater',
+  async (_, { getState, dispatch }) => {
+    const state = getState() as RootState
+    const sessionId = state.workout.sessionId
+    const activeWorkout = state.workout.activeWorkout
+
+    if (!sessionId || sessionId.startsWith('temp-') || !activeWorkout) {
+      dispatch(leaveWorkoutForLaterReducer())
+      return { success: true }
+    }
+
+    const totalElapsedMs = Date.now() - activeWorkout.startTime.getTime()
+    const totalTimeMs = Math.max(0, totalElapsedMs - (activeWorkout.totalPauseTime || 0))
+    const totalPauseTimeMs = activeWorkout.totalPauseTime || 0
+    const lastActivityAt = new Date().toISOString()
+
+    try {
+      await dispatch(
+        enhancedApi.endpoints.UpdateWorkoutSessionProgress.initiate({
+          id: sessionId,
+          currentExerciseIndex: activeWorkout.currentExerciseIndex,
+          currentSetIndex: activeWorkout.currentSetIndex,
+          completedExercises: activeWorkout.completedExercises,
+          completedSets: activeWorkout.completedSets,
+          totalTimeMs: String(totalTimeMs),
+          totalPauseTimeMs: String(totalPauseTimeMs),
+          lastActivityAt,
+        })
+      ).unwrap()
+      await dispatch(
+        enhancedApi.endpoints.UpdateWorkoutSessionStatus.initiate({
+          id: sessionId,
+          status: 'paused',
+          lastActivityAt,
+        })
+      ).unwrap()
+    } catch (e) {
+      console.error('Save for later: failed to sync progress to DB', e)
+    }
+
+    dispatch(leaveWorkoutForLaterReducer())
+    return { success: true }
   }
 )
 

@@ -1742,7 +1742,18 @@ startAppListening({
         pauseTimeMs,
       });
     } catch (error: any) {
-      console.error('Failed to sync set completion to database:', error);
+      const message = error?.message ?? String(error);
+      const isDuplicateSet =
+        message.includes('unique_set_completion') ||
+        message.includes('duplicate key') ||
+        message.includes('Duplicate');
+      if (isDuplicateSet) {
+        // Resumed workout: set was already saved before "Save for later". Treat as success.
+        writtenSets.add(setKey);
+        console.log('✅ Set already recorded (resumed session), skipping insert');
+      } else {
+        console.error('Failed to sync set completion to database:', error);
+      }
       // Don't throw - allow workout to continue even if sync fails
     }
   },

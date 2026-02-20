@@ -513,6 +513,10 @@ export default function ExploreScreen() {
   // Workout data for current week
   const workoutData = getCurrentWeekWorkouts(activeWeek);
 
+  // Past week: viewing a week before current → tap goes to workout-completed if session exists, else no click
+  const currentWeekNumber = getCurrentWeekNumber();
+  const isPastWeek = activeWeek < currentWeekNumber;
+
   // Pull to refresh handler
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
@@ -688,16 +692,19 @@ export default function ExploreScreen() {
                     workout={workout}
                     index={chronologicalIndex}
                     planId={activeWorkoutPlan?.id}
-                    onPress={() => router.push({
-                      pathname: '/workout',
-                      params: {
-                        planId: activeWorkoutPlan?.id || '',
-                        weekNumber: activeWeek.toString(),
-                        day: workout.date ? new Date(workout.date).toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase() : 'monday',
-                        dayName: workout.title,
-                        date: workout.date,
-                      }
-                    })}
+                    isPastWeek={isPastWeek}
+                    onPress={() => {
+                      router.push({
+                        pathname: '/workout',
+                        params: {
+                          planId: activeWorkoutPlan?.id || '',
+                          weekNumber: activeWeek.toString(),
+                          day: workout.date ? new Date(workout.date).toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase() : 'monday',
+                          dayName: workout.title,
+                          date: workout.date,
+                        }
+                      });
+                    }}
                   />
                 );
               })

@@ -1,11 +1,13 @@
 import { Image } from "expo-image";
 import { router } from "expo-router";
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
+import { useAppDispatch } from '../store/hooks';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import Svg, { Circle } from "react-native-svg";
 import { nucleus } from '../Buddy_variables.js';
-import { useGetWorkoutEntriesPresetIdQuery, useGetWorkoutSessionByDateQuery } from '../store/api/enhancedApi';
+import type { GetWorkoutSessionByDateQueryVariables } from '../graphql/generated';
+import { enhancedApi, useGetWorkoutEntriesPresetIdQuery, useGetWorkoutSessionByDateQuery } from '../store/api/enhancedApi';
 import { getDayNameImage } from '../utils';
 
 export interface WorkoutItemData {
@@ -29,6 +31,8 @@ interface WorkoutItemProps {
   index?: number; // Optional index for auto-generating workout number
   onPress?: () => void;
   planId?: string; // Optional plan ID for fetching session completion data
+  /** When true (viewing a past week): tap opens workout-completed if session exists; if missed, card is not clickable */
+  isPastWeek?: boolean;
 }
 
 // Function to get the appropriate image source based on day name
@@ -67,12 +71,29 @@ const getWorkoutImageSource = (workoutTitle: string, fallbackImage?: string) => 
   return require('../assets/dayname/full-body.png');
 };
 
-export default function WorkoutItem({ workout, index, onPress, planId }: WorkoutItemProps) {
-  // Fetch session data for this workout if planId is provided
-  const { data: sessionData, isLoading: isLoadingSession } = useGetWorkoutSessionByDateQuery(
-    { workoutPlanId: planId || '', date: workout.date },
+const IN_PROGRESS_STATUSES = ['selected', 'preparing', 'exercising', 'paused'] as const;
+const TERMINAL_STATUSES = ['completed', 'finished_early', 'abandoned'] as const;
+
+function isWorkoutDateBeforeToday(dateStr: string): boolean {
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+  return dateStr < todayStr;
+}
+
+export default function WorkoutItem({ workout, index, onPress, planId, isPastWeek }: WorkoutItemProps) {
+  const dispatch = useAppDispatch();
+  const healStartedForSessionRef = useRef<string | null>(null);
+
+  // Fetch session data for this workout (plan + date + day_name so Legs and Train Now on same day get correct session)
+  const sessionQueryArg: GetWorkoutSessionByDateQueryVariables = {
+    workoutPlanId: planId || '',
+    date: workout.date,
+    dayName: workout.title,
+  };
+  const { data: sessionData, isLoading: isLoadingSession, refetch: refetchSession } = useGetWorkoutSessionByDateQuery(
+    sessionQueryArg,
     {
-      skip: !planId,
+      skip: !planId || !workout.title,
       refetchOnMountOrArgChange: true // Always fetch fresh data
     }
   );
@@ -176,8 +197,103 @@ export default function WorkoutItem({ workout, index, onPress, planId }: Workout
   // Get sessionId for navigation
   const sessionId = sessionData?.workout_sessionsCollection?.edges?.[0]?.node?.id;
 
+  // Heal stale sessions: past-date workouts still in progress → mark completed (if all sets done) or abandoned
+  // Rule: only when workout date is before today (older than 24h of that day). Never heal today's session.
+  useEffect(() => {
+    if (!sessionData || !planId) return;
+    const session = sessionData.workout_sessionsCollection?.edges?.[0]?.node;
+    if (!session?.id) return;
+    if (TERMINAL_STATUSES.includes(session.status as any)) {
+      return;
+    }
+    if (!IN_PROGRESS_STATUSES.includes(session.status as any)) {
+      return;
+    }
+    if (!isWorkoutDateBeforeToday(workout.date)) {
+      console.log('[WorkoutItem] Heal skip: workout date is today or future', { date: workout.date, sessionId: session.id });
+      return;
+    }
+    if (healStartedForSessionRef.current === session.id) {
+      console.log('[WorkoutItem] Heal skip: already started heal for this session', { sessionId: session.id });
+      return;
+    }
+    healStartedForSessionRef.current = session.id;
+
+    const totalSets = session.total_sets ?? 0;
+    const completedSets = session.completed_sets ?? 0;
+    const allSetsDone = totalSets > 0 && completedSets >= totalSets;
+
+    if (allSetsDone) {
+      console.log('[WorkoutItem] Heal: marking session as completed (all sets done, past date)', {
+        sessionId: session.id,
+        date: workout.date,
+        completed_sets: completedSets,
+        total_sets: totalSets,
+      });
+      const completedExercises = session.completed_exercises ?? 0;
+      const totalExercises = session.total_exercises ?? 0;
+      const totalTimeMs = session.total_time_ms != null ? String(session.total_time_ms) : '0';
+      dispatch(
+        enhancedApi.endpoints.CompleteWorkoutSession.initiate({
+          id: session.id,
+          status: 'completed',
+          completedAt: new Date().toISOString(),
+          isFullyCompleted: totalExercises > 0 && completedExercises >= totalExercises,
+          finishedEarly: false,
+          completedExercises,
+          completedSets,
+          totalTimeMs,
+          totalPauseTimeMs: '0',
+        })
+      )
+        .unwrap()
+        .then(() => {
+          console.log('[WorkoutItem] Heal complete: session marked completed', { sessionId: session.id });
+          refetchSession();
+        })
+        .catch((err: unknown) => {
+          console.error('[WorkoutItem] Heal failed (complete):', err);
+          healStartedForSessionRef.current = null;
+        });
+    } else {
+      console.log('[WorkoutItem] Heal: marking session as abandoned (partial progress, past date)', {
+        sessionId: session.id,
+        date: workout.date,
+        completed_sets: completedSets,
+        total_sets: totalSets,
+      });
+      dispatch(
+        enhancedApi.endpoints.UpdateWorkoutSessionStatus.initiate({
+          id: session.id,
+          status: 'abandoned',
+          lastActivityAt: new Date().toISOString(),
+        })
+      )
+        .unwrap()
+        .then(() => {
+          console.log('[WorkoutItem] Heal complete: session marked abandoned', { sessionId: session.id });
+          refetchSession();
+        })
+        .catch((err: unknown) => {
+          console.error('[WorkoutItem] Heal failed (abandon):', err);
+          healStartedForSessionRef.current = null;
+        });
+    }
+  }, [sessionData, planId, workout.date, dispatch, refetchSession]);
+
   // Handle press - navigate based on workout status
   const handlePress = () => {
+    // Past week: only allow tap if there is a session → always open workout-completed (shows status / how much they did)
+    if (isPastWeek) {
+      if (!hasSession || !sessionId) return; // Missed workout: no click
+      console.log('[WorkoutItem] Past week with session, opening workout-completed:', sessionId);
+      router.push({
+        pathname: '/workout-completed',
+        params: { sessionId }
+      });
+      return;
+    }
+
     // Check if workout is in progress (exercising, preparing, paused, selected)
     const isInProgress = hasSession && sessionStatus && ['exercising', 'preparing', 'paused', 'selected'].includes(sessionStatus);
     
@@ -197,6 +313,9 @@ export default function WorkoutItem({ workout, index, onPress, planId }: Workout
       onPress();
     }
   };
+
+  // Past week with no session (missed): disable tap
+  const isClickable = !isPastWeek || (hasSession && !!sessionId);
 
   const getStatusInfo = () => {
     const workoutDate = new Date(workout.date);
@@ -374,10 +493,12 @@ export default function WorkoutItem({ workout, index, onPress, planId }: Workout
         style={[
           styles.workoutCard,
           // getBorderStyle() === 'orange' && styles.missedWorkoutBorder,
-          getBorderStyle() === 'brand' && styles.todayWorkoutBorder
+          getBorderStyle() === 'brand' && styles.todayWorkoutBorder,
+          !isClickable && styles.workoutCardDisabled
         ]}
         onPress={handlePress}
         activeOpacity={0.8}
+        disabled={!isClickable}
       >
       <View style={styles.workoutContent}>
         <View style={styles.workoutInfo}>
@@ -516,6 +637,9 @@ const styles = {
     backgroundColor: nucleus.light.semantic.bg.canvas,
     borderRadius: 16,
     overflow: 'hidden' as const,
+  },
+  workoutCardDisabled: {
+    opacity: 0.85,
   },
   missedWorkoutBorder: {
     borderWidth: 1,

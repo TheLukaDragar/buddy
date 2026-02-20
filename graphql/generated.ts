@@ -4381,6 +4381,7 @@ export type GetWorkoutPresetsWithCountsQuery = {
 export type GetWorkoutSessionByDateQueryVariables = Exact<{
   workoutPlanId: Scalars["UUID"]["input"];
   date: Scalars["Date"]["input"];
+  dayName: Scalars["String"]["input"];
 }>;
 
 export type GetWorkoutSessionByDateQuery = {
@@ -5897,9 +5898,9 @@ export const GetWorkoutPresetsWithCountsDocument = `
 }
     `;
 export const GetWorkoutSessionByDateDocument = `
-    query GetWorkoutSessionByDate($workoutPlanId: UUID!, $date: Date!) {
+    query GetWorkoutSessionByDate($workoutPlanId: UUID!, $date: Date!, $dayName: String!) {
   workout_sessionsCollection(
-    filter: {workout_plan_id: {eq: $workoutPlanId}, date: {eq: $date}}
+    filter: {workout_plan_id: {eq: $workoutPlanId}, date: {eq: $date}, day_name: {eq: $dayName}}
     first: 1
     orderBy: [{created_at: DescNullsLast}]
   ) {

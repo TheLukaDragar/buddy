@@ -4,12 +4,15 @@
 # GraphQL queries and mutations for workout session tracking
 # ============================================================================
 
-# Query to get workout session by plan and date (for card completion status)
-query GetWorkoutSessionByDate($workoutPlanId: UUID!, $date: Date!) {
+# Query to get workout session by plan, date, and day name (for card completion status).
+# day_name is required so that when the same date has multiple workouts (e.g. Legs + Train Now on Friday),
+# each card shows the session for that specific workout, not the most recent session for the date.
+query GetWorkoutSessionByDate($workoutPlanId: UUID!, $date: Date!, $dayName: String!) {
   workout_sessionsCollection(
     filter: {
       workout_plan_id: { eq: $workoutPlanId }
       date: { eq: $date }
+      day_name: { eq: $dayName }
     }
     first: 1
     orderBy: [{ created_at: DescNullsLast }]

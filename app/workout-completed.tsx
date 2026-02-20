@@ -4,7 +4,7 @@ import * as React from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SystemBars } from "react-native-edge-to-edge";
 import { default as Animated, FadeIn, default as ReanimatedAnimated } from "react-native-reanimated";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useBuddyTheme } from "@/constants/BuddyTheme";
 import { nucleus } from "../Buddy_variables.js";
@@ -425,6 +425,7 @@ const ExerciseList: React.FC<ExerciseListProps> = ({ exercises }) => {
 
 export default function WorkoutCompletedScreen() {
   const theme = useBuddyTheme();
+  const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const params = useLocalSearchParams<{ sessionId?: string | string[] }>();
   // Handle case where useLocalSearchParams might return array or single value
@@ -658,24 +659,18 @@ export default function WorkoutCompletedScreen() {
     }
   }, [adjustmentsData]);
 
-  // Format time helper
+  // Format time helper (short, e.g. "24 min")
   const formatTime = (ms: number | null | undefined) => {
     if (!ms) return '0 min';
-    
     const totalSeconds = Math.floor(ms / 1000);
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
-    
     if (minutes >= 60) {
       const hours = Math.floor(minutes / 60);
       const mins = minutes % 60;
       return `${hours}h ${mins}m`;
     }
-    
-    if (minutes > 0) {
-      return `${minutes} min`;
-    }
-    
+    if (minutes > 0) return `${minutes} min`;
     return `${seconds}s`;
   };
 
@@ -848,7 +843,7 @@ export default function WorkoutCompletedScreen() {
         edges={['top', 'bottom']}
       >
         <SystemBars style="dark" />
-        <View style={styles.loadingContainer}>
+        <View style={[styles.loadingContainer, { paddingTop: insets.top }]}>
           <ActivityIndicator size="large" color={nucleus.light.global.blue["70"]} />
           <Text style={styles.loadingText}>Loading workout summary...</Text>
         </View>
@@ -864,7 +859,7 @@ export default function WorkoutCompletedScreen() {
         edges={['top', 'bottom']}
       >
         <SystemBars style="dark" />
-        <View style={styles.errorContainer}>
+        <View style={[styles.errorContainer, { paddingTop: insets.top }]}>
           <Text style={styles.errorText}>Workout session not found</Text>
           <TouchableOpacity
             onPress={() => router.back()}
@@ -884,10 +879,10 @@ export default function WorkoutCompletedScreen() {
     >
       <SystemBars style="dark" />
       
-      {/* Back Button */}
+      {/* Back Button - top inset like other screens */}
       <ReanimatedAnimated.View 
         entering={FadeIn.duration(400).delay(100)}
-        style={styles.backButtonContainer}
+        style={[styles.backButtonContainer, { top: insets.top + 8 }]}
       >
         <TouchableOpacity
           onPress={() => router.push('/(tabs)/')}
@@ -902,12 +897,26 @@ export default function WorkoutCompletedScreen() {
       </ReanimatedAnimated.View>
       
       <ScrollView 
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 40 }]}
         showsVerticalScrollIndicator={false}
       >
+        {/* Figma-style: celebratory icon at top */}
+        <ReanimatedAnimated.View
+          entering={FadeIn.duration(600).delay(200)}
+          style={styles.celebratoryIconWrap}
+        >
+          <View style={styles.celebratoryIconCircle}>
+            <Image
+              source={require('../assets/icons/flash.svg')}
+              style={styles.celebratoryIconBolt}
+              contentFit="contain"
+            />
+          </View>
+        </ReanimatedAnimated.View>
+
         {/* Title with Train Now badge */}
         <ReanimatedAnimated.View 
-          entering={FadeIn.duration(800).delay(200)}
+          entering={FadeIn.duration(800).delay(250)}
           style={styles.titleContainer}
         >
           <Text style={styles.title}>
@@ -922,47 +931,46 @@ export default function WorkoutCompletedScreen() {
           )}
         </ReanimatedAnimated.View>
 
-        {/* Encouraging Message */}
-        <ReanimatedAnimated.Text 
-          entering={FadeIn.duration(600).delay(300)}
-          style={styles.encouragingMessage}
-        >
-          {displayData.finishedEarly 
-            ? "You finished early! Every bit of effort counts."
-            : "Great work! You completed your workout."}
-        </ReanimatedAnimated.Text>
+        {/* Figma-style message (bold headline) — only when completed today */}
+        {!isWorkoutInPast && (
+          <ReanimatedAnimated.Text 
+            entering={FadeIn.duration(600).delay(300)}
+            style={styles.encouragingMessage}
+          >
+            {displayData.finishedEarly 
+              ? "You finished early! Every bit of effort counts."
+              : "You brought the heat today."}
+          </ReanimatedAnimated.Text>
+        )}
 
-        {/* Stats Card */}
+        {/* Stats Card — Figma layout: white card + shadow; top row Time + Weight, then progress bars */}
         <ReanimatedAnimated.View 
           entering={FadeIn.duration(600).delay(400)}
           style={styles.statsCard}
         >
-          {/* Time */}
-          <View style={styles.statItem}>
-            <Text style={styles.statLabel}>Total Time</Text>
-            <Text style={styles.statValue}>{formatTime(displayData.totalTime)}</Text>
+          <View style={styles.statsTopRow}>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{formatTime(displayData.totalTime)}</Text>
+              <Text style={styles.statLabel}>Total time</Text>
+            </View>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>
+                {displayData.totalWeightLifted > 0
+                  ? displayData.totalWeightLifted >= 1000 
+                    ? `${(displayData.totalWeightLifted / 1000).toFixed(1)}t`
+                    : `${Math.round(displayData.totalWeightLifted)}kg`
+                  : '—'}
+              </Text>
+              <Text style={styles.statLabel}>Total lifted weight</Text>
+            </View>
           </View>
 
-          {/* Total Weight Lifted - Always show if there are completed sets */}
-          {displayData.totalWeightLifted > 0 && (
-            <View style={styles.statItem}>
-              <Text style={styles.statLabel}>Total Weight Lifted</Text>
-              <Text style={styles.statValue}>
-                {displayData.totalWeightLifted >= 1000 
-                  ? `${(displayData.totalWeightLifted / 1000).toFixed(1)}t`
-                  : `${Math.round(displayData.totalWeightLifted)}kg`}
-              </Text>
-            </View>
-          )}
-
-          {/* Exercises Progress */}
           <CompactProgressBar
             completed={displayData.completedExercises}
             total={displayData.totalExercises}
             label="Exercises"
           />
 
-          {/* Sets Progress */}
           <CompactProgressBar
             completed={displayData.completedSets}
             total={displayData.totalSets}
@@ -1024,6 +1032,25 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
     alignItems: 'center',
   },
+  celebratoryIconWrap: {
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  celebratoryIconCircle: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: nucleus.light.global.brand["30"],
+    borderWidth: 4,
+    borderColor: nucleus.light.global.brand["70"],
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  celebratoryIconBolt: {
+    width: 64,
+    height: 64,
+    tintColor: nucleus.light.global.brand["80"],
+  },
   titleContainer: {
     alignItems: 'center',
     gap: 12,
@@ -1038,6 +1065,15 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     includeFontPadding: false,
   },
+  encouragingMessage: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 20,
+    lineHeight: 26,
+    color: nucleus.light.global.grey["90"],
+    textAlign: 'center',
+    marginBottom: 28,
+    includeFontPadding: false,
+  },
   trainNowBadge: {
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -1049,41 +1085,46 @@ const styles = StyleSheet.create({
     lineHeight: 14,
     includeFontPadding: false,
   },
-  encouragingMessage: {
-    fontFamily: 'PlusJakartaSans-Regular',
-    fontSize: 16,
-    lineHeight: 24,
-    color: nucleus.light.global.grey["70"],
-    textAlign: 'center',
-    marginBottom: 32,
-    includeFontPadding: false,
-  },
   statsCard: {
     width: '100%',
-    backgroundColor: nucleus.light.semantic.bg.subtle,
+    backgroundColor: nucleus.light.global.white,
     borderRadius: 16,
     padding: 24,
     marginBottom: 24,
     gap: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  statsTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 32,
   },
   statItem: {
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
+    minWidth: 100,
   },
   statLabel: {
     fontFamily: 'PlusJakartaSans-Medium',
     fontSize: 14,
     lineHeight: 20,
     color: nucleus.light.global.grey["70"],
+    textAlign: 'center',
     includeFontPadding: false,
   },
   statValue: {
     fontFamily: 'PlusJakartaSans-Bold',
-    fontSize: 24,
-    lineHeight: 28.8,
-    color: nucleus.light.global.grey["90"],
+    fontSize: 28,
+    lineHeight: 33.6,
+    color: nucleus.light.global.blue["70"],
+    textAlign: 'center',
     includeFontPadding: false,
   },
   compactProgressContainer: {

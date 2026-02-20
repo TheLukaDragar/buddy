@@ -1106,6 +1106,20 @@ const workoutSlice = createSlice({
       state.activeWorkout = null;
     },
 
+    /** Clear Redux workout state without marking session as finished. DB is left as-is (or updated to paused by saveWorkoutForLater thunk). Session stays resumable. */
+    leaveWorkoutForLater: (state) => {
+      state.timers.setTimer = null;
+      state.timers.restTimer = null;
+      state.userActivityPingActive = false;
+      state.status = 'inactive';
+      state.session = null;
+      state.sessionId = null;
+      state.workoutEntries = null;
+      state.planId = null;
+      state.dayName = null;
+      state.activeWorkout = null;
+    },
+
     // Voice agent integration
     setVoiceAgentStatus: (state, action: PayloadAction<boolean>) => {
       state.voiceAgent.connected = action.payload;
@@ -2097,6 +2111,7 @@ export const {
   completeExercise,
   completeWorkout,
   finishWorkoutEarly,
+  leaveWorkoutForLater,
   setVoiceAgentStatus,
   updateSetTimer,
   updateRestTimer,

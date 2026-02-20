@@ -52,6 +52,7 @@ import {
   completeWorkout,
   confirmReadyAndStartSet,
   finishWorkoutEarly,
+  saveWorkoutForLater,
   getExerciseInstructions,
   getWorkoutStatus,
   jumpToExercise,
@@ -2199,7 +2200,11 @@ interface CustomAlertProps {
   title: string;
   message: string;
   onContinue: () => void;
-  onFinish: () => void;
+  /** Single finish action (legacy) */
+  onFinish?: () => void;
+  /** When both provided, show "Save for later" and "Finish workout" buttons */
+  onSaveForLater?: () => void;
+  onFinishWorkout?: () => void;
 }
 
 const CustomAlert: React.FC<CustomAlertProps> = ({
@@ -2207,9 +2212,12 @@ const CustomAlert: React.FC<CustomAlertProps> = ({
   title,
   message,
   onContinue,
-  onFinish
+  onFinish,
+  onSaveForLater,
+  onFinishWorkout,
 }) => {
   const theme = useBuddyTheme();
+  const threeActions = onSaveForLater != null && onFinishWorkout != null;
 
   return (
     <Modal
@@ -2223,45 +2231,86 @@ const CustomAlert: React.FC<CustomAlertProps> = ({
           entering={FadeIn.duration(100)}
           style={[customAlertStyles.container, { backgroundColor: nucleus.light.semantic.bg.canvas, borderWidth: 1, borderColor: nucleus.light.global.grey["40"] }]}
         >
-          {/* Title */}
           <Text style={[customAlertStyles.title, { color: nucleus.light.global.grey["90"] }]}>
             {title}
           </Text>
-          
-          {/* Message */}
           <Text style={[customAlertStyles.message, { color: nucleus.light.global.grey["70"] }]}>
             {message}
           </Text>
-          
-          {/* Buttons */}
-          <View style={customAlertStyles.buttonContainer}>
-            <Button
-              mode="outlined"
-              style={[customAlertStyles.button, customAlertStyles.continueButton, { 
-                borderColor: nucleus.light.global.grey["40"],
-                backgroundColor: nucleus.light.semantic.bg.canvas
-              }]}
-              labelStyle={[customAlertStyles.buttonLabel, { color: nucleus.light.global.grey["70"] }]}
-              contentStyle={customAlertStyles.buttonContent}
-              compact={false}
-              onPress={onContinue}
-            >
-              No
-            </Button>
-            
-            <Button
-              mode="contained"
-              style={[customAlertStyles.button, customAlertStyles.finishButton, { 
-                backgroundColor: nucleus.light.global.blue["70"]
-              }]}
-              labelStyle={[customAlertStyles.buttonLabel, { color: nucleus.light.global.white }]}
-              contentStyle={customAlertStyles.buttonContent}
-              compact={false}
-              onPress={onFinish}
-            >
-              Finish
-            </Button>
-          </View>
+
+          {threeActions ? (
+            <View style={customAlertStyles.threeButtonContainer}>
+              <Button
+                mode="contained"
+                style={[customAlertStyles.alertButton, customAlertStyles.primaryButton, { 
+                  backgroundColor: nucleus.light.global.blue["70"]
+                }]}
+                labelStyle={[customAlertStyles.buttonLabel, { color: nucleus.light.global.blue["10"] }]}
+                contentStyle={customAlertStyles.buttonContent}
+                compact={false}
+                onPress={onSaveForLater}
+              >
+                Save for later
+              </Button>
+              <Text style={[customAlertStyles.saveHint, { color: nucleus.light.global.grey["60"] }]}>
+                Your progress is saved so you can pick up where you left off.
+              </Text>
+              <Button
+                mode="outlined"
+                style={[customAlertStyles.alertButton, { 
+                  borderColor: nucleus.light.global.blue["70"],
+                  backgroundColor: nucleus.light.semantic.bg.canvas
+                }]}
+                labelStyle={[customAlertStyles.buttonLabel, { color: nucleus.light.global.blue["70"] }]}
+                contentStyle={customAlertStyles.buttonContent}
+                compact={false}
+                onPress={onFinishWorkout}
+              >
+                Finish workout
+              </Button>
+              <Button
+                mode="outlined"
+                style={[customAlertStyles.alertButton, customAlertStyles.continueButton, { 
+                  borderColor: nucleus.light.global.grey["40"],
+                  backgroundColor: nucleus.light.semantic.bg.canvas
+                }]}
+                labelStyle={[customAlertStyles.buttonLabel, { color: nucleus.light.global.grey["70"] }]}
+                contentStyle={customAlertStyles.buttonContent}
+                compact={false}
+                onPress={onContinue}
+              >
+                Continue workout
+              </Button>
+            </View>
+          ) : (
+            <View style={customAlertStyles.buttonContainer}>
+              <Button
+                mode="outlined"
+                style={[customAlertStyles.button, customAlertStyles.continueButton, { 
+                  borderColor: nucleus.light.global.grey["40"],
+                  backgroundColor: nucleus.light.semantic.bg.canvas
+                }]}
+                labelStyle={[customAlertStyles.buttonLabel, { color: nucleus.light.global.grey["70"] }]}
+                contentStyle={customAlertStyles.buttonContent}
+                compact={false}
+                onPress={onContinue}
+              >
+                No
+              </Button>
+              <Button
+                mode="contained"
+                style={[customAlertStyles.button, customAlertStyles.finishButton, { 
+                  backgroundColor: nucleus.light.global.blue["70"]
+                }]}
+                labelStyle={[customAlertStyles.buttonLabel, { color: nucleus.light.global.white }]}
+                contentStyle={customAlertStyles.buttonContent}
+                compact={false}
+                onPress={onFinish!}
+              >
+                Finish
+              </Button>
+            </View>
+          )}
         </ReanimatedAnimated.View>
       </View>
     </Modal>
@@ -2281,7 +2330,7 @@ const customAlertStyles = StyleSheet.create({
     maxWidth: 320,
     borderRadius: 16,
     paddingVertical: 24,
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: {
@@ -2310,29 +2359,52 @@ const customAlertStyles = StyleSheet.create({
   },
   buttonContainer: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 16,
     width: '100%',
+  },
+  threeButtonContainer: {
+    flexDirection: 'column',
+    gap: 16,
+    width: '100%',
+    alignItems: 'stretch',
   },
   button: {
     flex: 1,
-    borderRadius: 12,
+    borderRadius: 48,
     minHeight: 48,
+    justifyContent: 'center',
+  },
+  alertButton: {
+    width: '100%',
+    borderRadius: 48,
+    minHeight: 48,
+    justifyContent: 'center',
+  },
+  primaryButton: {
+    borderWidth: 0,
   },
   continueButton: {
     borderWidth: 1.5,
   },
-  finishButton: {
-    // Additional styles if needed
+  finishButton: {},
+  saveHint: {
+    fontFamily: 'PlusJakartaSans-Regular',
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+    marginTop: -4,
+    marginBottom: 0,
+    includeFontPadding: false,
+    paddingHorizontal: 8,
   },
   buttonContent: {
     minHeight: 48,
-    paddingHorizontal: 16,
+    paddingHorizontal: 24,
     paddingVertical: 0,
   },
   buttonLabel: {
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 16,
-    
     lineHeight: 20,
     marginVertical: 0,
     includeFontPadding: false,
@@ -3819,23 +3891,29 @@ export default function ActiveWorkoutScreen() {
 
   const progressSegments = generateProgressSegments(timers);
 
-  const handleFinishWorkout = async () => {
+  const handleSaveForLater = async () => {
     try {
-      // Disconnect voice agent before navigation (with small delay to allow final messages)
       setTimeout(() => {
-        endConversation().catch(err => console.error('Error disconnecting on finish:', err));
+        endConversation().catch(err => console.error('Error disconnecting on save for later:', err));
       }, 300);
-      
-      // Capture sessionId before finishWorkoutEarly clears Redux state
-      const currentSessionId = selectSessionId(store.getState());
-      
-      // Dispatch finish workout early action
-      const finishResult = await dispatch(finishWorkoutEarly());
-      const finishData = unwrapResult(finishResult);
-      console.log('Finish workout early result:', finishData);
+      await dispatch(saveWorkoutForLater()).then((r: any) => unwrapResult(r));
       setShowFinishAlert(false);
-      
-      // Navigate to workout-completed screen (same as normal completion)
+      router.replace({ pathname: '/(tabs)' });
+    } catch (error) {
+      console.error('Save for later failed:', error);
+      setShowFinishAlert(false);
+    }
+  };
+
+  const handleCompleteWorkout = async () => {
+    try {
+      setTimeout(() => {
+        endConversation().catch(err => console.error('Error disconnecting on finish workout:', err));
+      }, 300);
+      const currentSessionId = selectSessionId(store.getState());
+      const finishResult = await dispatch(completeWorkout());
+      unwrapResult(finishResult);
+      setShowFinishAlert(false);
       router.replace({
         pathname: '/workout-completed',
         params: { sessionId: currentSessionId || '' }
@@ -3945,17 +4023,18 @@ export default function ActiveWorkoutScreen() {
         conversationStatus={conversationStatus}
       />
 
-      {/* Custom Alert */}
+      {/* Leave workout alert: Continue / Save for later / Finish workout */}
       <CustomAlert
         visible={showFinishAlert}
-        title="Finish workout?"
+        title="Leave workout?"
         message={
-          activeWorkout 
-            ? `You've completed ${activeWorkout.completedSets} of ${activeWorkout.totalSets} sets across ${activeWorkout.completedExercises} exercises. Are you sure you want to finish early?`
-            : "Are you sure you want to finish your workout?"
+          activeWorkout
+            ? `You're in the middle of your workout (${activeWorkout.completedSets}/${activeWorkout.totalSets} sets). Finish it, or save your progress for later?`
+            : "You're in the middle of a workout. Finish it or save your progress for later?"
         }
         onContinue={handleContinueWorkout}
-        onFinish={handleFinishWorkout}
+        onSaveForLater={handleSaveForLater}
+        onFinishWorkout={handleCompleteWorkout}
       />
 
       {/* Partynet Audio Player - Background audio playback */}
