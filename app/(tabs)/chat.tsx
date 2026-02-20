@@ -304,6 +304,7 @@ export default function ChatScreen() {
   // Input state
   const [inputText, setInputText] = useState('');
   const [selectedSuggestions, setSelectedSuggestions] = useState<string[]>([]); // Track selected suggestions (like onboarding)
+  const [isWaitingForResponse, setIsWaitingForResponse] = useState(false); // Track when waiting for AI response (like onboarding)
 
   // Category pills state
   const [selectedCategory, setSelectedCategory] = useState('general');
@@ -345,6 +346,7 @@ export default function ChatScreen() {
     if (needsAutoStart && selectedCategory === 'train_now') {
       console.log('🚀 Auto-starting train_now conversation');
       setTimeout(() => {
+        setIsWaitingForResponse(true); // Show thinking indicator
         sendMessage({ text: 'start' });
         setNeedsAutoStart(false);
       }, 300);
@@ -446,7 +448,7 @@ export default function ChatScreen() {
     ? '/api/train-now-chat'
     : '/api/chat';
 
-  const { messages: aiMessages, sendMessage, status, setMessages: setAiMessages } = useChat({
+  const { messages: aiMessages, sendMessage, setMessages: setAiMessages } = useChat({
     id: chatId, // Use the chat session ID
     transport: new DefaultChatTransport({
       api: generateAPIUrl(chatApiEndpoint),
@@ -459,6 +461,7 @@ export default function ChatScreen() {
       console.error('Chat error:', error);
       dispatch(setError(error.message));
       dispatch(setLoading(false));
+      setIsWaitingForResponse(false); // Hide thinking indicator on error
     },
     onFinish: async (message) => {
       console.log('AI message finished streaming:', message);
@@ -509,6 +512,7 @@ export default function ChatScreen() {
       };
       dispatch(addMessage(buddyMessage));
       dispatch(setLoading(false));
+      setIsWaitingForResponse(false); // Hide thinking indicator when finished
 
       // Auto scroll to bottom after streaming completes
       setTimeout(() => {
@@ -525,6 +529,29 @@ export default function ChatScreen() {
       }, 100);
     }
   }, [aiMessages]);
+
+  // Hide thinking indicator when assistant starts responding with text (like onboarding)
+  useEffect(() => {
+    // Only check if we're currently waiting for a response
+    if (!isWaitingForResponse) return;
+
+    // Check if there's an assistant message being streamed
+    const lastMessage = aiMessages[aiMessages.length - 1];
+
+    if (lastMessage && lastMessage.role === 'assistant') {
+      // Check if the message has actual text content
+      const textContent = lastMessage.parts
+        ?.filter(part => part.type === 'text')
+        .map(part => (part as any).text)
+        .join('');
+
+      if (textContent && textContent.trim().length > 0) {
+        // Assistant has text, hide thinking indicator
+        console.log('✅ Assistant text detected, hiding thinking indicator');
+        setIsWaitingForResponse(false);
+      }
+    }
+  }, [aiMessages, isWaitingForResponse]);
 
   // Hide category pills when there are messages
   useEffect(() => {
@@ -862,11 +889,12 @@ export default function ChatScreen() {
         content: inputText.trim(),
         timestamp: Date.now(),
       };
-      
+
       dispatch(addMessage(userMessage));
       dispatch(setLoading(true));
       dispatch(setError(null));
-      
+      setIsWaitingForResponse(true); // Show thinking indicator (like onboarding)
+
       // Send to AI (this will add the message to aiMessages automatically)
       sendMessage({ text: inputText.trim() });
       setInputText('');
@@ -887,7 +915,8 @@ export default function ChatScreen() {
     // Clear any loading states
     dispatch(setLoading(false));
     dispatch(setError(null));
-    
+    setIsWaitingForResponse(false); // Clear thinking indicator
+
     // Clear Train Now generation state
     clearGeneration();
     
@@ -1121,8 +1150,8 @@ export default function ChatScreen() {
               {/* Render messages with delimiters */}
               {renderMessages()}
               
-              {/* Buddy thinking indicator - only show when submitted, not when streaming (like onboarding) */}
-              {status === 'submitted' && (
+              {/* Buddy thinking indicator - show when waiting for response (like onboarding) */}
+              {isWaitingForResponse && (
                 <View style={{ width: '100%' }}>
                   <View style={styles.buddyMessage}>
                     {/* <Avatar.Image size={40} source={require('../../assets/avatar.png')} style={styles.avatar} /> */}

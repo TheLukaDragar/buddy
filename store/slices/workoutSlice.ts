@@ -888,16 +888,16 @@ const workoutSlice = createSlice({
       state.timers.restTimer = null;
       state.userActivityPingActive = false;
 
-      // Determine if using workout entries or legacy session
-      const usingWorkoutEntries = state.workoutEntries !== null && state.workoutEntries.length > 0;
-      const totalExercises = usingWorkoutEntries 
-        ? state.workoutEntries!.length 
-        : (state.session?.exercises.length || 0);
-
       if (!state.activeWorkout) {
         console.warn('⚠️ completeExercise called but activeWorkout is null');
         return;
       }
+      if (!state.workoutEntries || state.workoutEntries.length === 0) {
+        console.warn('⚠️ completeExercise called but no workout entries');
+        return;
+      }
+
+      const totalExercises = state.workoutEntries.length;
 
       // We're completing the current exercise, so increment completedExercises
       // This represents "how many exercises have been fully completed"
@@ -915,10 +915,34 @@ const workoutSlice = createSlice({
 
       // Move to next exercise (not the last one)
       state.activeWorkout.currentExerciseIndex++;
-      state.activeWorkout.currentSetIndex = 0;
 
-      if (usingWorkoutEntries) {
-        // Get next entry from workout entries
+      {
+        // Skip any entries that are already fully completed (e.g. after reorder, moved-to-end exercise)
+        // Completion is tracked by setsCompleted (entry id + set), not by index
+        const entries = state.workoutEntries!;
+        const total = entries.length;
+        while (state.activeWorkout.currentExerciseIndex < total) {
+          const entry = entries[state.activeWorkout.currentExerciseIndex];
+          const completedForEntry = state.activeWorkout.setsCompleted.filter(
+            (sc) => sc.setId.startsWith(`${entry.id}-set-`)
+          );
+          if (completedForEntry.length >= entry.sets && entry.sets > 0) {
+            state.activeWorkout.completedExercises++;
+            state.activeWorkout.currentExerciseIndex++;
+            continue;
+          }
+          break;
+        }
+
+        // If we skipped past the end, workout is complete
+        if (state.activeWorkout.currentExerciseIndex >= total) {
+          state.status = 'workout-completed';
+          return;
+        }
+
+        state.activeWorkout.currentSetIndex = 0;
+
+        // Get next entry from workout entries (may have been advanced by skip loop)
         const nextEntry = state.workoutEntries![state.activeWorkout!.currentExerciseIndex];
         
         // Parse values for next exercise
@@ -947,21 +971,38 @@ const workoutSlice = createSlice({
         const targetTime = parseTime(nextEntry.time);
         const restTimeAfter = parseRestTime(nextEntry.notes);
 
+        // Restore completed sets from setsCompleted so reordered/already-done exercises show correct state
+        const completedSetsForNext = state.activeWorkout.setsCompleted.filter(
+          (sc) => sc.setId.startsWith(`${nextEntry.id}-set-`)
+        );
+        const sets = Array.from({ length: nextEntry.sets }, (_, i) => {
+          const setNumber = i + 1;
+          const setId = `${nextEntry.id}-set-${setNumber}`;
+          const completedSet = completedSetsForNext.find((sc) => sc.setId === setId);
+          return {
+            id: setId,
+            setNumber,
+            targetReps,
+            targetWeight,
+            targetTime,
+            restTimeAfter,
+            isCompleted: !!completedSet,
+            actualReps: completedSet?.performance?.actualReps,
+            actualWeight: completedSet?.performance?.actualWeight,
+            difficulty: completedSet?.performance?.difficulty,
+          };
+        });
+        const firstIncompleteSetIndex = sets.findIndex((s) => !s.isCompleted);
+        const targetSetIndex = firstIncompleteSetIndex !== -1 ? firstIncompleteSetIndex : sets.length - 1;
+        state.activeWorkout.currentSetIndex = targetSetIndex;
+
         const nextExercise = {
           id: nextEntry.exercises.id,
           name: nextEntry.exercises.name.replace(/\s*\([^)]*\)/g, '').trim(),
           description: nextEntry.exercises.instructions,
           type: 'strength' as const,
           muscleGroups: nextEntry.exercises.muscle_categories?.filter(Boolean) as string[] || [],
-          sets: Array.from({ length: nextEntry.sets }, (_, i) => ({
-            id: `${nextEntry.id}-set-${i + 1}`,
-            setNumber: i + 1,
-            targetReps,
-            targetWeight,
-            targetTime,
-            restTimeAfter,
-            isCompleted: false,
-          })),
+          sets,
           videoUrl: nextEntry.exercises.slug 
             ? `https://kmtddcpdqkeqipyetwjs.supabase.co/storage/v1/object/public/workouts/processed/${nextEntry.exercises.slug}/${nextEntry.exercises.slug}_cropped_video.mp4`
             : undefined,
@@ -980,11 +1021,7 @@ const workoutSlice = createSlice({
         } as NonNullable<typeof state.activeWorkout>['currentExercise'];
 
         state.activeWorkout!.currentExercise = nextExercise!;
-        state.activeWorkout!.currentSet = nextExercise!.sets[0];
-      } else {
-        // Legacy session path
-        state.activeWorkout!.currentExercise = state.session!.exercises[state.activeWorkout!.currentExerciseIndex];
-        state.activeWorkout!.currentSet = state.activeWorkout!.currentExercise.sets[0];
+        state.activeWorkout!.currentSet = nextExercise!.sets[targetSetIndex];
       }
 
       // Transition to exercise-transition state
@@ -1509,37 +1546,68 @@ const workoutSlice = createSlice({
         console.warn('⚠️ Cannot queue current exercise to itself');
         return;
       }
-      
-      // Reorder: Move current exercise to end, shift others forward
-      const reordered = [...state.workoutEntries];
-      const [movedEntry] = reordered.splice(currentIndex, 1);
-      reordered.push(movedEntry);
-      
-      // Find new index of target exercise after reorder
-      const newTargetIndex = reordered.findIndex(
-        entry => entry.exercises?.slug === targetExerciseSlug
+
+      const targetEntry = state.workoutEntries[targetIndex];
+
+      // Reorder: (1) swapped-to exercise first, (2) incomplete exercises in order, (3) completed exercises last
+      const countCompletedSetsForEntry = (entryId: string) =>
+        state.activeWorkout!.setsCompleted.filter((sc) => sc.setId.startsWith(`${entryId}-set-`)).length;
+      const isEntryCompleted = (entry: typeof currentEntry) => {
+        const total = entry.sets ?? 0;
+        return total > 0 && countCompletedSetsForEntry(entry.id) >= total;
+      };
+      const originalIndexById = new Map(state.workoutEntries.map((e, i) => [e.id, i]));
+
+      const others = state.workoutEntries.filter(
+        (e) => e.id !== currentEntry.id && e.id !== targetEntry.id
       );
-      
-      if (newTargetIndex === -1) {
-        console.error('⚠️ Target exercise not found after reorder');
-        return;
-      }
-      
+      const incompleteOthers = others.filter((e) => !isEntryCompleted(e)).sort(
+        (a, b) => (originalIndexById.get(a.id) ?? 0) - (originalIndexById.get(b.id) ?? 0)
+      );
+      const completedOthers = others.filter((e) => isEntryCompleted(e)).sort(
+        (a, b) => (originalIndexById.get(a.id) ?? 0) - (originalIndexById.get(b.id) ?? 0)
+      );
+      const currentIsCompleted = isEntryCompleted(currentEntry);
+      const reordered = currentIsCompleted
+        ? [targetEntry, ...incompleteOthers, ...completedOthers, currentEntry]
+        : [targetEntry, ...incompleteOthers, currentEntry, ...completedOthers];
+
       // Update positions in the reordered array
       reordered.forEach((entry, index) => {
-        // Update position property if it exists on the entry object
-        // Note: This updates the in-memory object, DB sync will happen via middleware
         if (entry) {
           (entry as any).position = index + 1;
         }
       });
-      
-      // Update state
+
+      // Update state: target is now at index 0
       state.workoutEntries = reordered;
-      state.activeWorkout.currentExerciseIndex = newTargetIndex;
-      
-      // Build exercise structure from new target entry (reuse logic from jumpToExercise)
-      const targetEntry = reordered[newTargetIndex];
+      state.activeWorkout.currentExerciseIndex = 0;
+
+      // If user jumped to an already-completed exercise, skip past it (and any other completed) to first incomplete
+      let effectiveIndex = 0;
+      while (effectiveIndex < reordered.length) {
+        const entry = reordered[effectiveIndex];
+        if (!entry) break;
+        const completed = countCompletedSetsForEntry(entry.id);
+        const total = entry.sets ?? 0;
+        if (total > 0 && completed >= total) {
+          effectiveIndex++;
+          continue;
+        }
+        break;
+      }
+      if (effectiveIndex >= reordered.length) {
+        state.activeWorkout.currentExerciseIndex = reordered.length - 1;
+        state.status = 'workout-completed';
+        state.timers.setTimer = null;
+        state.timers.restTimer = null;
+        state.userActivityPingActive = false;
+        console.log(`🔄 [Jump & Queue] All exercises completed after reorder`);
+        return;
+      }
+      state.activeWorkout.currentExerciseIndex = effectiveIndex;
+      const entryToShow = reordered[effectiveIndex] as typeof targetEntry;
+
       const parseReps = (repsStr: string): number => {
         const match = repsStr.match(/(\d+)/);
         return match ? parseInt(match[1], 10) : 8;
@@ -1560,20 +1628,20 @@ const workoutSlice = createSlice({
         return match ? parseInt(match[1], 10) : 90;
       };
       
-      const targetReps = parseReps(targetEntry.reps);
-      const targetWeight = parseWeight(targetEntry.weight);
-      const targetTime = parseTime(targetEntry.time);
-      const restTimeAfter = parseRestTime(targetEntry.notes);
+      const targetReps = parseReps(entryToShow.reps);
+      const targetWeight = parseWeight(entryToShow.weight);
+      const targetTime = parseTime(entryToShow.time);
+      const restTimeAfter = parseRestTime(entryToShow.notes);
       
       // Restore completed sets from setsCompleted array
       const completedSetsForTarget = state.activeWorkout.setsCompleted.filter(
-        (sc) => sc.setId.startsWith(`${targetEntry.id}-set-`)
+        (sc) => sc.setId.startsWith(`${entryToShow.id}-set-`)
       );
       
       // Build sets array with restored completion status
-      const sets = Array.from({ length: targetEntry.sets }, (_, i) => {
+      const sets = Array.from({ length: entryToShow.sets }, (_, i) => {
         const setNumber = i + 1;
-        const setId = `${targetEntry.id}-set-${setNumber}`;
+        const setId = `${entryToShow.id}-set-${setNumber}`;
         const completedSet = completedSetsForTarget.find(sc => sc.setId === setId);
         
         return {
@@ -1595,28 +1663,28 @@ const workoutSlice = createSlice({
       const targetSetIndex = firstIncompleteSetIndex !== -1 ? firstIncompleteSetIndex : sets.length - 1;
       
       state.activeWorkout.currentExercise = {
-        id: targetEntry.exercises?.id || '',
-        name: targetEntry.exercises?.name?.replace(/\s*\([^)]*\)/g, '').trim() || '',
-        description: targetEntry.exercises?.instructions || '',
+        id: entryToShow.exercises?.id || '',
+        name: entryToShow.exercises?.name?.replace(/\s*\([^)]*\)/g, '').trim() || '',
+        description: entryToShow.exercises?.instructions || '',
         type: 'strength' as const,
-        muscleGroups: targetEntry.exercises?.muscle_categories?.filter(Boolean) as string[] || [],
+        muscleGroups: entryToShow.exercises?.muscle_categories?.filter(Boolean) as string[] || [],
         sets,
-        entryId: targetEntry.id,
-        slug: targetEntry.exercises?.slug || '',
-        videoUrl: targetEntry.exercises?.slug 
-          ? `https://kmtddcpdqkeqipyetwjs.supabase.co/storage/v1/object/public/workouts/processed/${targetEntry.exercises.slug}/${targetEntry.exercises.slug}_cropped_video.mp4`
+        entryId: entryToShow.id,
+        slug: entryToShow.exercises?.slug || '',
+        videoUrl: entryToShow.exercises?.slug 
+          ? `https://kmtddcpdqkeqipyetwjs.supabase.co/storage/v1/object/public/workouts/processed/${entryToShow.exercises.slug}/${entryToShow.exercises.slug}_cropped_video.mp4`
           : undefined,
         equipment: [],
-        instructions: targetEntry.exercises?.instructions?.split(/(?=\(\d+(?:st|nd|rd|th)\))/).filter(Boolean) || [],
+        instructions: entryToShow.exercises?.instructions?.split(/(?=\(\d+(?:st|nd|rd|th)\))/).filter(Boolean) || [],
         tips: [],
         estimatedDuration: 0,
-        repLimitationsProgressionRules: targetEntry.exercises?.rep_limitations_progression_rules,
-        progressionByClientFeedback: targetEntry.exercises?.progression_by_client_feedback,
-        painInjuryProtocol: targetEntry.exercises?.pain_injury_protocol,
-        trainerNotes: targetEntry.exercises?.trainer_notes,
-        equipmentText: targetEntry.exercises?.equipment_text,
-        iconDescription: targetEntry.exercises?.icon_description,
-        videoDescription: targetEntry.exercises?.video_description,
+        repLimitationsProgressionRules: entryToShow.exercises?.rep_limitations_progression_rules,
+        progressionByClientFeedback: entryToShow.exercises?.progression_by_client_feedback,
+        painInjuryProtocol: entryToShow.exercises?.pain_injury_protocol,
+        trainerNotes: entryToShow.exercises?.trainer_notes,
+        equipmentText: entryToShow.exercises?.equipment_text,
+        iconDescription: entryToShow.exercises?.icon_description,
+        videoDescription: entryToShow.exercises?.video_description,
       } as NonNullable<typeof state.activeWorkout>['currentExercise'];
       
       // Set current set index to first incomplete set (or last set if all completed)
@@ -1669,7 +1737,7 @@ const workoutSlice = createSlice({
       
       state.activeWorkout.currentPhaseStartTime = new Date();
       
-      console.log(`🔄 [Jump & Queue] Moved exercise "${currentEntry.exercises?.name}" to back, jumped to "${targetEntry.exercises?.name}"`);
+      console.log(`🔄 [Jump & Queue] Moved exercise "${currentEntry.exercises?.name}" to back, jumped to "${targetEntry.exercises?.name}"${effectiveIndex > 0 ? ` (skipped ${effectiveIndex} completed, now on "${entryToShow.exercises?.name}")` : ''}`);
       
       // Middleware will handle DB sync and context message generation
     },

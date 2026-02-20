@@ -70,9 +70,10 @@ interface ExerciseCardProps {
   completedSets: number;
   position: number; // Position in the workout (1-based)
   isCompleted?: boolean;
+  disabled?: boolean;
 }
 
-const ExerciseCard: React.FC<ExerciseCardProps> = React.memo(({ exercise, onSelect, isCurrent, isSelected, totalSets, completedSets, position, isCompleted }) => {
+const ExerciseCard: React.FC<ExerciseCardProps> = React.memo(({ exercise, onSelect, isCurrent, isSelected, totalSets, completedSets, position, isCompleted, disabled: disabledProp }) => {
   const { data: exerciseData, isLoading } = useGetExerciseByIdQuery(
     { id: exercise.id },
     { skip: !exercise.id }
@@ -97,7 +98,7 @@ const ExerciseCard: React.FC<ExerciseCardProps> = React.memo(({ exercise, onSele
         ]}
         onPress={onSelect}
         activeOpacity={0.7}
-        disabled={isCurrent}
+        disabled={disabledProp ?? isCurrent}
       >
         <AutoSkeletonView 
           isLoading={isLoading}
@@ -221,25 +222,23 @@ const SwitchExerciseModal: React.FC<SwitchExerciseModalProps> = React.memo(({
   const [selectedExerciseSlug, setSelectedExerciseSlug] = React.useState<string | null>(null);
   const [previewEntries, setPreviewEntries] = React.useState(workoutEntries);
 
-  // Show all exercises with smart reordering: completed exercises go to bottom
-  // Use preview entries if swap is selected, otherwise use workout entries
+  // Show all exercises. When a swap is selected, show preview order (selected first, current last). Otherwise sort: current first, then upcoming, completed at bottom.
   const availableExercises = useMemo(() => {
     const entriesToShow = selectedExerciseSlug ? previewEntries : workoutEntries;
-    
+    const isPreviewMode = !!selectedExerciseSlug;
+
     // Map entries with completion status
     const exercisesWithStatus = entriesToShow
       .map((entry, index) => {
-        // Count completed sets for this entry
         const completedSetsForEntry = setsCompleted.filter(
           (sc) => sc.setId.startsWith(`${entry.id}-set-`)
         );
         const completedSetsCount = completedSetsForEntry.length;
-        
         const exercise = entry.exercises;
         const isCurrent = exercise?.id === currentExercise?.id;
         const isSelected = exercise?.slug === selectedExerciseSlug;
         const isCompleted = completedSetsCount >= entry.sets && entry.sets > 0;
-        
+
         return {
           entry,
           entryId: entry.id,
@@ -253,28 +252,21 @@ const SwitchExerciseModal: React.FC<SwitchExerciseModalProps> = React.memo(({
         };
       })
       .filter(({ exercise }) => exercise);
-    
-    // Sort: current exercise stays accessible, then upcoming (not completed), then completed at very bottom
-    const sorted = [...exercisesWithStatus].sort((a, b) => {
-      // Current exercise always stays accessible (even if completed)
-      if (a.isCurrent && !b.isCurrent) return -1;
-      if (!a.isCurrent && b.isCurrent) return 1;
-      
-      // Both completed (and not current): maintain order
-      if (a.isCompleted && b.isCompleted) {
-        return a.originalIndex - b.originalIndex;
-      }
-      
-      // One completed (and not current): completed goes to bottom
-      if (a.isCompleted && !b.isCompleted && !b.isCurrent) return 1;
-      if (!a.isCompleted && b.isCompleted && !a.isCurrent) return -1;
-      
-      // Neither completed: maintain original order
-      return a.originalIndex - b.originalIndex;
-    });
-    
-    // Add position numbers based on sorted order
-    return sorted.map((item, index) => ({
+
+    // In preview mode: keep order as-is (selected at position 1, current at end)
+    // Otherwise: sort so current is first, then upcoming, completed at bottom
+    const ordered = isPreviewMode
+      ? exercisesWithStatus
+      : [...exercisesWithStatus].sort((a, b) => {
+          if (a.isCurrent && !b.isCurrent) return -1;
+          if (!a.isCurrent && b.isCurrent) return 1;
+          if (a.isCompleted && b.isCompleted) return a.originalIndex - b.originalIndex;
+          if (a.isCompleted && !b.isCompleted && !b.isCurrent) return 1;
+          if (!a.isCompleted && b.isCompleted && !a.isCurrent) return -1;
+          return a.originalIndex - b.originalIndex;
+        });
+
+    return ordered.map((item, index) => ({
       ...item,
       position: index + 1,
       index,
@@ -334,24 +326,45 @@ const SwitchExerciseModal: React.FC<SwitchExerciseModalProps> = React.memo(({
     opacity: backdropOpacity.value,
   }));
 
-  // Preview the swap without saving
+  // Preview the swap: same order as reducer — target first, incomplete in order, completed last
   const handleSelectExercise = (targetSlug: string) => {
     if (!targetSlug) return;
     
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSelectedExerciseSlug(targetSlug);
     
-    // Create preview of reordered entries
     const currentIndex = currentExerciseIndex;
     const targetIndex = workoutEntries.findIndex(
       entry => entry.exercises?.slug === targetSlug
     );
     
     if (targetIndex !== -1 && targetIndex !== currentIndex) {
-      const preview = [...workoutEntries];
-      const [movedEntry] = preview.splice(currentIndex, 1);
-      preview.push(movedEntry);
-      setPreviewEntries(preview);
+      const currentEntry = workoutEntries[currentIndex];
+      const targetEntry = workoutEntries[targetIndex];
+      if (!targetEntry) return;
+
+      const completedForEntry = (entryId: string) =>
+        setsCompleted.filter((sc) => sc.setId.startsWith(`${entryId}-set-`)).length;
+      const isCompleted = (entry: typeof currentEntry) => {
+        const total = entry.sets ?? 0;
+        return total > 0 && completedForEntry(entry.id) >= total;
+      };
+      const originalIndexById = new Map(workoutEntries.map((e, i) => [e.id, i]));
+
+      const others = workoutEntries.filter(
+        (e) => e.id !== currentEntry.id && e.id !== targetEntry.id
+      );
+      const incompleteOthers = others.filter((e) => !isCompleted(e)).sort(
+        (a, b) => (originalIndexById.get(a.id) ?? 0) - (originalIndexById.get(b.id) ?? 0)
+      );
+      const completedOthers = others.filter((e) => isCompleted(e)).sort(
+        (a, b) => (originalIndexById.get(a.id) ?? 0) - (originalIndexById.get(b.id) ?? 0)
+      );
+      const currentIsCompleted = isCompleted(currentEntry);
+      const preview = currentIsCompleted
+        ? [targetEntry, ...incompleteOthers, ...completedOthers, currentEntry]
+        : [targetEntry, ...incompleteOthers, currentEntry, ...completedOthers];
+      setPreviewEntries(preview.filter(Boolean));
     }
   };
 
@@ -459,13 +472,14 @@ const SwitchExerciseModal: React.FC<SwitchExerciseModalProps> = React.memo(({
                           <ExerciseCard
                             key={entryId}
                             exercise={exercise}
-                            onSelect={() => !isCurrent && handleSelectExercise(exercise.slug || '')}
+                            onSelect={() => !isCurrent && !isCompleted && handleSelectExercise(exercise.slug || '')}
                             isCurrent={isCurrent}
                             isSelected={isSelected}
                             totalSets={totalSets}
                             completedSets={completedSets}
                             position={position}
                             isCompleted={isCompleted}
+                            disabled={isCurrent || isCompleted}
                           />
                         );
                       })}

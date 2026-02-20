@@ -3,7 +3,7 @@ import { DefaultChatTransport } from 'ai';
 import { Image } from "expo-image";
 import { fetch as expoFetch } from 'expo/fetch';
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Keyboard, KeyboardAvoidingView, Linking, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Animated, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Avatar } from 'react-native-paper';
 import ReanimatedAnimated, {
   Easing,
@@ -256,8 +256,13 @@ const shouldShowDateDelimiter = (currentMessage: ChatMessage, previousMessage?: 
 
 // Helper function to process conversation events into displayable messages
 const processConversationEvent = (event: ConversationEvent, source: Role): ExtendedChatMessage | null => {
-  // Ignore ping events and interruption events
-  if (event.type === 'ping' || event.type === 'interruption' || event.type === 'conversation_initiation_metadata') {
+  // Ignore ping, interruption, audio, and other non-displayable events
+  if (
+    event.type === 'ping' ||
+    event.type === 'interruption' ||
+    event.type === 'conversation_initiation_metadata' ||
+    event.type === 'audio'
+  ) {
     return null;
   }
   
@@ -311,14 +316,16 @@ const processConversationEvent = (event: ConversationEvent, source: Role): Exten
         eventType: 'voice',
       } as ExtendedChatMessage;
 
-    default:
-      // For other events, create a generic status message
+    default: {
+      // Exhaustive switch - default for any future SDK event types
+      const eventType = (event as { type: string }).type;
       return {
         ...baseMessage,
         role: 'assistant',
-        content: `📡 ${event.type} event received`.trim(),
+        content: `📡 ${eventType} event received`.trim(),
         eventType: 'status',
       } as ExtendedChatMessage;
+    }
   }
 };
 

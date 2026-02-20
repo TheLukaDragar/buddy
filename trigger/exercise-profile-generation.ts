@@ -9192,18 +9192,20 @@ export const generateExerciseProfileTask = task({
 
     try {
       // First check if exercise already exists using slug
-      const { data: existingExercise, error: checkError } = await supabase
+      // Use limit(1) instead of single() to handle duplicates gracefully
+      const { data: existingExercises, error: checkError } = await supabase
         .from('exercises')
         .select('id, name')
         .eq('slug', exerciseId)
-        .single();
+        .limit(1);
 
-      if (checkError && checkError.code !== 'PGRST116') {
+      if (checkError) {
         throw checkError;
       }
 
-      if (existingExercise) {
-        console.log(`Exercise ${payload.exerciseName} already exists with ID: ${exerciseId}`);
+      if (existingExercises && existingExercises.length > 0) {
+        const existingExercise = existingExercises[0];
+        console.log(`Exercise ${payload.exerciseName} already exists with ID: ${existingExercise.id}`);
         return { exercise_id: existingExercise.id, created: false };
       }
 
@@ -9766,17 +9768,18 @@ export const generateExerciseProfileTask = task({
         // If it's a duplicate name error, the exercise already exists - fetch the UUID
         if (insertError.code === '23505' && insertError.message.includes('exercises_name_key')) {
           console.log(`Exercise with similar name already exists, fetching UUID for slug: ${exerciseId}`);
-          const { data: existingExercise, error: fetchError } = await supabase
+          // Use limit(1) instead of single() to handle duplicates gracefully
+          const { data: existingExercises, error: fetchError } = await supabase
             .from('exercises')
             .select('id')
             .eq('slug', exerciseId)
-            .single();
+            .limit(1);
 
-          if (fetchError || !existingExercise) {
+          if (fetchError || !existingExercises || existingExercises.length === 0) {
             throw new Error(`Failed to fetch existing exercise with slug ${exerciseId}: ${fetchError?.message}`);
           }
 
-          return { exercise_id: existingExercise.id, created: false };
+          return { exercise_id: existingExercises[0].id, created: false };
         }
 
         console.error('Database insertion error:', insertError);

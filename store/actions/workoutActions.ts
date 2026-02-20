@@ -797,7 +797,6 @@ export const getWorkoutStatus = createAsyncThunk(
     // Get total exercises from activeWorkout (set during selectWorkoutFromEntries) or workoutEntries or session
     const totalExercises = state.workout.activeWorkout?.totalExercises 
       || state.workout.workoutEntries?.length 
-      || state.workout.session?.exercises.length 
       || 0
     
     const statusMessage = `Workout: ${workoutName} | Exercise ${exerciseNum}/${totalExercises}: ${exercise?.name} | Set ${setNum}/${totalSets} | State: ${state.workout.status}`
@@ -805,11 +804,13 @@ export const getWorkoutStatus = createAsyncThunk(
     const currentExerciseIndex = state.workout.activeWorkout.currentExerciseIndex
     const currentEntry = state.workout.workoutEntries?.[currentExerciseIndex]
     
-    // Build list of all exercises (entries from Redux are already enriched with fresh exercise data)
+    // Build list of all exercises; use setsCompleted (by entry id) for completion so reordering doesn't break status
+    const setsCompleted = state.workout.activeWorkout?.setsCompleted ?? [];
     const allExercises = state.workout.workoutEntries?.map((entry, index) => {
-      const isCurrent = index === currentExerciseIndex
-      const isCompleted = index < currentExerciseIndex
-      const isUpcoming = index > currentExerciseIndex
+      const completedSetsForEntry = setsCompleted.filter((sc) => sc.setId.startsWith(`${entry.id}-set-`));
+      const isCurrent = index === currentExerciseIndex;
+      const isCompleted = completedSetsForEntry.length >= entry.sets && entry.sets > 0;
+      const isUpcoming = !isCurrent && !isCompleted;
       
       return {
         position: index + 1,

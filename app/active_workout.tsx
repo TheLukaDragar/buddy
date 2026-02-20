@@ -146,32 +146,38 @@ interface ExerciseVideoProps {
 interface WorkoutSummaryProps {
   activeWorkout: any;
   session: any;
+  workoutEntries?: any[] | null;
 }
 
-const WorkoutSummary: React.FC<WorkoutSummaryProps> = ({ activeWorkout, session }) => {
+const WorkoutSummary: React.FC<WorkoutSummaryProps> = ({ activeWorkout, session, workoutEntries }) => {
   const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
   const subtitleOpacity = useRef(new Animated.Value(0)).current;
   const subtitleTranslateY = useRef(new Animated.Value(-20)).current;
   
-  // Get completed exercises summary
+  // Get completed exercises summary (from session.exercises when legacy, else from workoutEntries)
   const exercisesSummary = useMemo(() => {
-    if (!session?.exercises || !activeWorkout?.setsCompleted) return [];
-    
-    // Count sets per exercise
+    if (!activeWorkout?.setsCompleted) return [];
     const exerciseSetCounts: { [key: string]: { name: string; count: number } } = {};
-    
-    activeWorkout.setsCompleted.forEach((set: any) => {
-      const exercise = session.exercises.find((ex: any) => ex.id === set.exerciseId);
-      if (exercise) {
-        if (!exerciseSetCounts[set.exerciseId]) {
-          exerciseSetCounts[set.exerciseId] = { name: exercise.name, count: 0 };
-        }
-        exerciseSetCounts[set.exerciseId].count++;
+
+    const getNameByExerciseId = (exerciseId: string): string => {
+      if (session?.exercises) {
+        const ex = session.exercises.find((e: any) => e.id === exerciseId);
+        return ex?.name ?? 'Exercise';
       }
+      const entry = workoutEntries?.find((e: any) => e.exercise_id === exerciseId);
+      return entry?.exercises?.name?.replace(/\s*\([^)]*\)/g, '').trim() ?? 'Exercise';
+    };
+
+    activeWorkout.setsCompleted.forEach((set: any) => {
+      const name = getNameByExerciseId(set.exerciseId);
+      if (!exerciseSetCounts[set.exerciseId]) {
+        exerciseSetCounts[set.exerciseId] = { name, count: 0 };
+      }
+      exerciseSetCounts[set.exerciseId].count++;
     });
-    
+
     return Object.values(exerciseSetCounts);
-  }, [session, activeWorkout]);
+  }, [session, activeWorkout, workoutEntries]);
   
   // Start initial animation and cycling
   useEffect(() => {
@@ -425,8 +431,8 @@ const VideoContainer: React.FC<VideoContainerProps> = ({
   dispatch,
   onEndConversation
 }) => {
-  // Get session data from Redux for WorkoutSummary component
   const session = useSelector(selectWorkoutSession);
+  const workoutEntries = useSelector((state: any) => state.workout.workoutEntries);
   const miniPlayerVisible = useSelector(selectMiniPlayerVisible);
   const musicProvider = useSelector((state: any) => state.music?.selectedMusicOption);
   const isSpotifyAuth = useSelector((state: any) => state.spotifyAuth?.accessToken && state.spotifyAuth?.user);
@@ -539,6 +545,7 @@ const VideoContainer: React.FC<VideoContainerProps> = ({
             <WorkoutSummary 
               activeWorkout={activeWorkout} 
               session={session} 
+              workoutEntries={workoutEntries}
             />
           </View>
           
