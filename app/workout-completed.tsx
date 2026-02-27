@@ -1,5 +1,5 @@
 import { Image } from "expo-image";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import * as React from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SystemBars } from "react-native-edge-to-edge";
@@ -105,6 +105,21 @@ const AdjustmentDisplay: React.FC<AdjustmentDisplayProps> = ({ adjustments, exer
     });
     return initialApplied;
   });
+
+  // Sync applied state when parent refetches (e.g. after reopening the page) so we show already-saved progressions
+  React.useEffect(() => {
+    const fromProps = new Set<string>();
+    adjustments.forEach(adj => {
+      if (adj.isApplied && adj.exerciseId) {
+        fromProps.add(`${adj.exerciseId}-${adj.type}`);
+      }
+    });
+    setAppliedAdjustments(prev => {
+      const next = new Set(prev);
+      fromProps.forEach(k => next.add(k));
+      return next;
+    });
+  }, [adjustments]);
 
   if (adjustments.length === 0) return null;
 
@@ -465,10 +480,19 @@ export default function WorkoutCompletedScreen() {
     { skip: !sessionId }
   );
 
-  // Query workout adjustments
-  const { data: adjustmentsData, isLoading: isLoadingAdjustments } = useGetWorkoutSessionAdjustmentsQuery(
+  // Query workout adjustments (refetch on mount/focus so reopened page shows already-saved state)
+  const { data: adjustmentsData, isLoading: isLoadingAdjustments, refetch: refetchAdjustments } = useGetWorkoutSessionAdjustmentsQuery(
     { sessionId: sessionId || '' },
-    { skip: !sessionId }
+    { skip: !sessionId, refetchOnMountOrArgChange: true }
+  );
+
+  // Refetch adjustments when user returns to this screen so "already saved" progressions show correctly
+  useFocusEffect(
+    React.useCallback(() => {
+      if (sessionId) {
+        refetchAdjustments();
+      }
+    }, [sessionId, refetchAdjustments])
   );
 
   // Handler to save/apply adjustment to future workouts using Supabase client directly
@@ -566,19 +590,20 @@ export default function WorkoutCompletedScreen() {
 
       if (totalAffected > 0) {
         console.log(`✅ Applied adjustment to ${totalAffected} future workout${totalAffected > 1 ? 's' : ''}`);
-        return true;
       } else {
         // No future workouts found - return true to show "Saved" feedback
         // This preserves historical data integrity (workout_sessions are immutable)
         // When new workout plans are generated, they can incorporate these preferences
         console.log('No future workouts found - showing saved feedback (preference will apply to new plans)');
-        return true;
       }
+      // Refetch adjustments so UI shows "Saved"
+      refetchAdjustments();
+      return true;
     } catch (error: any) {
       console.error('Failed to apply adjustment to future workouts:', error);
       return false;
     }
-  }, [user?.id, sessionId]);
+  }, [user?.id, sessionId, refetchAdjustments]);
 
   // Extract session data
   const session = sessionData?.workout_sessionsCollection?.edges?.[0]?.node;
