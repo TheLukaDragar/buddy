@@ -210,5 +210,5 @@ User App → Supabase Edge Function → Trigger.dev → Database
 
 ```bash
 npx expo export --platform web
-eas deploy --prod
+npx eas-cli deploy --prod
 ```
