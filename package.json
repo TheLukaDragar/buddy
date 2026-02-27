@@ -79,7 +79,8 @@
     "redux-devtools-expo-dev-plugin": "^2.0.0",
     "redux-persist": "^6.0.0",
     "ws": "^8.18.3",
-    "zod": "^3.25.0"
+    "zod": "^3.25.0",
+    "expo-keep-awake": "~14.1.4"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",

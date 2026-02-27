@@ -3,6 +3,7 @@ import { enhancedApi } from '@/store/api/enhancedApi';
 import { unwrapResult } from '@reduxjs/toolkit';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
+import { useKeepAwake } from 'expo-keep-awake';
 import { router, useFocusEffect } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -2412,6 +2413,7 @@ const customAlertStyles = StyleSheet.create({
 });
 
 export default function ActiveWorkoutScreen() {
+  useKeepAwake();
   const theme = useBuddyTheme();
   const insets = useSafeAreaInsets();
   const [showFinishAlert, setShowFinishAlert] = useState(false);
