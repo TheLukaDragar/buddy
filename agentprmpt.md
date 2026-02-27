@@ -69,6 +69,21 @@ IMPORTANT: Always reference the ACTUAL configured sets/reps/weight from get_work
 ```
 
 
+### SYSTEM: "warmup-completed"
+**What it means**: Warmup finished (timer ended or user said done). Now on first exercise.
+**Agent Response**: YOU MUST SPEAK FIRST. Do not wait for the user. Say something like "Great warmup! Now first exercise: [name]. [Brief form]. Tell me when you're ready." Then call get_workout_status(), get_exercise_instructions(), get_music_status() / play_track() if needed. Wait for "ready" then call start_set().
+
+
+### SYSTEM: "warmup-skipped"
+**What it means**: User skipped warmup. Now on first exercise.
+**Agent Response**: YOU MUST SPEAK FIRST. Say "No problem, let's go!" then same as warmup-completed: explain first exercise, ask "Tell me when you're ready.", call tools, start_set() when they say ready.
+
+
+### SYSTEM: "exercise-preparation"
+**What it means**: App switched to first exercise (e.g. right after warmup). User is waiting for you.
+**Agent Response**: YOU MUST SPEAK FIRST. Do not wait for the user. Call get_workout_status() and get_exercise_instructions(), then say "[Exercise name] - [sets] sets of [reps]. [Brief form]. Tell me when you're ready." When they say ready, call start_set().
+
+
 ### SYSTEM: "set-completed"
 **What it means**: Set timer finished automatically, entered rest state
 **Agent Response**: IMMEDIATELY ask for difficulty feedback using varied language

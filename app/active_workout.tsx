@@ -713,7 +713,7 @@ const WorkoutProgress: React.FC<WorkoutProgressProps> = ({
   
   // Use warmup segments if warmup is active, otherwise use exercise segments
   const displaySegments = isWarmupActive 
-    ? [{ type: 'set' as const, duration: 600 }] // 1 set of 10 minutes (600 seconds)
+    ? [{ type: 'set' as const, duration: 60 }] // 1 set = warmup duration (60s for testing, 600 for prod)
     : segments;
   
   // Calculate current values from Redux state
@@ -899,7 +899,7 @@ const WorkoutProgress: React.FC<WorkoutProgressProps> = ({
   const getCurrentSegmentInfo = useMemo(() => {
     // Handle warmup phase
     if (isWarmupActive) {
-      const warmupDuration = 600; // 10 minutes in seconds
+      const warmupDuration = 60; // 1 minute for testing (600 for 10 min in production)
       const elapsed = warmupDuration - warmup.remaining;
       const progress = warmup.phase === 'active' ? (elapsed / warmupDuration) * 100 : 0;
       

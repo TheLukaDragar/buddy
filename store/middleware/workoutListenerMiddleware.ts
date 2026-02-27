@@ -302,11 +302,11 @@ startAppListening({
     if (workoutState.activeWorkout?.currentExercise) {
       const currentExercise = workoutState.activeWorkout.currentExercise;
       const setNumber = workoutState.activeWorkout.currentSetIndex + 1;
-      const contextMessage = `SYSTEM: exercise-preparation - User ready to learn ${currentExercise.name}, set ${setNumber} preparation phase.`;
+      const systemMessage = `SYSTEM: exercise-preparation - User ready to learn ${currentExercise.name}, set ${setNumber} preparation phase.`;
       
       dispatch(addContextMessage({
         event: 'exercise-preparation',
-        message: contextMessage,
+        message: systemMessage,
         data: {
           exerciseName: currentExercise.name,
           setNumber,
@@ -315,8 +315,9 @@ startAppListening({
         },
       }));
       
-      contextBridgeService.sendContextualUpdate(contextMessage).catch(err => 
-        console.log('🎙️ Could not send exercise preparation context:', err)
+      // Use sendMessage so agent is prompted to speak first (like set-completed), not just context
+      contextBridgeService.sendMessage(systemMessage).catch(err => 
+        console.log('🎙️ Could not send exercise preparation message:', err)
       );
     }
   },
@@ -504,17 +505,17 @@ startAppListening({
         delete activeTimers.warmupTimer;
       }
       
-      // Generate context message for warmup completion
-      const contextMessage = `SYSTEM: warmup-completed - Warmup finished, transitioning to first exercise.`;
+      // Generate message for warmup completion - use sendMessage so agent is prompted to speak (like set-completed)
+      const systemMessage = `SYSTEM: warmup-completed - Warmup finished, transitioning to first exercise.`;
       
       dispatch(addContextMessage({
         event: 'warmup-completed',
-        message: contextMessage,
+        message: systemMessage,
         data: {},
       }));
       
-      contextBridgeService.sendContextualUpdate(contextMessage).catch(err => 
-        console.log('🎙️ Could not send warmup completed context:', err)
+      contextBridgeService.sendMessage(systemMessage).catch(err => 
+        console.log('🎙️ Could not send warmup completed message:', err)
       );
       
       return; // Don't proceed to set completion logic
@@ -2551,17 +2552,17 @@ startAppListening({
       delete activeTimers.warmupTimer;
     }
     
-    // Generate context message
-    const contextMessage = `SYSTEM: warmup-completed - Warmup finished, transitioning to first exercise.`;
+    // Use sendMessage so agent is prompted to speak (like set-completed)
+    const systemMessage = `SYSTEM: warmup-completed - Warmup finished, transitioning to first exercise.`;
     
     dispatch(addContextMessage({
       event: 'warmup-completed',
-      message: contextMessage,
+      message: systemMessage,
       data: {},
     }));
     
-    contextBridgeService.sendContextualUpdate(contextMessage).catch(err => 
-      console.log('🎙️ Could not send warmup completed context:', err)
+    contextBridgeService.sendMessage(systemMessage).catch(err => 
+      console.log('🎙️ Could not send warmup completed message:', err)
     );
   },
 });
@@ -2584,17 +2585,17 @@ startAppListening({
       delete activeTimers.warmupTimer;
     }
     
-    // Generate context message
-    const contextMessage = `SYSTEM: warmup-skipped - Warmup skipped, transitioning to first exercise.`;
+    // Use sendMessage so agent is prompted to speak first (like warmup-completed)
+    const systemMessage = `SYSTEM: warmup-skipped - Warmup skipped, transitioning to first exercise.`;
     
     dispatch(addContextMessage({
       event: 'warmup-skipped',
-      message: contextMessage,
+      message: systemMessage,
       data: {},
     }));
     
-    contextBridgeService.sendContextualUpdate(contextMessage).catch(err => 
-      console.log('🎙️ Could not send warmup skipped context:', err)
+    contextBridgeService.sendMessage(systemMessage).catch(err => 
+      console.log('🎙️ Could not send warmup skipped message:', err)
     );
   },
 });
