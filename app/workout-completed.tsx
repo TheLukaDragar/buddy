@@ -699,7 +699,10 @@ export default function WorkoutCompletedScreen() {
     return `${seconds}s`;
   };
 
-  // Reconstruct exercises from sets
+  // Reconstruct exercises from sets.
+  // Group by workout_entry_id only (one row per slot). Swaps do NOT create extra entries —
+  // the same workout_entry_id is used before and after swap, so we show one exercise per slot.
+  // Use the last set's exercise_id so we display the exercise they finished with after any swaps.
   const completedExercises = React.useMemo(() => {
     if (!setsData?.workout_session_setsCollection?.edges) {
       console.log('⚠️ [WORKOUT-COMPLETED] No sets data available for exercise reconstruction');
@@ -709,7 +712,8 @@ export default function WorkoutCompletedScreen() {
     const sets = setsData.workout_session_setsCollection.edges.map(e => e.node);
     console.log('🔄 [WORKOUT-COMPLETED] Reconstructing exercises from', sets.length, 'sets');
     
-    // Group sets by workout_entry_id to reconstruct exercises
+    // Group sets by workout_entry_id only — one "completed exercise" per slot (swaps don't add rows)
+    type SetNode = (typeof sets)[number];
     const exercisesByEntry = sets.reduce((acc, set) => {
       const entryId = set.workout_entry_id;
       if (!entryId) return acc;
@@ -717,32 +721,40 @@ export default function WorkoutCompletedScreen() {
       if (!acc[entryId]) {
         acc[entryId] = {
           id: entryId,
-          exercise_id: set.exercise_id,
-          sets: [],
+          sets: [] as SetNode[],
         };
       }
       acc[entryId].sets.push(set);
       return acc;
-    }, {} as Record<string, { id: string; exercise_id: string; sets: any[] }>);
+    }, {} as Record<string, { id: string; sets: SetNode[] }>);
 
     console.log('📦 [WORKOUT-COMPLETED] Grouped into', Object.keys(exercisesByEntry).length, 'exercise entries');
 
-    // Convert to array format for ExerciseCard
+    // Convert to array: one row per workout_entry_id, use last set's exercise_id (post-swap exercise)
     const exercises = Object.values(exercisesByEntry).map((entry) => {
-      // Get the first completed set's values as defaults
-      const firstSet = entry.sets.find(s => s.is_completed) || entry.sets[0];
-      
-      const exercise = {
+      const sortedSets = [...entry.sets].sort((a, b) => (a.set_number ?? 0) - (b.set_number ?? 0));
+      const lastSet = sortedSets[sortedSets.length - 1];
+      const firstSet = sortedSets.find(s => s.is_completed) || sortedSets[0];
+      const exerciseId = lastSet?.exercise_id ?? entry.sets[0]?.exercise_id ?? '';
+
+      return {
         id: entry.id,
-        exercise_id: entry.exercise_id,
+        exercise_id: exerciseId,
         sets: entry.sets.filter(s => s.is_completed).length || entry.sets.length,
         reps: firstSet?.actual_reps?.toString() || firstSet?.target_reps?.toString() || null,
         weight: firstSet?.actual_weight?.toString() || firstSet?.target_weight?.toString() || null,
         time: firstSet?.actual_time?.toString() || firstSet?.target_time?.toString() || null,
         notes: firstSet?.user_notes || null,
       };
-      
-      return exercise;
+    });
+
+    // Sort by order of first completed set so list order matches workout order
+    exercises.sort((a, b) => {
+      const aFirst = sets.find(s => s.workout_entry_id === a.id);
+      const bFirst = sets.find(s => s.workout_entry_id === b.id);
+      const aAt = aFirst?.completed_at ? new Date(aFirst.completed_at).getTime() : 0;
+      const bAt = bFirst?.completed_at ? new Date(bFirst.completed_at).getTime() : 0;
+      return aAt - bAt;
     });
 
     console.log('✅ [WORKOUT-COMPLETED] Reconstructed exercises:', exercises.map(e => ({
@@ -829,12 +841,16 @@ export default function WorkoutCompletedScreen() {
     return workoutDateOnly.getTime() < todayOnly.getTime();
   }, [session?.date]);
 
-  // Prepare display data
+  // Prepare display data.
+  // Use reconstructed list length for completedExercises so the count matches the list
+  // (avoids showing e.g. 5/5 when swaps were incorrectly counted as extra exercises).
   const displayData = React.useMemo(() => {
     const data = {
       workoutName: session?.day_name || 'Workout',
       totalTime: session?.total_time_ms || 0,
-      completedExercises: session?.completed_exercises || 0,
+      completedExercises: completedExercises.length > 0
+        ? completedExercises.length
+        : (session?.completed_exercises ?? 0),
       totalExercises: session?.total_exercises || 0,
       completedSets: session?.completed_sets || 0,
       totalSets: session?.total_sets || 0,
