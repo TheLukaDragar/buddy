@@ -257,11 +257,13 @@ const shouldShowDateDelimiter = (currentMessage: ChatMessage, previousMessage?: 
 // Helper function to process conversation events into displayable messages
 const processConversationEvent = (event: ConversationEvent, source: Role): ExtendedChatMessage | null => {
   // Ignore ping, interruption, audio, and other non-displayable events
+  const eventType = (event as { type?: string }).type ?? '';
   if (
-    event.type === 'ping' ||
-    event.type === 'interruption' ||
-    event.type === 'conversation_initiation_metadata' ||
-    event.type === 'audio'
+    eventType === 'ping' ||
+    eventType === 'interruption' ||
+    eventType === 'conversation_initiation_metadata' ||
+    eventType === 'audio' ||
+    eventType.startsWith('audio') // e.g. audio_chunk, audio_chunk_received, etc.
   ) {
     return null;
   }

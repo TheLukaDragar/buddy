@@ -3597,8 +3597,13 @@ export default function ActiveWorkoutScreen() {
     onMessage: ({ message, source }: { message: ConversationEvent; source: Role }) => {
       console.log('ElevenLabs message received:', message, 'from:', source);
       
-      // Ignore ping events to prevent chat from filling up with duplicates
-      if (message.type === 'ping') {
+      const eventType = (message as { type?: string }).type ?? '';
+      // Ignore ping, audio, and other non-displayable events
+      if (
+        eventType === 'ping' ||
+        eventType === 'audio' ||
+        eventType.startsWith('audio')
+      ) {
         return;
       }
       
