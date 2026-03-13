@@ -756,9 +756,16 @@ export default function WorkoutCompletedScreen() {
   // Use reconstructed list length for completedExercises so the count matches the list
   // (avoids showing e.g. 5/5 when swaps were incorrectly counted as extra exercises).
   const displayData = React.useMemo(() => {
+    const rawMs = Number(session?.total_time_ms) || 0;
+    const fallbackMs =
+      session?.started_at && session?.completed_at
+        ? new Date(session.completed_at).getTime() - new Date(session.started_at).getTime()
+        : 0;
+    const totalTime = rawMs > 0 ? rawMs : Math.max(0, fallbackMs);
+
     const data = {
       workoutName: session?.day_name || 'Workout',
-      totalTime: session?.total_time_ms || 0,
+      totalTime,
       completedExercises: completedExercises.length > 0
         ? completedExercises.length
         : (session?.completed_exercises ?? 0),

@@ -20,6 +20,7 @@ import { nucleus } from '../Buddy_variables.js';
 import { SplashScreenController } from '../components/SplashScreenController';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
 import { useColorScheme } from '../hooks/useColorScheme';
+import { useWorkoutSyncOnBackground } from '../hooks/useWorkoutSyncOnBackground';
 import { persistor, store } from '../store';
 
 
@@ -58,6 +59,7 @@ const BuddyNavigationTheme = {
 function PersistGateContent() {
   console.log('🚀 [ENTRY] PersistGate - rehydration complete, rendering app');
   const [showIntro, setShowIntro] = useState(false);
+  useWorkoutSyncOnBackground();
   
   const handleDismissIntro = React.useCallback(() => {
     setShowIntro(false);
