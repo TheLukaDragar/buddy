@@ -197,10 +197,12 @@ query GetWorkoutSessionSets($sessionId: UUID!) {
 }
 
 # Query to get all adjustments for a workout session
+# first: 500 ensures we get all adjustments (hold-to-increment can create 100+ per exercise)
 query GetWorkoutSessionAdjustments($sessionId: UUID!) {
   workout_session_adjustmentsCollection(
     filter: { session_id: { eq: $sessionId } }
     orderBy: [{ created_at: AscNullsLast }]
+    first: 500
   ) {
     edges {
       node {

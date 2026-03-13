@@ -6079,6 +6079,7 @@ export const GetWorkoutSessionAdjustmentsDocument = `
   workout_session_adjustmentsCollection(
     filter: {session_id: {eq: $sessionId}}
     orderBy: [{created_at: AscNullsLast}]
+    first: 500
   ) {
     edges {
       node {

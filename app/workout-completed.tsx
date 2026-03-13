@@ -81,6 +81,7 @@ interface AdjustmentDisplayProps {
     exerciseName?: string;
     affectedSetNumbers?: number[];
     isApplied?: boolean;
+    createdAt?: string;
   }>;
   exercises?: Array<{
     id: string;
@@ -141,8 +142,13 @@ const AdjustmentDisplay: React.FC<AdjustmentDisplayProps> = ({ adjustments, exer
   // Helper function to calculate net change from multiple adjustments
   const getNetChange = (changes: typeof adjustments) => {
     if (changes.length === 0) return null;
-    // Sort by from value to get chronological order (first adjustment to last)
-    const sorted = [...changes].sort((a, b) => a.from - b.from);
+    // Sort by created_at for chronological order. Sorting by from was wrong for decreases
+    // (e.g. 180→90: sort-by-from put 90 first, 180 last, showing increase instead of decrease)
+    const sorted = [...changes].sort((a, b) => {
+      const aAt = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bAt = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return aAt - bAt;
+    });
     const first = sorted[0].from;
     const last = sorted[sorted.length - 1].to;
     return { from: first, to: last, delta: last - first };
@@ -399,9 +405,8 @@ interface ExerciseListProps {
 }
 
 const ExerciseList: React.FC<ExerciseListProps> = ({ exercises }) => {
-  const handleExercisePress = (exercise: any) => {
+  const handleExercisePress = (_exercise: any) => {
     // Could navigate to exercise details if needed
-    console.log('Exercise pressed:', exercise);
   };
 
   return (
@@ -447,12 +452,6 @@ export default function WorkoutCompletedScreen() {
   const sessionId = params?.sessionId 
     ? (Array.isArray(params.sessionId) ? params.sessionId[0] : params.sessionId)
     : undefined;
-
-  // Log sessionId from params
-  React.useEffect(() => {
-    console.log('📋 [WORKOUT-COMPLETED] Route params:', params);
-    console.log('📋 [WORKOUT-COMPLETED] Extracted sessionId:', sessionId);
-  }, [params, sessionId]);
 
   // Query workout session data
   const { data: sessionData, isLoading: isLoadingSession, error: sessionError, refetch: refetchSession } = useGetWorkoutSessionQuery(
@@ -556,7 +555,6 @@ export default function WorkoutCompletedScreen() {
       }
 
       if (!workoutPlans || workoutPlans.length === 0) {
-        console.log('No workout plans found for user');
         return false;
       }
 
@@ -589,13 +587,9 @@ export default function WorkoutCompletedScreen() {
       }
 
       if (totalAffected > 0) {
-        console.log(`✅ Applied adjustment to ${totalAffected} future workout${totalAffected > 1 ? 's' : ''}`);
-      } else {
-        // No future workouts found - return true to show "Saved" feedback
-        // This preserves historical data integrity (workout_sessions are immutable)
-        // When new workout plans are generated, they can incorporate these preferences
-        console.log('No future workouts found - showing saved feedback (preference will apply to new plans)');
+        // Applied to future workouts
       }
+      // No future workouts: return true to show "Saved" feedback (preference applies to new plans)
       // Refetch adjustments so UI shows "Saved"
       refetchAdjustments();
       return true;
@@ -618,72 +612,6 @@ export default function WorkoutCompletedScreen() {
     return sets.some(set => set.workout_entries?.preset_id);
   }, [setsData]);
 
-  // Log session data
-  React.useEffect(() => {
-    if (sessionData) {
-      console.log('📊 [WORKOUT-COMPLETED] Session data received:', {
-        hasData: !!sessionData,
-        edgesCount: sessionData?.workout_sessionsCollection?.edges?.length || 0,
-        session: session ? {
-          id: session.id,
-          day_name: session.day_name,
-          status: session.status,
-          total_time_ms: session.total_time_ms,
-          completed_exercises: session.completed_exercises,
-          total_exercises: session.total_exercises,
-          completed_sets: session.completed_sets,
-          total_sets: session.total_sets,
-          is_fully_completed: session.is_fully_completed,
-          finished_early: session.finished_early,
-          completed_at: session.completed_at,
-        } : null,
-      });
-    }
-    if (sessionError) {
-      console.error('❌ [WORKOUT-COMPLETED] Session query error:', sessionError);
-    }
-  }, [sessionData, sessionError, session]);
-
-  // Log sets data
-  React.useEffect(() => {
-    if (setsData) {
-      const sets = setsData?.workout_session_setsCollection?.edges?.map(e => e.node) || [];
-      console.log('🎯 [WORKOUT-COMPLETED] Sets data received:', {
-        hasData: !!setsData,
-        setsCount: sets.length,
-        sets: sets.map(s => ({
-          id: s.id,
-          workout_entry_id: s.workout_entry_id,
-          exercise_id: s.exercise_id,
-          set_number: s.set_number,
-          is_completed: s.is_completed,
-          actual_reps: s.actual_reps,
-          actual_weight: s.actual_weight,
-          actual_time: s.actual_time,
-        })),
-      });
-    }
-  }, [setsData]);
-
-  // Log adjustments data
-  React.useEffect(() => {
-    if (adjustmentsData) {
-      const adjustments = adjustmentsData?.workout_session_adjustmentsCollection?.edges?.map(e => e.node) || [];
-      console.log('🔧 [WORKOUT-COMPLETED] Adjustments data received:', {
-        hasData: !!adjustmentsData,
-        adjustmentsCount: adjustments.length,
-        adjustments: adjustments.map(a => ({
-          id: a.id,
-          type: a.type,
-          from_value: a.from_value,
-          to_value: a.to_value,
-          reason: a.reason,
-          affected_set_numbers: a.affected_set_numbers,
-        })),
-      });
-    }
-  }, [adjustmentsData]);
-
   // Format time helper (short, e.g. "24 min")
   const formatTime = (ms: number | null | undefined) => {
     if (!ms) return '0 min';
@@ -705,12 +633,10 @@ export default function WorkoutCompletedScreen() {
   // Use the last set's exercise_id so we display the exercise they finished with after any swaps.
   const completedExercises = React.useMemo(() => {
     if (!setsData?.workout_session_setsCollection?.edges) {
-      console.log('⚠️ [WORKOUT-COMPLETED] No sets data available for exercise reconstruction');
       return [];
     }
     
     const sets = setsData.workout_session_setsCollection.edges.map(e => e.node);
-    console.log('🔄 [WORKOUT-COMPLETED] Reconstructing exercises from', sets.length, 'sets');
     
     // Group sets by workout_entry_id only — one "completed exercise" per slot (swaps don't add rows)
     type SetNode = (typeof sets)[number];
@@ -727,8 +653,6 @@ export default function WorkoutCompletedScreen() {
       acc[entryId].sets.push(set);
       return acc;
     }, {} as Record<string, { id: string; sets: SetNode[] }>);
-
-    console.log('📦 [WORKOUT-COMPLETED] Grouped into', Object.keys(exercisesByEntry).length, 'exercise entries');
 
     // Convert to array: one row per workout_entry_id, use last set's exercise_id (post-swap exercise)
     const exercises = Object.values(exercisesByEntry).map((entry) => {
@@ -757,29 +681,17 @@ export default function WorkoutCompletedScreen() {
       return aAt - bAt;
     });
 
-    console.log('✅ [WORKOUT-COMPLETED] Reconstructed exercises:', exercises.map(e => ({
-      id: e.id,
-      exercise_id: e.exercise_id,
-      sets: e.sets,
-      reps: e.reps,
-      weight: e.weight,
-    })));
-
     return exercises;
   }, [setsData]);
 
   // Transform adjustments data
   const formattedAdjustments = React.useMemo(() => {
     if (!adjustmentsData?.workout_session_adjustmentsCollection?.edges) {
-      console.log('⚠️ [WORKOUT-COMPLETED] No adjustments data available');
       return [];
     }
 
     const rawAdjustments = adjustmentsData.workout_session_adjustmentsCollection.edges.map(e => e.node);
-    console.log('🔄 [WORKOUT-COMPLETED] Processing', rawAdjustments.length, 'raw adjustments');
-
     const filtered = rawAdjustments.filter(adj => ['weight', 'reps', 'rest'].includes(adj.type));
-    console.log('📊 [WORKOUT-COMPLETED] Filtered to', filtered.length, 'relevant adjustments (weight/reps/rest)');
 
     const formatted = filtered.map(adj => ({
       type: adj.type as 'weight' | 'reps' | 'rest',
@@ -792,9 +704,8 @@ export default function WorkoutCompletedScreen() {
         ? adj.affected_set_numbers.filter((n): n is number => n !== null)
         : undefined,
       isApplied: adj.is_applied || false,
+      createdAt: adj.created_at || undefined,
     }));
-
-    console.log('✅ [WORKOUT-COMPLETED] Formatted adjustments:', formatted);
 
     return formatted;
   }, [adjustmentsData]);
@@ -860,18 +771,6 @@ export default function WorkoutCompletedScreen() {
       adjustments: formattedAdjustments,
       aiSummary: null, // Will be populated by AI
     };
-
-    console.log('🎨 [WORKOUT-COMPLETED] Final display data:', {
-      workoutName: data.workoutName,
-      totalTime: data.totalTime,
-      completedExercises: data.completedExercises,
-      totalExercises: data.totalExercises,
-      completedSets: data.completedSets,
-      totalSets: data.totalSets,
-      totalWeightLifted: data.totalWeightLifted,
-      exercisesCount: data.exercises.length,
-      adjustmentsCount: data.adjustments.length,
-    });
 
     return data;
   }, [session, completedExercises, formattedAdjustments, totalWeightLifted]);
