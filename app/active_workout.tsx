@@ -90,6 +90,7 @@ import { useConversation } from '@elevenlabs/react-native';
 import { AnimatedAIButton } from '../components/AnimatedAIButton';
 import ExerciseAdjustModal from '../components/ExerciseAdjustModal';
 import MusicPlayerMini from '../components/MusicPlayerMini';
+import SetFeedbackLayer from '../components/SetFeedbackLayer';
 import PartynetAudioPlayer from '../components/PartynetAudioPlayer';
 import SwitchExerciseModal from '../components/SwitchExerciseModal';
 import { useAuth } from '../contexts/AuthContext';
@@ -2950,7 +2951,20 @@ export default function ActiveWorkoutScreen() {
   const [conversationStatus, setConversationStatus] = useState<ConversationStatus>('disconnected');
   const [canSendFeedback, setCanSendFeedback] = useState<boolean>(false);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null); // Track conversation ID for disconnect
+  const [feedbackLayerDismissed, setFeedbackLayerDismissed] = useState(false);
+  const prevStatusRef = useRef<string | null>(null);
   const agentId = process.env.EXPO_PUBLIC_ELEVENLABS_AGENT_ID || 'none';
+
+  // Reset feedback layer when entering rest (new set completed) so it shows again for next set
+  useEffect(() => {
+    const prevStatus = prevStatusRef.current;
+    prevStatusRef.current = status;
+    const isResting = status === 'resting' || status === 'set-complete';
+    const wasResting = prevStatus === 'resting' || prevStatus === 'set-complete';
+    if (isResting && !wasResting) {
+      setFeedbackLayerDismissed(false);
+    }
+  }, [status]);
   
   // Initialize conversation with handlers and client tools
   const conversation = useConversation({
@@ -4075,6 +4089,29 @@ export default function ActiveWorkoutScreen() {
         disabled={false}
         conversationStatus={conversationStatus}
       />
+
+      {/* Set feedback layer - tap to respond when Buddy asks "How did that feel?" */}
+      {status !== 'workout-completed' && (
+        <SetFeedbackLayer
+          visible={
+            (status === 'resting' || status === 'set-complete') &&
+            conversationStatus === 'connected' &&
+            !feedbackLayerDismissed
+          }
+          onSelectFeedback={(feedback) => {
+            if (conversation?.status === 'connected') {
+              conversation.sendUserMessage(feedback);
+              const userMessageEvent = {
+                type: 'user_transcript',
+                user_transcription_event: { user_transcript: feedback },
+              } as ConversationEvent;
+              setConversationEvents((prev) => [...prev, userMessageEvent]);
+            }
+            setFeedbackLayerDismissed(true);
+          }}
+          onDismiss={() => setFeedbackLayerDismissed(true)}
+        />
+      )}
 
       {/* Leave workout alert: Continue / Save for later / Finish workout */}
       <CustomAlert
