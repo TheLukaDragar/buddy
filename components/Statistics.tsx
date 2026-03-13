@@ -8,6 +8,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { nucleus } from '../BiXo_variables.js';
 import { useGetUserWorkoutStatisticsQuery } from '../store/api/enhancedApi';
+import { getEffectiveWeightKg } from '../utils/barWeight';
 
 export interface StatisticsData {
   completedWorkouts: number;
@@ -70,14 +71,17 @@ export default function Statistics({ userId }: StatisticsProps) {
       const seconds = Math.floor((avgTimeMs % 60000) / 1000);
       const averageWorkoutTime = `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 
-      // Calculate total lifted weight from sets
+      // Calculate total lifted weight from sets (incl. bar weight: barbell +20kg, ez-bar +8kg)
       let totalLiftedWeight = 0;
       sessionList.forEach(s => {
         const sets = s.workout_session_setsCollection?.edges || [];
         sets.forEach(setEdge => {
           const set = setEdge.node;
-          if (set.is_completed && set.actual_weight && set.actual_reps) {
-            totalLiftedWeight += (parseFloat(set.actual_weight as string) || 0) * (set.actual_reps || 0);
+          if (set.is_completed && set.actual_reps) {
+            const storedWeight = set.actual_weight ? parseFloat(set.actual_weight as string) : 0;
+            const exerciseInfo = [set.exercises?.name, set.exercises?.equipment_text].filter(Boolean).join(' ') || '';
+            const effectiveWeight = storedWeight > 0 ? getEffectiveWeightKg(storedWeight, exerciseInfo) : 5;
+            totalLiftedWeight += effectiveWeight * (set.actual_reps || 0);
           }
         });
       });

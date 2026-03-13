@@ -8,6 +8,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 
 import { useBiXoTheme } from "@/constants/BiXoTheme";
 import { nucleus } from "../BiXo_variables.js";
+import { getEffectiveWeightKg } from "../utils/barWeight";
 import ExerciseCard from "../components/ExerciseCard";
 import { useAuth } from "../contexts/AuthContext";
 import {
@@ -710,7 +711,7 @@ export default function WorkoutCompletedScreen() {
     return formatted;
   }, [adjustmentsData]);
 
-  // Calculate total weight lifted
+  // Calculate total weight lifted (incl. bar weight for barbell +20kg, ez-bar +8kg)
   const totalWeightLifted = React.useMemo(() => {
     if (!setsData?.workout_session_setsCollection?.edges) {
       return 0;
@@ -718,20 +719,19 @@ export default function WorkoutCompletedScreen() {
     
     const sets = setsData.workout_session_setsCollection.edges.map(e => e.node);
     
-    // Calculate: for each completed set, multiply reps × weight
-    // For bodyweight exercises (weight = 0), count 5kg per rep
+    // Calculate: for each completed set, multiply reps × effective weight
+    // effectiveWeight = stored + bar weight (barbell 20kg, ez-bar 8kg)
     const total = sets.reduce((sum, set) => {
       if (!set.is_completed) return sum;
       
       const reps = set.actual_reps || 0;
-      const weight = set.actual_weight ? parseFloat(set.actual_weight.toString()) : 0;
+      const storedWeight = set.actual_weight ? parseFloat(set.actual_weight.toString()) : 0;
+      const exerciseInfo = [set.exercises?.name, set.exercises?.equipment_text].filter(Boolean).join(' ') || '';
+      const effectiveWeight = storedWeight > 0
+        ? getEffectiveWeightKg(storedWeight, exerciseInfo)
+        : (reps > 0 ? 5 : 0); // bodyweight: 5kg per rep
       
-      if (reps > 0) {
-        // If weight is 0 (bodyweight exercise), count 5kg per rep
-        const effectiveWeight = weight > 0 ? weight : 5;
-        return sum + (reps * effectiveWeight);
-      }
-      
+      if (reps > 0) return sum + reps * effectiveWeight;
       return sum;
     }, 0);
     

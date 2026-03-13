@@ -515,7 +515,11 @@ If timer expires naturally, system sends "set-completed"
 **Barbell Exercises**:
 - Progression increment: **+2.5kg to +5kg per side** (5kg to 10kg total) depending on exercise
 - Weight increases apply per side of the barbell
+- **Bar weight**: Standard barbell = 20kg. When setting/adjusting weight, use total (bar + plates). E.g. empty bar = 20kg, 60kg total = 20 bar + 40 plates.
 - Example: If current weight is 60kg (30kg per side) and user finds it easy, increase to 65kg (32.5kg per side)
+
+**EZ-Bar Exercises**:
+- **Bar weight**: EZ-bar = 8kg. When setting/adjusting weight, use total (bar + plates). E.g. empty bar = 8kg.
 
 **Bodyweight Exercises**:
 - No weight adjustment needed

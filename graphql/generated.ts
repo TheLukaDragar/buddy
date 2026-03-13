@@ -4453,6 +4453,11 @@ export type GetUserWorkoutStatisticsQuery = {
               actual_reps?: number | null;
               actual_weight?: any | null;
               is_completed?: boolean | null;
+              exercises: {
+                __typename?: "exercises";
+                name: string;
+                equipment_text: string;
+              };
             };
           }>;
         } | null;
@@ -4579,6 +4584,11 @@ export type GetWorkoutSessionSetsQuery = {
           __typename?: "workout_entries";
           preset_id?: any | null;
         } | null;
+        exercises: {
+          __typename?: "exercises";
+          name: string;
+          equipment_text: string;
+        };
       };
     }>;
   } | null;
@@ -5958,6 +5968,10 @@ export const GetUserWorkoutStatisticsDocument = `
               actual_reps
               actual_weight
               is_completed
+              exercises {
+                name
+                equipment_text
+              }
             }
           }
         }
@@ -6068,6 +6082,10 @@ export const GetWorkoutSessionSetsDocument = `
         created_at
         workout_entries {
           preset_id
+        }
+        exercises {
+          name
+          equipment_text
         }
       }
     }

@@ -77,6 +77,10 @@ query GetUserWorkoutStatistics($userId: UUID!) {
               actual_reps
               actual_weight
               is_completed
+              exercises {
+                name
+                equipment_text
+              }
             }
           }
         }
@@ -190,6 +194,10 @@ query GetWorkoutSessionSets($sessionId: UUID!) {
         created_at
         workout_entries {
           preset_id
+        }
+        exercises {
+          name
+          equipment_text
         }
       }
     }
