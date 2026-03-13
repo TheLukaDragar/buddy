@@ -43,40 +43,26 @@ const ThinkingDot = ({ delay }: { delay: number }) => {
   );
 };
 
-// Pagination component for question progress (max 5 dots)
-const Pagination = ({ activeIndex, count }: { activeIndex: number, count: number }) => {
-  const maxDots = 5;
-  const dotsToShow = Math.min(count, maxDots);
-  
-  // Calculate which dots to show based on current position
-  let startIndex = 0;
-  if (count > maxDots) {
-    if (activeIndex <= 2) {
-      startIndex = 0;
-    } else if (activeIndex >= count - 3) {
-      startIndex = count - maxDots;
-    } else {
-      startIndex = activeIndex - 2;
-    }
-  }
-  
+// Progress bar for onboarding (replaces dots - uses user answers for reliable progress)
+const OnboardingProgressBar = ({ answeredCount, total }: { answeredCount: number; total: number }) => {
+  const progress = Math.min(answeredCount / total, 1);
   return (
-    <ReanimatedAnimated.View layout={Layout.duration(250).easing(Easing.out(Easing.cubic))} style={styles.pagination}>
-      {Array.from({ length: dotsToShow }).map((_, index) => {
-        const actualIndex = startIndex + index;
-        const isActive = actualIndex === activeIndex;
-        
-        return (
-          <ReanimatedAnimated.View 
-            key={actualIndex} 
-            layout={Layout.duration(200).delay(index * 30).easing(Easing.out(Easing.cubic))}
-            style={[
-              styles.dot, 
-              isActive ? styles.activeDot : styles.inactiveDot
-            ]} 
-          />
-        );
-      })}
+    <ReanimatedAnimated.View
+      layout={Layout.duration(250).easing(Easing.out(Easing.cubic))}
+      style={styles.progressBarContainer}
+    >
+      <View style={[styles.progressBarTrack, { backgroundColor: nucleus.light.global.blue[20] }]}>
+        <ReanimatedAnimated.View
+          layout={Layout.duration(300).easing(Easing.out(Easing.cubic))}
+          style={[
+            styles.progressBarFill,
+            {
+              width: `${progress * 100}%`,
+              backgroundColor: nucleus.light.semantic.accent.bold,
+            },
+          ]}
+        />
+      </View>
     </ReanimatedAnimated.View>
   );
 };
@@ -101,14 +87,7 @@ export default function OnboardingScreen() {
   const [showCompletion, setShowCompletion] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
   const [isWaitingForResponse, setIsWaitingForResponse] = useState(false);
-  
-  
 
-  
-  // Question tracking for pagination - use a simple counter instead
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [totalQuestions, setTotalQuestions] = useState(18);
-  
   // AI SDK Chat Hook for onboarding with proper streaming
   const { messages, sendMessage, status } = useChat({
     transport: new DefaultChatTransport({
@@ -176,9 +155,6 @@ export default function OnboardingScreen() {
                       multipleSelection = toolAllowMultiple;
                   console.log('Setting LLM suggestions:', suggestions);
                   console.log('Setting multiple selection:', multipleSelection);
-
-                      // Increment question counter for pagination
-                  setCurrentQuestionIndex(prev => Math.min(prev + 1, totalQuestions - 1));
                   }
                 }
 
@@ -567,13 +543,23 @@ export default function OnboardingScreen() {
             style={styles.backButton}
           />
           
-          {/* Show pagination dots when questions are active */}
+          {/* Progress bar when questions are active */}
           {hasStarted && !showCompletion ? (
-            <ReanimatedAnimated.View 
+            <ReanimatedAnimated.View
               entering={FadeIn.duration(300).delay(100)}
               style={styles.paginationContainer}
             >
-              <Pagination activeIndex={currentQuestionIndex} count={totalQuestions} />
+              <OnboardingProgressBar
+                answeredCount={messages.filter((m) => {
+                  if (m.role !== 'user') return false;
+                  const text = m.parts
+                    ?.filter((p: { type: string }) => p.type === 'text')
+                    .map((p: { type: string; text?: string }) => (p as { text?: string }).text)
+                    .join('') || '';
+                  return !text.includes('User is ready to start the onboarding conversation');
+                }).length}
+                total={18}
+              />
             </ReanimatedAnimated.View>
           ) : (
             <Text style={styles.headerText}>Getting to know you</Text>
@@ -600,8 +586,13 @@ export default function OnboardingScreen() {
             <Animated.View style={styles.chatContainer}>
               {renderMessages()}
               
-              {/* BiXo thinking indicator - show when waiting for response */}
-              {isWaitingForResponse && (
+              {/* BiXo thinking indicator - show when waiting for response (use status as fallback when manual state is out of sync) */}
+              {(() => {
+                const lastMsg = messages[messages.length - 1];
+                const lastHasText = lastMsg?.role === 'assistant' && (lastMsg.parts?.filter((p: { type: string }) => p.type === 'text').map((p: unknown) => (p as { text?: string }).text).join('') || '').trim().length > 0;
+                const isWaiting = status === 'submitted' || status === 'streaming' || isWaitingForResponse;
+                return isWaiting && !lastHasText;
+              })() && (
                 <View style={{ width: '100%' }}>
                   <View style={styles.bixoMessage}>
                     <Avatar.Image size={40} source={require('../assets/avatar.png')} style={styles.avatar} />
@@ -967,27 +958,24 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     lineHeight: 20,
   },
-  pagination: {
-    display: 'flex',
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 8,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 8,
-  },
-  activeDot: {
-    backgroundColor: nucleus.light.semantic.accent.bold,
-  },
-  inactiveDot: {
-    backgroundColor: nucleus.light.global.blue[20],
-  },
   paginationContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 8,
+  },
+  progressBarContainer: {
+    width: '100%',
+    maxWidth: 160,
+  },
+  progressBarTrack: {
+    height: 6,
+    borderRadius: 9999,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    borderRadius: 9999,
   },
   thinkingContainer: {
     display: 'flex',
