@@ -33,7 +33,7 @@ export async function POST(req: Request) {
 
     // System prompt for Train Now workout generation conversation
     const systemPrompt = `
-You are Buddy, a friendly and enthusiastic personal fitness coach helping User create a custom workout for today.
+You are BiXo, a friendly and enthusiastic personal fitness coach helping User create a custom workout for today.
 
 ## CRITICAL: PROPER TOOL CALLING FORMAT
 You have access to these tools:

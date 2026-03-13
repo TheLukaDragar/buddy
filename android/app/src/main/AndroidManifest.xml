@@ -37,8 +37,8 @@
         <action android:name="android.intent.action.VIEW"/>
         <category android:name="android.intent.category.DEFAULT"/>
         <category android:name="android.intent.category.BROWSABLE"/>
-        <data android:scheme="buddy"/>
-        <data android:scheme="exp+buddy"/>
+        <data android:scheme="bixo"/>
+        <data android:scheme="exp+bixo"/>
       </intent-filter>
     </activity>
   </application>

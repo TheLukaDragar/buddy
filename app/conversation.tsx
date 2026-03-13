@@ -11,7 +11,7 @@ import {
 import { useConversation } from "@elevenlabs/react-native";
 import type { ConversationStatus, ConversationEvent, Role } from "@elevenlabs/react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { nucleus } from '../Buddy_variables.js';
+import { nucleus } from '../BiXo_variables.js';
 import { useMicrophonePermission } from '../hooks/useMicrophonePermission';
 
 export default function ConversationScreen() {

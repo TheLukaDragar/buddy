@@ -31,7 +31,7 @@ export const useSpotifyAuth = () => {
   const isAuthenticated = useAppSelector(selectIsAuthenticated);
 
   const redirectUri = makeRedirectUri({
-    scheme: 'buddy',
+    scheme: 'bixo',
     path: 'spotify-auth-callback',
   });
 

@@ -1,15 +1,15 @@
 {
   "expo": {
-    "name": "buddy",
-    "slug": "buddy",
+    "name": "BiXo",
+    "slug": "bixo",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "buddy",
+    "scheme": "bixo",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "bundleIdentifier": "com.theluka.buddy",
+      "bundleIdentifier": "com.theluka.bixo",
       "supportsTablet": false,
       "runtimeVersion": "1.0.0",
       "infoPlist": {
@@ -32,7 +32,7 @@
         "android.permission.MEDIA_CONTENT_CONTROL"
       ],
       "edgeToEdgeEnabled": true,
-      "package": "com.theluka.buddy",
+      "package": "com.theluka.bixo",
       "runtimeVersion": "1.0.0"
     },
     "web": {
@@ -44,7 +44,7 @@
       [
         "expo-router",
         {
-          "origin": "https://theluka-buddy.expo.app/"
+          "origin": "https://theluka-bixo.expo.app/"
         }
       ],
       [

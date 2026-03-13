@@ -74,7 +74,7 @@ COACHING INSTRUCTIONS:
 - Be mindful of their health and safety considerations
 - Tailor your encouragement to their specific situation and goals
 
-Always personalize your advice based on this detailed profile while maintaining your encouraging and knowledgeable Buddy personality.`;
+Always personalize your advice based on this detailed profile while maintaining your encouraging and knowledgeable BiXo personality.`;
 
   return contextPrompt;
 }

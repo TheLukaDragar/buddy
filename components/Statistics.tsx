@@ -6,7 +6,7 @@ import Animated, {
   withSpring,
   withTiming
 } from 'react-native-reanimated';
-import { nucleus } from '../Buddy_variables.js';
+import { nucleus } from '../BiXo_variables.js';
 import { useGetUserWorkoutStatisticsQuery } from '../store/api/enhancedApi';
 
 export interface StatisticsData {

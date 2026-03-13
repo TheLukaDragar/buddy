@@ -2,7 +2,7 @@ import { Image } from "expo-image";
 import React, { useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeInUp, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
-import { nucleus } from '../Buddy_variables.js';
+import { nucleus } from '../BiXo_variables.js';
 
 export interface PresetData {
   id: string;
@@ -128,7 +128,7 @@ export default function TrainNowCard({
               activeOpacity={0.8}
             >
               <Text style={styles.generateButtonText}>✨ Generate Custom Workout</Text>
-              <Text style={styles.generateButtonSubtext}>Chat with Buddy to create your perfect session</Text>
+              <Text style={styles.generateButtonSubtext}>Chat with BiXo to create your perfect session</Text>
             </TouchableOpacity>
 
             {/* Preset Options */}

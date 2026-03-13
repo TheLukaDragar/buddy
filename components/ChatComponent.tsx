@@ -11,7 +11,7 @@ import ReanimatedAnimated, {
   useSharedValue,
   withTiming
 } from 'react-native-reanimated';
-import { nucleus } from '../Buddy_variables';
+import { nucleus } from '../BiXo_variables';
 import { RootState } from '../store';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { addMessage, clearMessages, setError, setInputCollapsed, setLoading, type ChatMessage } from '../store/slices/chatSlice';
@@ -367,7 +367,7 @@ interface ChatComponentProps extends ConversationEventHandlers {
 
 export default function ChatComponent({
   showHeader = true,
-  headerTitle = "Welcome to your personal chat with Buddy!",
+  headerTitle = "Welcome to your personal chat with BiXo!",
   headerSubtitle = "I'm here to help you with workouts, answer questions, and keep you motivated. Let's chat! 💬",
   showNewChatButton = true,
   onBack,
@@ -489,14 +489,14 @@ export default function ChatComponent({
     },
     onFinish: (message) => {
       // Add AI response to Redux store
-      const buddyMessage: ChatMessage = {
+      const bixoMessage: ChatMessage = {
         id: Date.now().toString(),
         role: 'assistant',
         content: message.message.parts?.map((part: any) => part.type === 'text' ? part.text : '').join('') || '',
         timestamp: Date.now(),
         parts: message.message.parts as { type: string; text: string }[],
       };
-      dispatch(addMessage(buddyMessage));
+      dispatch(addMessage(bixoMessage));
       dispatch(setLoading(false));
     },
   });
@@ -906,16 +906,16 @@ export default function ChatComponent({
           );
         }
       } else {
-        // Buddy message
-        const isFirstBuddyMessage = index === 0 || allMessages[index - 1]?.role === 'user';
+        // BiXo message
+        const isFirstBiXoMessage = index === 0 || allMessages[index - 1]?.role === 'user';
         
-        // Add buddy avatar/name only for first message in a group
-        if (isFirstBuddyMessage) {
+        // Add BiXo avatar/name only for first message in a group
+        if (isFirstBiXoMessage) {
           renderedItems.push(
             <Animated.View 
-              key={`buddy-header-${message.id}`}
+              key={`bixo-header-${message.id}`}
               style={[
-                styles.buddyMessage,
+                styles.bixoMessage,
                 index < 3 ? {
                   opacity: firstMessageOpacity,
                   transform: [{ translateY: firstMessageTranslateY }],
@@ -923,7 +923,7 @@ export default function ChatComponent({
               ]}
             >
               <Avatar.Image size={40} source={require('../assets/avatar.png')} style={styles.avatar} />
-              <Text style={styles.buddyName}>Buddy</Text>
+              <Text style={styles.bixoName}>BiXo</Text>
             </Animated.View>
           );
         }
@@ -1146,7 +1146,7 @@ export default function ChatComponent({
             </TouchableOpacity>
           )}
           
-          <Text style={styles.buddyText}>Chat</Text>
+          <Text style={styles.bixoText}>Chat</Text>
           
           {showNewChatButton && (
             <TouchableOpacity
@@ -1194,10 +1194,10 @@ export default function ChatComponent({
                 {/* Show loading indicator when AI is responding */}
                 {isLoading && (
                   <View style={styles.loadingContainer}>
-                    {/* Show buddy header (avatar + name) */}
-                    <View style={styles.buddyMessage}>
+                    {/* Show BiXo header (avatar + name) */}
+                    <View style={styles.bixoMessage}>
                       <Avatar.Image size={40} source={require('../assets/avatar.png')} style={styles.avatar} />
-                      <Text style={styles.buddyName}>Buddy</Text>
+                      <Text style={styles.bixoName}>BiXo</Text>
                     </View>
                     
                     {/* Show thinking bubble below */}
@@ -1298,10 +1298,10 @@ export default function ChatComponent({
                 {/* Show loading indicator when AI is responding */}
                 {isLoading && (
                   <View style={styles.loadingContainer}>
-                    {/* Show buddy header (avatar + name) */}
-                    <View style={styles.buddyMessage}>
+                    {/* Show BiXo header (avatar + name) */}
+                    <View style={styles.bixoMessage}>
                       <Avatar.Image size={40} source={require('../assets/avatar.png')} style={styles.avatar} />
-                      <Text style={styles.buddyName}>Buddy</Text>
+                      <Text style={styles.bixoName}>BiXo</Text>
                     </View>
                     
                     {/* Show thinking bubble below */}
@@ -1403,7 +1403,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
   },
-  buddyText: {
+  bixoText: {
     color: nucleus.light.semantic.fg.base,
     textAlign: 'center',
     fontFamily: 'PlusJakartaSans-Bold',
@@ -1472,13 +1472,13 @@ const styles = StyleSheet.create({
     letterSpacing: 0,
     color: '#6E7375',
   },
-  buddyMessage: {
+  bixoMessage: {
     display: 'flex',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  buddyName: {
+  bixoName: {
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 14,
     fontStyle: 'normal',

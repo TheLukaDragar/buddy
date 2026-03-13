@@ -23,10 +23,10 @@ import ReanimatedAnimated, {
 } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
-import { nucleus } from '../Buddy_variables.js';
+import { nucleus } from '../BiXo_variables.js';
 import ChatComponent from '../components/ChatComponent';
 import MusicModal from '../components/MusicModal';
-import { useBuddyTheme } from '../constants/BuddyTheme';
+import { useBiXoTheme } from '../constants/BiXoTheme';
 import { contextBridgeService } from '../services/contextBridgeService';
 import type { RootState } from '../store';
 import { store } from '../store';
@@ -721,7 +721,7 @@ const WorkoutProgress: React.FC<WorkoutProgressProps> = ({
   const currentReps = currentSet?.targetReps || 0;
   const elapsedTime = activeWorkout?.elapsedTime ? Math.floor(activeWorkout.elapsedTime / 1000) : 0;
   const isRunning = status === 'exercising' && !activeWorkout?.isPaused;
-  const theme = useBuddyTheme();
+  const theme = useBiXoTheme();
 
   // Hold-to-increment refs
   const weightHoldIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -2150,7 +2150,7 @@ const BottomModal: React.FC<BottomModalProps> = ({
         <View style={[styles.modalContent, { height: chatContentHeight }]}>
           <ChatComponent 
             showHeader={false}
-            headerTitle="Chat with Buddy during your workout"
+            headerTitle="Chat with BiXo during your workout"
             headerSubtitle="Ask questions, get motivation, or log your progress!"
             showNewChatButton={false}
             containerStyle={[styles.chatContainer, { height: chatContentHeight}]}
@@ -2217,7 +2217,7 @@ const CustomAlert: React.FC<CustomAlertProps> = ({
   onSaveForLater,
   onFinishWorkout,
 }) => {
-  const theme = useBuddyTheme();
+  const theme = useBiXoTheme();
   const threeActions = onSaveForLater != null && onFinishWorkout != null;
 
   return (
@@ -2414,7 +2414,7 @@ const customAlertStyles = StyleSheet.create({
 
 export default function ActiveWorkoutScreen() {
   useKeepAwake();
-  const theme = useBuddyTheme();
+  const theme = useBiXoTheme();
   const insets = useSafeAreaInsets();
   const [showFinishAlert, setShowFinishAlert] = useState(false);
   const [showMusicModal, setShowMusicModal] = useState(false);
@@ -3935,8 +3935,8 @@ export default function ActiveWorkoutScreen() {
     setShowFinishAlert(false);
   };
 
-  // Handle buddy AI button press
-  const handleBuddyAIPress = async () => {
+  // Handle BiXo AI button press
+  const handleBiXoAIPress = async () => {
     console.log('🎤 BiXo button pressed - current status:', conversationStatus);
     
     if (conversationStatus === 'connected') {
@@ -4023,9 +4023,9 @@ export default function ActiveWorkoutScreen() {
       />
 
       <AnimatedAIButton
-        style={[styles.buddyAiButton, { bottom: insets.bottom }]}
+        style={[styles.bixoAiButton, { bottom: insets.bottom }]}
         isActive={conversationStatus === 'connected'}
-        onPress={handleBuddyAIPress}
+        onPress={handleBiXoAIPress}
         disabled={false}
         conversationStatus={conversationStatus}
       />
@@ -4538,7 +4538,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: nucleus.light.semantic.bg.canvas, // White background
   },
-  buddyAiButton: {
+  bixoAiButton: {
     position: 'absolute',
     zIndex: 3000, // Higher than modal (2000) to appear above it
     right: 11,
@@ -4549,7 +4549,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  buddyAiIcon: {
+  bixoAiIcon: {
     width: 64,
     height: 64,
   },

@@ -32,7 +32,7 @@ export async function POST(req: Request) {
     }
 
     // Base system prompt
-    let systemPrompt = `You are Buddy, a friendly and enthusiastic personal fitness coach and wellness companion. Your personality is:
+    let systemPrompt = `You are BiXo, a friendly and enthusiastic personal fitness coach and wellness companion. Your personality is:
 
 - Encouraging and motivational, but not overly pushy
 - Knowledgeable about fitness, nutrition, and wellness
@@ -67,7 +67,7 @@ COACHING INSTRUCTIONS:
 - Be mindful of their health and safety considerations
 - Tailor your encouragement to their specific situation and goals
 
-Always personalize your advice based on this profile while maintaining your encouraging and knowledgeable Buddy personality.`;
+Always personalize your advice based on this profile while maintaining your encouraging and knowledgeable BiXo personality.`;
     }
 
     const result = streamText({

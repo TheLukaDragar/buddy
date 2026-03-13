@@ -1,4 +1,4 @@
-package com.theluka.buddy
+package com.theluka.bixo
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

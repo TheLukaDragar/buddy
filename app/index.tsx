@@ -2,7 +2,7 @@ import { Redirect } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import { useSelector } from 'react-redux';
 import { ActivityIndicator, View } from 'react-native';
-import { nucleus } from '../Buddy_variables';
+import { nucleus } from '../BiXo_variables';
 import { useGetWorkoutPlanRequestsQuery } from '../store/api/enhancedApi';
 
 export default function Index() {

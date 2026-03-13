@@ -9,7 +9,7 @@ import { SystemBars } from 'react-native-edge-to-edge';
 import Animated, { Easing, Extrapolation, FadeIn, FadeOut, interpolate, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import Carousel, { ICarouselInstance } from 'react-native-reanimated-carousel';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { nucleus } from '../Buddy_variables';
+import { nucleus } from '../BiXo_variables';
 import AddExerciseModal from '../components/AddExerciseModal';
 import ExerciseAdjustModal from '../components/ExerciseAdjustModal';
 import ExerciseCard from '../components/ExerciseCard';
@@ -704,7 +704,7 @@ export default function WorkoutScreen() {
               style={{ alignSelf: 'stretch' }}
             >
               <Text style={styles.workoutDescription}>
-                Based on your last workout Buddy recommends this over that so it will go easy on your knees and  right ankle. 
+                Based on your last workout BiXo recommends this over that so it will go easy on your knees and  right ankle. 
               </Text>
             </Animated.View>
           )}

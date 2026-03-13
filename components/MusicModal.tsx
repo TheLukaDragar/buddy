@@ -14,7 +14,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { nucleus } from '../Buddy_variables';
+import { nucleus } from '../BiXo_variables';
 import { useSpotifyAuth } from '../hooks/useSpotifyAuth';
 import { syncPlaylistToSpotify } from '../store/actions/musicActions';
 import { useGetMixMutation } from '../store/api/fitnessApi';

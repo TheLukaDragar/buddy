@@ -1,4 +1,4 @@
-import { useBuddyTheme } from '@/constants/BuddyTheme';
+import { useBiXoTheme } from '@/constants/BiXoTheme';
 import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import React, { useEffect, useRef } from 'react';
@@ -6,7 +6,7 @@ import { Animated, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from 'react-native-paper';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
-import { nucleus } from '../Buddy_variables.js';
+import { nucleus } from '../BiXo_variables.js';
 import {
   useGetCurrentPlaybackStateQuery,
   useNextTrackMutation,
@@ -25,7 +25,7 @@ interface SpotifyPlayerMiniProps {
 export default function SpotifyPlayerMini({
   onPress,
 }: SpotifyPlayerMiniProps) {
-  const theme = useBuddyTheme();
+  const theme = useBiXoTheme();
   
   // Animation refs
   const slideDownAnim = useRef(new Animated.Value(-120)).current; // Start further above screen

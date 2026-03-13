@@ -3,7 +3,7 @@ import React, { useMemo } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { AutoSkeletonView } from "react-native-auto-skeleton";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
-import { nucleus } from "../Buddy_variables";
+import { nucleus } from "../BiXo_variables";
 import { useGetExerciseByIdQuery } from "../store/api/enhancedApi";
 
 interface ExerciseCardProps {

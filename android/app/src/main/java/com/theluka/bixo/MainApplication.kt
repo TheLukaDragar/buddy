@@ -1,4 +1,4 @@
-package com.theluka.buddy
+package com.theluka.bixo
 
 import android.app.Application
 import android.content.res.Configuration

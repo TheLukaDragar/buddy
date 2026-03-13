@@ -1,10 +1,10 @@
-import { useBuddyTheme } from '@/constants/BuddyTheme';
+import { useBiXoTheme } from '@/constants/BiXoTheme';
 import React, { useState } from 'react';
 import { ScrollView, StatusBar, StyleSheet, View } from 'react-native';
 import { useSelector } from 'react-redux';
 import { ActivityIndicator, Button, Card, Chip, Divider, Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { nucleus } from '../../Buddy_variables.js';
+import { nucleus } from '../../BiXo_variables.js';
 import SpotifyConnectModal from '../../components/SpotifyConnectModal';
 import SpotifyPlayer from '../../components/SpotifyPlayer';
 import { useSpotifyAuth } from '../../hooks/useSpotifyAuth';
@@ -22,7 +22,7 @@ import {
 } from '../../store/api/spotifyApi';
 
 export default function SpotifyDemoScreen() {
-  const theme = useBuddyTheme();
+  const theme = useBiXoTheme();
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
 

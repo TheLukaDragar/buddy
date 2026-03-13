@@ -4,16 +4,16 @@ import React, { useEffect } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { nucleus } from '../../Buddy_variables.js';
-import { useBuddyTheme } from '../../constants/BuddyTheme';
+import { nucleus } from '../../BiXo_variables.js';
+import { useBiXoTheme } from '../../constants/BiXoTheme';
 import { RootState } from '../../store';
 import { useAppSelector } from '../../store/hooks';
 
-// Import the Buddy logo
-const BuddyLogo = require("../../assets/login/logo.png");
+// Import the BiXo logo
+const BiXoLogo = require("../../assets/login/logo.png");
 
 export default function TabLayout() {
-  const theme = useBuddyTheme();
+  const theme = useBiXoTheme();
   const pathname = usePathname();
   
   // Get input collapse state from Redux
@@ -206,7 +206,7 @@ export default function TabLayout() {
                 </Pressable>
               </Animated.View>
               
-              {/* Tab 2 - Center (Buddy/AI) */}
+              {/* Tab 2 - Center (BiXo/AI) */}
               <View style={styles.tab2}>
                 <Pressable 
                   style={styles.tab2Button}
@@ -222,9 +222,9 @@ export default function TabLayout() {
                     <Image
                       source={pathname === '/chat' 
                         ? require("../../assets/icons/AI.svg")
-                        : require("../../assets/icons/buddy.svg")
+                        : require("../../assets/icons/bixo.svg")
                       }
-                      style={styles.buddyIcon}
+                      style={styles.bixoIcon}
                       contentFit="contain"
                     />
                   </Animated.View>
@@ -386,7 +386,7 @@ const styles = StyleSheet.create({
     left: '50%',
     transform: [{ translateX: -20 }, { translateY: -20 }], // Approximate center
   },
-  buddyIcon: {
+  bixoIcon: {
     width: 64, // Even bigger icon size
     height: 64,
 

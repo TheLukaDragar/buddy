@@ -3,7 +3,7 @@ import * as React from 'react';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { ActivityIndicator, Avatar, Button, Card, Icon, Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { nucleus } from '../../Buddy_variables.js';
+import { nucleus } from '../../BiXo_variables.js';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSpotifyAuth } from '../../hooks/useSpotifyAuth';
 import { regenerateWorkoutPlan } from '../../services/workoutPlanService';

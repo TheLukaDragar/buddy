@@ -1,12 +1,12 @@
-interface BuddyResponse {
+interface BiXoResponse {
   text: string;
   isTyping?: boolean;
 }
 
-// Simple fitness-focused responses for Buddy
+// Simple fitness-focused responses for BiXo
 const fitnessResponses = {
   greetings: [
-    "Hey there! I'm Buddy, your personal fitness coach! How can I help you today? 💪",
+    "Hey there! I'm BiXo, your personal fitness coach! How can I help you today? 💪",
     "Hello! Ready to crush your fitness goals? What's on your mind?",
     "Hi! I'm here to help you with your fitness journey. What would you like to know?",
   ],
@@ -40,7 +40,7 @@ const fitnessResponses = {
   ],
 
   default: [
-    "That's a great question! As your fitness buddy, I'm here to help with workouts, nutrition, motivation, and wellness tips. What specific area interests you most?",
+    "That's a great question! As your fitness BiXo, I'm here to help with workouts, nutrition, motivation, and wellness tips. What specific area interests you most?",
     "I'd love to help you with that! Can you tell me more about your fitness goals or what you're trying to achieve?",
     "Interesting! While I focus mainly on fitness and wellness, I'm always happy to chat. What's your biggest fitness challenge right now?",
     "Thanks for sharing! I'm passionate about helping people reach their fitness goals. What aspect of health and fitness would you like to explore?",
@@ -72,10 +72,10 @@ function getRandomResponse(responses: string[]): string {
   return responses[Math.floor(Math.random() * responses.length)];
 }
 
-export class BuddyChatbotService {
+export class BiXoChatbotService {
   private isThinking = false;
 
-  async getBuddyResponse(userMessage: string): Promise<BuddyResponse> {
+  async getBiXoResponse(userMessage: string): Promise<BiXoResponse> {
     // Simulate thinking time for more natural feel
     if (this.isThinking) {
       return { text: "Let me think about that... 🤔", isTyping: true };
@@ -131,4 +131,4 @@ export class BuddyChatbotService {
   }
 }
 
-export default new BuddyChatbotService(); 
+export default new BiXoChatbotService(); 

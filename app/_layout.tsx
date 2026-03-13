@@ -11,12 +11,12 @@ import 'react-native-reanimated';
 import { Provider } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
 import SwipeableIntro from '../components/SwipeableIntro';
-import { BuddyLightTheme } from '../constants/BuddyTheme';
+import { BiXoLightTheme } from '../constants/BiXoTheme';
 import '../polyfills';
 
 import { ElevenLabsProvider } from '@elevenlabs/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { nucleus } from '../Buddy_variables.js';
+import { nucleus } from '../BiXo_variables.js';
 import { SplashScreenController } from '../components/SplashScreenController';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
 import { useColorScheme } from '../hooks/useColorScheme';
@@ -41,7 +41,7 @@ export const useIntro = () => {
 };
 
 // Custom navigation theme to prevent white flash
-const BuddyNavigationTheme = {
+const BiXoNavigationTheme = {
   ...DefaultTheme,
   colors: {
     ...DefaultTheme.colors,
@@ -76,8 +76,8 @@ function PersistGateContent() {
       <SplashScreenController />
       <SafeAreaProvider> 
         <GestureHandlerRootView style={{ flex: 1 }}>
-          <PaperProvider theme={BuddyLightTheme}>
-            <ThemeProvider value={BuddyNavigationTheme}>
+          <PaperProvider theme={BiXoLightTheme}>
+            <ThemeProvider value={BiXoNavigationTheme}>
               <IntroContext.Provider value={introContextValue}>
                 <RootNavigator />
                 <SystemBars style="dark" />

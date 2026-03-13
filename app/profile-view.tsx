@@ -5,7 +5,7 @@ import { Pressable, ScrollView, StatusBar, StyleSheet, View } from "react-native
 import { Button, Card, Text } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { nucleus } from "../Buddy_variables.js";
+import { nucleus } from "../BiXo_variables.js";
 import { getProfileSummary } from '../prompts/generateUserProfile';
 import type { RootState } from '../store';
 import { useAppSelector } from '../store/hooks';
@@ -121,7 +121,7 @@ export default function ProfileViewScreen() {
             onPress={() => router.push('/(tabs)/chat')}
             compact={false}
           >
-            Chat with Buddy
+            Chat with BiXo
           </Button>
           
           <Button

@@ -122,7 +122,7 @@ export const store = configureStore({
   enhancers: (getDefaultEnhancers) =>
     getDefaultEnhancers().concat(
       devToolsEnhancer({
-        name: 'Buddy App Redux Store',
+        name: 'BiXo App Redux Store',
         maxAge: 50, // Keep more actions for workout debugging
         trace: true, // Enable trace for better debugging
         actionsDenylist: [

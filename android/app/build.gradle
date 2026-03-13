@@ -87,9 +87,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace 'com.theluka.buddy'
+    namespace 'com.theluka.bixo'
     defaultConfig {
-        applicationId 'com.theluka.buddy'
+        applicationId 'com.theluka.bixo'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

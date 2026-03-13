@@ -15,7 +15,7 @@ import ReanimatedAnimated, {
   withTiming
 } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { nucleus } from '../../Buddy_variables';
+import { nucleus } from '../../BiXo_variables';
 import CategoryPills from '../../components/CategoryPills';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSingleWorkoutGeneration } from '../../hooks/useSingleWorkoutGeneration';
@@ -370,7 +370,7 @@ export default function ChatScreen() {
   const getModeText = (mode: string) => {
     const modeTexts = {
       general: {
-        title: 'Welcome to your personal chat with Buddy!',
+        title: 'Welcome to your personal chat with BiXo!',
         subtitle: "I'm here to help you with workouts, answer questions, and keep you motivated. Let's chat! 💬"
       },
       train_now: {
@@ -503,14 +503,14 @@ export default function ChatScreen() {
       }
 
       // Add AI response to Redux store for persistence
-      const buddyMessage: ChatMessage = {
+      const bixoMessage: ChatMessage = {
         id: Date.now().toString(),
         role: 'assistant',
         content: message.message.parts?.map((part) => part.type === 'text' ? (part as { type: 'text'; text: string }).text : '').join('') || '',
         timestamp: Date.now(),
         parts: message.message.parts as { type: string; text: string }[],
       };
-      dispatch(addMessage(buddyMessage));
+      dispatch(addMessage(bixoMessage));
       dispatch(setLoading(false));
       setIsWaitingForResponse(false); // Hide thinking indicator when finished
 
@@ -753,7 +753,7 @@ export default function ChatScreen() {
           </Animated.View>
         );
       } else {
-        // Buddy message - ALWAYS show avatar and name (like onboarding)
+        // BiXo message - ALWAYS show avatar and name (like onboarding)
         // Extract suggestions from message parts (matching onboarding pattern)
         let suggestions: string[] = [];
         if (message.parts) {
@@ -777,9 +777,9 @@ export default function ChatScreen() {
 
         renderedItems.push(
           <View key={message.id} style={{ width: '100%' }}>
-            <View style={styles.buddyMessage}>
+            <View style={styles.bixoMessage}>
               {/* <Avatar.Image size={40} source={require('../../assets/avatar.png')} style={styles.avatar} /> */}
-              <Text style={styles.buddyName}>Buddy</Text>
+              <Text style={styles.bixoName}>BiXo</Text>
             </View>
 
             <Animated.View
@@ -1096,7 +1096,7 @@ export default function ChatScreen() {
             />
           </TouchableOpacity>
           
-          <Text style={styles.buddyText}>Chat</Text>
+          <Text style={styles.bixoText}>Chat</Text>
           
           <TouchableOpacity
             onPress={handleClearChat}
@@ -1150,12 +1150,12 @@ export default function ChatScreen() {
               {/* Render messages with delimiters */}
               {renderMessages()}
               
-              {/* Buddy thinking indicator - show when waiting for response (like onboarding) */}
+              {/* BiXo thinking indicator - show when waiting for response (like onboarding) */}
               {isWaitingForResponse && (
                 <View style={{ width: '100%' }}>
-                  <View style={styles.buddyMessage}>
+                  <View style={styles.bixoMessage}>
                     {/* <Avatar.Image size={40} source={require('../../assets/avatar.png')} style={styles.avatar} /> */}
-                    <Text style={styles.buddyName}>Buddy</Text>
+                    <Text style={styles.bixoName}>BiXo</Text>
                   </View>
 
                   <ReanimatedAnimated.View
@@ -1177,8 +1177,8 @@ export default function ChatScreen() {
                   entering={FadeIn.duration(300)}
                   style={styles.generationProgressContainer}
                 >
-                  <View style={styles.buddyMessage}>
-                    <Text style={styles.buddyName}>Buddy</Text>
+                  <View style={styles.bixoMessage}>
+                    <Text style={styles.bixoName}>BiXo</Text>
                   </View>
                   <View style={styles.progressCard}>
                     <View style={styles.progressHeader}>
@@ -1208,8 +1208,8 @@ export default function ChatScreen() {
                   entering={FadeIn.duration(300)}
                   style={styles.generationProgressContainer}
                 >
-                  <View style={styles.buddyMessage}>
-                    <Text style={styles.buddyName}>Buddy</Text>
+                  <View style={styles.bixoMessage}>
+                    <Text style={styles.bixoName}>BiXo</Text>
                   </View>
                   <View style={[styles.progressCard, styles.errorCard]}>
                     <Text style={styles.errorTitle}>❌ Generation Failed</Text>
@@ -1226,8 +1226,8 @@ export default function ChatScreen() {
                   entering={FadeIn.duration(300)}
                   style={styles.generationProgressContainer}
                 >
-                  <View style={styles.buddyMessage}>
-                    <Text style={styles.buddyName}>Buddy</Text>
+                  <View style={styles.bixoMessage}>
+                    <Text style={styles.bixoName}>BiXo</Text>
                   </View>
                   <View style={styles.workoutPreviewCard}>
                     <Text style={styles.workoutPreviewTitle}>✅ Your workout is ready!</Text>
@@ -1437,7 +1437,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
   },
-  buddyText: {
+  bixoText: {
     color: nucleus.light.semantic.fg.base,
     textAlign: 'center',
     fontFamily: 'PlusJakartaSans-Bold',
@@ -1510,13 +1510,13 @@ const styles = StyleSheet.create({
     letterSpacing: 0,
     color: '#6E7375',
   },
-  buddyMessage: {
+  bixoMessage: {
     display: 'flex',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  buddyName: {
+  bixoName: {
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 17,
     paddingBottom: 8,

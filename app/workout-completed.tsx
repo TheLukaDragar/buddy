@@ -6,8 +6,8 @@ import { SystemBars } from "react-native-edge-to-edge";
 import { default as Animated, FadeIn, default as ReanimatedAnimated } from "react-native-reanimated";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useBuddyTheme } from "@/constants/BuddyTheme";
-import { nucleus } from "../Buddy_variables.js";
+import { useBiXoTheme } from "@/constants/BiXoTheme";
+import { nucleus } from "../BiXo_variables.js";
 import ExerciseCard from "../components/ExerciseCard";
 import { useAuth } from "../contexts/AuthContext";
 import {
@@ -444,7 +444,7 @@ const ExerciseList: React.FC<ExerciseListProps> = ({ exercises }) => {
 };
 
 export default function WorkoutCompletedScreen() {
-  const theme = useBuddyTheme();
+  const theme = useBiXoTheme();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const params = useLocalSearchParams<{ sessionId?: string | string[] }>();

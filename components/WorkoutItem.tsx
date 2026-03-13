@@ -5,7 +5,7 @@ import { Text, TouchableOpacity, View } from 'react-native';
 import { useAppDispatch } from '../store/hooks';
 import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import Svg, { Circle } from "react-native-svg";
-import { nucleus } from '../Buddy_variables.js';
+import { nucleus } from '../BiXo_variables.js';
 import type { GetWorkoutSessionByDateQueryVariables } from '../graphql/generated';
 import { supabase } from '../lib/supabase';
 import { enhancedApi, useGetWorkoutEntriesPresetIdQuery, useGetWorkoutSessionByDateQuery } from '../store/api/enhancedApi';

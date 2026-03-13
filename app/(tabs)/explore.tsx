@@ -13,13 +13,13 @@ import {
   Text,
   TextInput
 } from 'react-native-paper';
-import { useBuddyTheme } from '../../constants/BuddyTheme';
+import { useBiXoTheme } from '../../constants/BiXoTheme';
 import { useIntro } from '../_layout';
 
 export default function HomeScreen() {
   const [searchText, setSearchText] = useState('');
   const { setShowIntro } = useIntro();
-  const theme = useBuddyTheme();
+  const theme = useBiXoTheme();
 
   // Show the intro popup when the screen loads
   useEffect(() => {
@@ -65,7 +65,7 @@ export default function HomeScreen() {
               variant="headlineLarge" 
               style={[styles.welcomeText, { color: theme.colors.onPrimaryContainer }]}
             >
-              Welcome to Buddy
+              Welcome to BiXo
             </Text>
             <Text 
               variant="bodyLarge" 
@@ -80,7 +80,7 @@ export default function HomeScreen() {
         <View style={styles.searchSection}>
           <TextInput
             mode="outlined"
-            label="Search or ask Buddy..."
+            label="Search or ask BiXo..."
             value={searchText}
             onChangeText={setSearchText}
             left={<TextInput.Icon icon="magnify" />}

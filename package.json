@@ -123,7 +123,7 @@
     }
   },
   "main": "expo-router/entry",
-  "name": "buddy",
+  "name": "bixo",
   "private": true,
   "scripts": {
     "android": "expo run:android",

@@ -1,6 +1,6 @@
 import React from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { nucleus } from '../Buddy_variables';
+import { nucleus } from '../BiXo_variables';
 
 interface CategoryPill {
   id: string;

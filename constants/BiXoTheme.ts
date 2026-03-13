@@ -1,8 +1,8 @@
 import { MD3DarkTheme, MD3LightTheme } from 'react-native-paper';
-import { nucleus } from '../Buddy_variables.js';
+import { nucleus } from '../BiXo_variables.js';
 
 // Custom light theme based on your Figma design system
-export const BuddyLightTheme = {
+export const BiXoLightTheme = {
   ...MD3LightTheme,
   colors: {
     ...MD3LightTheme.colors,
@@ -174,7 +174,7 @@ export const BuddyLightTheme = {
 };
 
 // Custom dark theme based on your Figma design system
-export const BuddyDarkTheme = {
+export const BiXoDarkTheme = {
   ...MD3DarkTheme,
   colors: {
     ...MD3DarkTheme.colors,
@@ -235,14 +235,14 @@ export const BuddyDarkTheme = {
     backdrop: nucleus.dark.semantic.bg.overlay, // rgba(0, 0, 0, 0.70)
   },
   fonts: {
-    ...BuddyLightTheme.fonts, // Use the same font configuration
+    ...BiXoLightTheme.fonts, // Use the same font configuration
   },
   roundness: nucleus.dark.cornerRadius.md, // 8
 };
 
 // Type for the custom theme
-export type BuddyTheme = typeof BuddyLightTheme;
+export type BiXoTheme = typeof BiXoLightTheme;
 
 // Hook for accessing the custom theme with proper typing
 import { useTheme } from 'react-native-paper';
-export const useBuddyTheme = () => useTheme<BuddyTheme>(); 
+export const useBiXoTheme = () => useTheme<BiXoTheme>(); 

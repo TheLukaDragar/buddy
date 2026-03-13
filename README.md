@@ -1,4 +1,4 @@
-# Buddy
+# BiXo
 
 Welcome to your Expo app 👋
 

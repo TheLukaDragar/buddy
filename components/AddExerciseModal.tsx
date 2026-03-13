@@ -17,7 +17,7 @@ import Animated, {
   withTiming
 } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { nucleus } from '../Buddy_variables';
+import { nucleus } from '../BiXo_variables';
 import { useGetExerciseByIdQuery, useLazyGetAllExercisesQuery } from '../store/api/enhancedApi';
 import ExerciseInfoModal from './ExerciseInfoModal';
 

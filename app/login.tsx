@@ -4,7 +4,7 @@ import * as React from "react";
 import { Alert, StyleSheet, Text, View } from "react-native";
 import { Button } from "react-native-paper";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { nucleus } from "../Buddy_variables.js";
+import { nucleus } from "../BiXo_variables.js";
 import { useAuth } from "../contexts/AuthContext";
 
 // Logo and character images

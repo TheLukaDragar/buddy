@@ -1,11 +1,11 @@
-import { useBuddyTheme } from '@/constants/BuddyTheme';
+import { useBiXoTheme } from '@/constants/BiXoTheme';
 import { Image } from "expo-image";
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { SystemBars } from 'react-native-edge-to-edge';
 import { Button, Modal, Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { nucleus } from '../Buddy_variables.js';
+import { nucleus } from '../BiXo_variables.js';
 import { useSpotifyAuth } from '../hooks/useSpotifyAuth';
 
 interface SpotifyConnectModalProps {
@@ -19,7 +19,7 @@ export default function SpotifyConnectModal({
   onDismiss, 
   onNotNow 
 }: SpotifyConnectModalProps) {
-  const theme = useBuddyTheme();
+  const theme = useBiXoTheme();
   const { login, loading, error } = useSpotifyAuth();
 
   const handleConnectSpotify = () => {
@@ -78,7 +78,7 @@ export default function SpotifyConnectModal({
               ]}
             >
               Training hits differently with the right music.{'\n'}
-              Connect Spotify so Buddy can play mood-matching tunes while you work out.
+              Connect Spotify so BiXo can play mood-matching tunes while you work out.
             </Text>
           </View>
         </View>

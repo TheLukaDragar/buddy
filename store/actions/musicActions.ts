@@ -300,7 +300,7 @@ export const getTracks = createAsyncThunk(
           { 
             id: selectedApp, 
             name: selectedApp.charAt(0).toUpperCase() + selectedApp.slice(1).replace('-', ' '),
-            artist: 'Buddy App Music',
+            artist: 'BiXo App Music',
             duration: '3:30'
           }
         ],
@@ -944,7 +944,7 @@ export const getMusicStatus = createAsyncThunk(
         platform: 'app',
         isPlaying: true,
         currentTrack: selectedApp.charAt(0).toUpperCase() + selectedApp.slice(1).replace('-', ' '),
-        artist: 'Buddy App Music',
+        artist: 'BiXo App Music',
         playlist: selectedApp
       };
     }

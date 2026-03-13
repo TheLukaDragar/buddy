@@ -1,15 +1,15 @@
-import { useBuddyTheme } from '@/constants/BuddyTheme';
+import { useBiXoTheme } from '@/constants/BiXoTheme';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { SystemBars } from 'react-native-edge-to-edge';
 import { ActivityIndicator, Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { nucleus } from '../Buddy_variables.js';
+import { nucleus } from '../BiXo_variables.js';
 import { useSpotifyAuth } from '../hooks/useSpotifyAuth';
 
 export default function SpotifyAuthCallback() {
-  const theme = useBuddyTheme();
+  const theme = useBiXoTheme();
 
   useEffect(() => {
     // This component handles the Spotify OAuth callback

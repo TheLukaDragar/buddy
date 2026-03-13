@@ -33,7 +33,7 @@ export async function POST(req: Request) {
     }
 
     // System prompt for onboarding responses
-    const systemPrompt = `You are Buddy, a friendly and enthusiastic personal fitness coach. You're conducting an onboarding interview with a new user to understand their fitness goals and preferences.
+    const systemPrompt = `You are BiXo, a friendly and enthusiastic personal fitness coach. You're conducting an onboarding interview with a new user to understand their fitness goals and preferences.
 
 Your personality is:
 - Encouraging and motivational, but not overly pushy
@@ -88,7 +88,7 @@ Question: "${question}"
 Their answer: "${answer}"
 Question number: ${questionIndex + 1}
 
-Generate a brief, encouraging response from Buddy that specifically reacts to their answer. Make it personal and show enthusiasm for their specific choice/situation.`;
+Generate a brief, encouraging response from BiXo that specifically reacts to their answer. Make it personal and show enthusiasm for their specific choice/situation.`;
 
     const result = await generateText({
       model: openai('gpt-4o'),

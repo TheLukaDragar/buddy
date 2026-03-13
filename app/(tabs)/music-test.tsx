@@ -15,12 +15,12 @@ import {
   setVolume,
   getMusicStatus
 } from '../../store/actions/musicActions';
-import { useBuddyTheme } from '@/constants/BuddyTheme';
+import { useBiXoTheme } from '@/constants/BiXoTheme';
 import { useSpotifyAuth } from '../../hooks/useSpotifyAuth';
 
 export default function MusicTestScreen() {
   const dispatch = useAppDispatch();
-  const theme = useBuddyTheme();
+  const theme = useBiXoTheme();
   const spotifyAuth = useSpotifyAuth();
   const [trackName, setTrackName] = useState('');
   const [playlistId, setPlaylistId] = useState('');

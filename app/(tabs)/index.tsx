@@ -8,10 +8,10 @@ import Animated, {
   withTiming
 } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { nucleus } from '../../Buddy_variables.js';
+import { nucleus } from '../../BiXo_variables.js';
 import Statistics from '../../components/Statistics';
 import WorkoutItem, { WorkoutItemData } from '../../components/WorkoutItem';
-import { useBuddyTheme } from '../../constants/BuddyTheme';
+import { useBiXoTheme } from '../../constants/BiXoTheme';
 import { useAuth } from '../../contexts/AuthContext';
 import type { RootState } from '../../store';
 import { useGetUserWorkoutPlansQuery, useGetWorkoutPlanByWeekQuery } from '../../store/api/enhancedApi';
@@ -21,7 +21,7 @@ import { useIntro } from '../_layout';
 
 export default function ExploreScreen() {
   console.log('🏠 [MAIN] ExploreScreen component rendering');
-  const theme = useBuddyTheme();
+  const theme = useBiXoTheme();
   const { setShowIntro } = useIntro();
   const { user } = useAuth();
   console.log('🏠 [MAIN] User:', user?.id || 'null');
@@ -156,7 +156,7 @@ export default function ExploreScreen() {
   const workoutOpacity = useSharedValue(0);
   const statsOpacity = useSharedValue(0);
   
-  // Meet Buddy modal on every startup – commented out
+  // Meet BiXo modal on every startup – commented out
   // useEffect(() => {
   //   console.log('🏠 [MAIN] Setting up intro popup timer');
   //   const timer = setTimeout(() => {
@@ -792,7 +792,7 @@ export default function ExploreScreen() {
                 <View style={styles.recommendedContent}>
                   <Text style={styles.recommendedTitle}>45 min focus flow</Text>
                   <Text style={styles.recommendedDescription}>
-                    Based on your last workout Buddy recommends this over that so it will go easy on your knees and shoulders. ....
+                    Based on your last workout BiXo recommends this over that so it will go easy on your knees and shoulders. ....
                   </Text>
                 </View>
               </View>

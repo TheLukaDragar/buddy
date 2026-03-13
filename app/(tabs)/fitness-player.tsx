@@ -3,8 +3,8 @@ import { useEffect, useState } from 'react';
 import { Alert, ScrollView, StatusBar, StyleSheet, View } from 'react-native';
 import { Button, Card, Chip, IconButton, ProgressBar, Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { nucleus } from '../../Buddy_variables.js';
-import { useBuddyTheme } from '../../constants/BuddyTheme';
+import { nucleus } from '../../BiXo_variables.js';
+import { useBiXoTheme } from '../../constants/BiXoTheme';
 import {
   useGetGenresQuery,
   useGetMixMutation,
@@ -40,7 +40,7 @@ const FITNESS_BASE_URL = 'https://mod.partynet.serv.si';
 // They return the complete MP3 file without range support
 
 export default function FitnessPlayerScreen() {
-  const theme = useBuddyTheme();
+  const theme = useBiXoTheme();
   const dispatch = useAppDispatch();
   
   // Redux state

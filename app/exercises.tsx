@@ -5,7 +5,7 @@ import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SystemBars } from 'react-native-edge-to-edge';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { nucleus } from '../Buddy_variables';
+import { nucleus } from '../BiXo_variables';
 
 
 export default function ExercisesScreen() {

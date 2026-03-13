@@ -5,9 +5,9 @@ import { Animated, Pressable, ScrollView, StyleSheet, View } from "react-native"
 import { Button, Text } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { useBuddyTheme } from "@/constants/BuddyTheme";
+import { useBiXoTheme } from "@/constants/BiXoTheme";
 import { SystemBars } from "react-native-edge-to-edge";
-import { nucleus } from "../Buddy_variables.js";
+import { nucleus } from "../BiXo_variables.js";
 import { useAuth } from "../contexts/AuthContext";
 import type { RootState } from "../store";
 import { useGetWorkoutPlanRequestsQuery } from "../store/api/enhancedApi";
@@ -33,7 +33,7 @@ function ProgressStep({
   isActive,
   progress,
 }: ProgressStepProps) {
-  const theme = useBuddyTheme();
+  const theme = useBiXoTheme();
   const animatedWidth = React.useRef(new Animated.Value(0)).current;
 
   React.useEffect(() => {
@@ -90,7 +90,7 @@ function ProgressStep({
 }
 
 export default function WorkoutPlanProgress() {
-  const theme = useBuddyTheme();
+  const theme = useBiXoTheme();
   const { user } = useAuth();
   const [isCancelling, setIsCancelling] = React.useState(false);
   const dispatch = useAppDispatch();

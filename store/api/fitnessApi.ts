@@ -79,7 +79,7 @@ export const fitnessApi = createApi({
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
             'Accept': 'application/json',
-            'User-Agent': 'Buddy-Fitness-Player/1.0',
+            'User-Agent': 'BiXo-Fitness-Player/1.0',
           },
           body: requestBody,
         };

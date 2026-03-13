@@ -1,6 +1,6 @@
 # Supabase GraphQL + RTK Query Setup Guide
 
-This guide walks you through setting up Supabase with GraphQL and Redux Toolkit Query for your Buddy React Native app, including **real-time capabilities** and **type-safe code generation**.
+This guide walks you through setting up Supabase with GraphQL and Redux Toolkit Query for your BiXo React Native app, including **real-time capabilities** and **type-safe code generation**.
 
 ## 🚀 Quick Start
 

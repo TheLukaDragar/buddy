@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { getSupabase } from '../lib/supabase';
-import { nucleus } from '../Buddy_variables.js';
+import { nucleus } from '../BiXo_variables.js';
 
 export default function LoginCallback() {
   const router = useRouter();

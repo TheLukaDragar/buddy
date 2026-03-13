@@ -8,7 +8,7 @@ import { SystemBars } from 'react-native-edge-to-edge';
 import { Avatar, IconButton, Text } from 'react-native-paper';
 import ReanimatedAnimated, { Easing, FadeIn, Layout, SlideInRight, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { nucleus } from '../Buddy_variables';
+import { nucleus } from '../BiXo_variables';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppDispatch } from '../store/hooks';
 import { generateProfileFromAnswers, setOnboardingAnswers, setOnboardingCompleted } from '../store/slices/userSlice';
@@ -482,9 +482,9 @@ export default function OnboardingScreen() {
       return (
         <View key={message.id} style={{ width: '100%' }}>
           {!isUser && (
-            <View style={styles.buddyMessage}>
+            <View style={styles.bixoMessage}>
               <Avatar.Image size={40} source={require('../assets/avatar.png')} style={styles.avatar} />
-              <Text style={styles.buddyName}>Buddy</Text>
+              <Text style={styles.bixoName}>BiXo</Text>
             </View>
           )}
           
@@ -600,12 +600,12 @@ export default function OnboardingScreen() {
             <Animated.View style={styles.chatContainer}>
               {renderMessages()}
               
-              {/* Buddy thinking indicator - show when waiting for response */}
+              {/* BiXo thinking indicator - show when waiting for response */}
               {isWaitingForResponse && (
                 <View style={{ width: '100%' }}>
-                  <View style={styles.buddyMessage}>
+                  <View style={styles.bixoMessage}>
                     <Avatar.Image size={40} source={require('../assets/avatar.png')} style={styles.avatar} />
-                    <Text style={styles.buddyName}>Buddy</Text>
+                    <Text style={styles.bixoName}>BiXo</Text>
                   </View>
 
                   <ReanimatedAnimated.View
@@ -729,7 +729,7 @@ const styles = StyleSheet.create({
     minHeight: 200,
     
   },
-  buddyMessage: {
+  bixoMessage: {
     display: 'flex',
     flexDirection: 'row',
     alignItems: 'center',
@@ -738,7 +738,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     
   },
-  buddyName: {
+  bixoName: {
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 14,
     fontStyle: 'normal',

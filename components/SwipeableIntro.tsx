@@ -18,7 +18,7 @@ import Animated, {
     withTiming,
 } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { nucleus } from '../Buddy_variables';
+import { nucleus } from '../BiXo_variables';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -171,8 +171,8 @@ export default function SwipeableIntro({ visible, onDismiss }: SwipeableIntroPro
                           <Image source={require('../assets/login/logo.png')} style={styles.logoImage} />
 
                       </View>
-                        <Text style={styles.screenTitle}>👋 Meet Buddy — your personal training guide</Text>
-                        <Text style={styles.screenDescription}>Always available. Always adapting. Buddy is here to coach, guide, and motivate you — wherever and whenever you train.</Text>
+                        <Text style={styles.screenTitle}>👋 Meet BiXo — your personal training guide</Text>
+                        <Text style={styles.screenDescription}>Always available. Always adapting. BiXo is here to coach, guide, and motivate you — wherever and whenever you train.</Text>
                       </View>
                       </>
                     )}
@@ -181,7 +181,7 @@ export default function SwipeableIntro({ visible, onDismiss }: SwipeableIntroPro
                       <View style={styles.contentView2}>
                           <Image source={require('../assets/AI.png')} style={styles.logoImage2} />
 
-                        <Text style={styles.screenTitle2}>Why Buddy {'>'} a personal trainer?</Text>
+                        <Text style={styles.screenTitle2}>Why BiXo {'>'} a personal trainer?</Text>
                         <View style={styles.screenTexts}>
                           <View style={styles.screenTextItem}>
                            <Image source={require('../assets/check.png')} style={styles.checkImage} />
@@ -219,7 +219,7 @@ export default function SwipeableIntro({ visible, onDismiss }: SwipeableIntroPro
                         }}>
 
                        
-                        <Text style={styles.screenDescription3}>Stick with Buddy for just a few weeks and you'll:{'\n'}• Build stronger habits{'\n'}• Feel more confident in your body{'\n'}• Stay consistent without pressure</Text>
+                        <Text style={styles.screenDescription3}>Stick with BiXo for just a few weeks and you'll:{'\n'}• Build stronger habits{'\n'}• Feel more confident in your body{'\n'}• Stay consistent without pressure</Text>
                         </View>
                       </View>
                       </>
@@ -238,7 +238,7 @@ export default function SwipeableIntro({ visible, onDismiss }: SwipeableIntroPro
                           alignItems: 'flex-start',
                           gap: 8,
                         }}>
-                        <Text style={styles.screenDescription4}>Buddy will ask you a few quick questions to tailor everything to you. {'\n'} (You can always adjust later.)</Text>
+                        <Text style={styles.screenDescription4}>BiXo will ask you a few quick questions to tailor everything to you. {'\n'} (You can always adjust later.)</Text>
                         </View>
                       </View>
                       </>

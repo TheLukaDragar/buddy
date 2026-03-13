@@ -16,7 +16,7 @@ import Animated, {
     withTiming
 } from 'react-native-reanimated';
 import { SafeAreaView } from "react-native-safe-area-context";
-import { nucleus } from "../Buddy_variables.js";
+import { nucleus } from "../BiXo_variables.js";
 import { useAuth } from "../contexts/AuthContext";
 
 export default function EmailLoginScreen() {

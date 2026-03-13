@@ -3,8 +3,8 @@ import { ScrollView, StyleSheet, View, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Card, Text, TextInput } from 'react-native-paper';
 import { StatusBar } from 'expo-status-bar';
-import { useBuddyTheme } from '@/constants/BuddyTheme';
-import { nucleus } from '../../Buddy_variables.js';
+import { useBiXoTheme } from '@/constants/BiXoTheme';
+import { nucleus } from '../../BiXo_variables.js';
 
 // Import the enhanced real-time GraphQL hooks
 import { realtimeClient } from '../../lib/realtimeClient';
@@ -16,7 +16,7 @@ import {
 } from '../../store/api/enhancedApi';
 
 export default function GraphQLDemoScreen() {
-  const theme = useBuddyTheme();
+  const theme = useBiXoTheme();
   const [newTodoTitle, setNewTodoTitle] = useState('');
   const [newTodoDescription, setNewTodoDescription] = useState('');
   const [debugInfo, setDebugInfo] = useState<string[]>([]);

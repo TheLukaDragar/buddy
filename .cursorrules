@@ -1,21 +1,21 @@
-# Buddy App - Cursor Rules
+# BiXo App - Cursor Rules
 
 ## Project Overview
-This is a React Native Expo app called "Buddy" with custom theming, Plus Jakarta Sans fonts, and React Native Paper components. The app has a login screen and tab navigation structure.
+This is a React Native Expo app called "BiXo" with custom theming, Plus Jakarta Sans fonts, and React Native Paper components. The app has a login screen and tab navigation structure.
 
 ## 🎨 THEMING & STYLING RULES
 
-### Use BuddyTheme (CRITICAL)
+### Use BiXoTheme (CRITICAL)
 - **NEVER use `useTheme()` from react-native-paper**
-- **ALWAYS use `useBuddyTheme()` from '@/constants/BuddyTheme'**
-- **ALWAYS use `nucleus` design tokens from '../Buddy_variables.js'**
+- **ALWAYS use `useBiXoTheme()` from '@/constants/BiXoTheme'**
+- **ALWAYS use `nucleus` design tokens from '../BiXo_variables.js'**
 
 ```typescript
 // ✅ CORRECT
-import { useBuddyTheme } from '@/constants/BuddyTheme';
-import { nucleus } from '../Buddy_variables.js';
+import { useBiXoTheme } from '@/constants/BiXoTheme';
+import { nucleus } from '../BiXo_variables.js';
 
-const theme = useBuddyTheme();
+const theme = useBiXoTheme();
 backgroundColor: nucleus.light.global.blue["20"]
 
 // ❌ WRONG
@@ -226,7 +226,7 @@ import { Button, Text } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 // 4. Local imports
-import { nucleus } from "../Buddy_variables.js";
+import { nucleus } from "../BiXo_variables.js";
 ```
 
 ## 🚫 THINGS TO AVOID
@@ -240,7 +240,7 @@ import { nucleus } from "../Buddy_variables.js";
 
 ## 📋 CHECKLIST FOR NEW COMPONENTS
 
-- [ ] Uses `useBuddyTheme()` instead of `useTheme()`
+- [ ] Uses `useBiXoTheme()` instead of `useTheme()`
 - [ ] Uses `nucleus` design tokens for colors
 - [ ] Uses official Plus Jakarta Sans font families
 - [ ] Buttons have `compact={false}`
@@ -256,4 +256,4 @@ import { nucleus } from "../Buddy_variables.js";
 - **Performance**: Use `expo-image`, avoid unnecessary re-renders
 - **Accessibility**: Include proper accessibility props
 - **Cross-platform**: Test on both iOS and Android
-- **Theme Consistency**: Always use BuddyTheme and nucleus tokens 
+- **Theme Consistency**: Always use BiXoTheme and nucleus tokens 

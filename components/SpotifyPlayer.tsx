@@ -1,10 +1,10 @@
-import { useBuddyTheme } from '@/constants/BuddyTheme';
+import { useBiXoTheme } from '@/constants/BiXoTheme';
 import { Image } from 'expo-image';
 import React, { useState } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
 import { ActivityIndicator, Button, Card, IconButton, Text } from 'react-native-paper';
 import { useSelector } from 'react-redux';
-import { nucleus } from '../Buddy_variables.js';
+import { nucleus } from '../BiXo_variables.js';
 import { useSpotifyAuth } from '../hooks/useSpotifyAuth';
 import {
     useCheckPremiumStatusQuery,
@@ -22,7 +22,7 @@ import {
 import SpotifyConnectModal from './SpotifyConnectModal';
 
 export default function SpotifyPlayer() {
-  const theme = useBuddyTheme();
+  const theme = useBiXoTheme();
   const [selectedPlaylistId, setSelectedPlaylistId] = useState<string | null>(null);
   const [showConnectModal, setShowConnectModal] = useState(false);
   
