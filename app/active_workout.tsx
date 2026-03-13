@@ -7,7 +7,7 @@ import { useKeepAwake } from 'expo-keep-awake';
 import { router, useFocusEffect } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, BackHandler, Dimensions, Modal, StyleSheet, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, BackHandler, Dimensions, Modal, StyleSheet, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { SystemBars } from 'react-native-edge-to-edge';
 import { PanGestureHandler } from 'react-native-gesture-handler';
 import { Button, Text } from 'react-native-paper';
@@ -2503,6 +2503,9 @@ export default function ActiveWorkoutScreen() {
   // Track when we connected to prevent immediate disconnection on remount
   const connectionTimeRef = useRef<number | null>(null);
 
+  // Prevent showing quota alert multiple times in quick succession
+  const quotaAlertShownRef = useRef(false);
+
   // Resume active workout session on mount (if exists)
   useEffect(() => {
     const resumeActiveSession = async () => {
@@ -3595,9 +3598,27 @@ export default function ActiveWorkoutScreen() {
       contextBridgeService.unregisterCallbacks();
     },
     onMessage: ({ message, source }: { message: ConversationEvent; source: Role }) => {
-      console.log('ElevenLabs message received:', message, 'from:', source);
-      
       const eventType = (message as { type?: string }).type ?? '';
+      const msgObj = message as { type?: string; message?: string | { message?: string } };
+
+      // Handle error events - show friendly message to user, never add to chat
+      if (eventType === 'error' || eventType.startsWith('error')) {
+        const innerMessage = typeof msgObj?.message === 'string'
+          ? msgObj.message
+          : msgObj?.message?.message ?? '';
+        const isQuotaExceeded = innerMessage.toLowerCase().includes('quota') ||
+          innerMessage.toLowerCase().includes('exceeds your quota');
+        if (isQuotaExceeded && !quotaAlertShownRef.current) {
+          quotaAlertShownRef.current = true;
+          Alert.alert(
+            'Voice Unavailable',
+            'Your voice quota has been reached. Voice features will be available again when your plan renews. You can still use text chat.',
+            [{ text: 'OK', onPress: () => { quotaAlertShownRef.current = false; } }]
+          );
+        }
+        return;
+      }
+
       // Ignore ping, audio, and other non-displayable events
       if (
         eventType === 'ping' ||
@@ -3606,12 +3627,22 @@ export default function ActiveWorkoutScreen() {
       ) {
         return;
       }
-      
-      // Add the new event to our events array
+
       setConversationEvents(prev => [...prev, message]);
     },
     onError: (error) => {
-      console.error('ElevenLabs conversation error:', error);
+      const err = error as Record<string, unknown> & { message?: string; name?: string };
+      const errMsg = String(err?.message ?? err ?? '');
+      const isQuotaExceeded = errMsg.toLowerCase().includes('quota');
+      if (isQuotaExceeded && !quotaAlertShownRef.current) {
+        quotaAlertShownRef.current = true;
+        Alert.alert(
+          'Voice Unavailable',
+          'Your voice quota has been reached. Voice features will be available again when your plan renews. You can still use text chat.',
+          [{ text: 'OK', onPress: () => { quotaAlertShownRef.current = false; } }]
+        );
+      }
+      console.error('ElevenLabs onError:', errMsg);
     },
     onModeChange: ({ mode }: { mode: Mode }) => {
       console.log('ElevenLabs conversation mode changed:', mode);
@@ -3652,8 +3683,23 @@ export default function ActiveWorkoutScreen() {
       });
       
       if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Token API error:', errorData);
+        const rawText = await response.text();
+        console.error('Token API error - exact response:', { status: response.status, statusText: response.statusText, body: rawText });
+        let errorData: { error?: string; errorCode?: string } = {};
+        try {
+          errorData = JSON.parse(rawText);
+        } catch {
+          // body wasn't JSON
+        }
+        // Show friendly alert for quota exhaustion (before connecting)
+        if (errorData.errorCode === 'quota_exceeded' || (errorData.error?.toLowerCase().includes('quota') && !quotaAlertShownRef.current)) {
+          quotaAlertShownRef.current = true;
+          Alert.alert(
+            'Voice Unavailable',
+            'Your voice quota has been reached. Voice features will be available again when your plan renews. You can still use text chat.',
+            [{ text: 'OK', onPress: () => { quotaAlertShownRef.current = false; } }]
+          );
+        }
         throw new Error(errorData.error || 'Failed to get conversation token');
       }
       

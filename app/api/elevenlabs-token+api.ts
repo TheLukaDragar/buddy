@@ -49,15 +49,39 @@ export async function POST(req: Request) {
       if (!response.ok) {
         const errorText = await response.text();
         console.error('myapi ElevenLabs API error:', response.status, response.statusText, errorText);
+
+        // Parse for quota/token exhaustion - return user-friendly code for client to handle
+        let userError = 'Failed to get conversation token';
+        let errorCode: string | undefined;
+        try {
+          const errJson = JSON.parse(errorText);
+          const detail = errJson?.detail ?? errJson;
+          const detailStr = typeof detail === 'string' ? detail : JSON.stringify(detail);
+          if (
+            detailStr.includes('quota_exceeded') ||
+            detailStr.includes('quota exceeded') ||
+            response.status === 429
+          ) {
+            userError = 'Voice quota exhausted. Please try again later.';
+            errorCode = 'quota_exceeded';
+          } else if (detailStr.includes('max_character_limit_exceeded')) {
+            userError = 'Voice limit reached. Please try again later.';
+            errorCode = 'limit_exceeded';
+          }
+        } catch {
+          // Use default userError if parse fails
+        }
+
         return new Response(
-          JSON.stringify({ 
-            error: 'Failed to get conversation token',
+          JSON.stringify({
+            error: userError,
+            errorCode,
             details: errorText,
-            status: response.status 
-          }), 
-          { 
             status: response.status,
-            headers: { 'Content-Type': 'application/json' }
+          }),
+          {
+            status: response.status,
+            headers: { 'Content-Type': 'application/json' },
           }
         );
       }

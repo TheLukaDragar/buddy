@@ -256,14 +256,16 @@ const shouldShowDateDelimiter = (currentMessage: ChatMessage, previousMessage?: 
 
 // Helper function to process conversation events into displayable messages
 const processConversationEvent = (event: ConversationEvent, source: Role): ExtendedChatMessage | null => {
-  // Ignore ping, interruption, audio, and other non-displayable events
+  // Ignore ping, interruption, audio, error, and other non-displayable events
   const eventType = (event as { type?: string }).type ?? '';
   if (
     eventType === 'ping' ||
     eventType === 'interruption' ||
     eventType === 'conversation_initiation_metadata' ||
     eventType === 'audio' ||
-    eventType.startsWith('audio') // e.g. audio_chunk, audio_chunk_received, etc.
+    eventType === 'error' || // ElevenLabs emits error events when quota exceeded, etc. Never show to user.
+    eventType.startsWith('audio') || // e.g. audio_chunk, audio_chunk_received, etc.
+    eventType.startsWith('error') // catch error_* variants if any
   ) {
     return null;
   }
