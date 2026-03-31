@@ -82,7 +82,7 @@ To enable automatic builds and updates via GitHub Actions, you need to set up th
 
 #### EAS Build (`.github/workflows/dev-build.yml`)
 Triggers builds when:
-- Code is pushed to `main`, `development`, or `dev` branches
+- Code  is pushed to `main`, `development`, or `dev` branches
 - Pull requests are opened against `main` or `development` branches
 - Manual workflow dispatch is triggered
 
