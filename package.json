@@ -80,7 +80,9 @@
     "redux-persist": "^6.0.0",
     "ws": "^8.18.3",
     "zod": "^3.25.0",
-    "expo-keep-awake": "~14.1.4"
+    "expo-keep-awake": "~14.1.4",
+    "expo-sharing": "~13.1.5",
+    "react-native-view-shot": "4.0.3"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",

@@ -6,10 +6,10 @@ import { SystemBars } from "react-native-edge-to-edge";
 import { default as Animated, FadeIn, default as ReanimatedAnimated } from "react-native-reanimated";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useBiXoTheme } from "@/constants/BiXoTheme";
 import { nucleus } from "../BiXo_variables.js";
 import { getEffectiveWeightKg } from "../utils/barWeight";
 import ExerciseCard from "../components/ExerciseCard";
+import { WorkoutShareStoryModal } from "../components/WorkoutShareStoryModal";
 import { useAuth } from "../contexts/AuthContext";
 import {
   useGetWorkoutSessionAdjustmentsQuery,
@@ -445,7 +445,7 @@ const ExerciseList: React.FC<ExerciseListProps> = ({ exercises }) => {
 };
 
 export default function WorkoutCompletedScreen() {
-  const theme = useBiXoTheme();
+  const [shareModalVisible, setShareModalVisible] = React.useState(false);
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const params = useLocalSearchParams<{ sessionId?: string | string[] }>();
@@ -782,6 +782,28 @@ export default function WorkoutCompletedScreen() {
     return data;
   }, [session, completedExercises, formattedAdjustments, totalWeightLifted]);
 
+  const shareWeightLabel = React.useMemo(() => {
+    if (displayData.totalWeightLifted <= 0) return "—";
+    if (displayData.totalWeightLifted >= 1000) {
+      return `${(displayData.totalWeightLifted / 1000).toFixed(1)}t`;
+    }
+    return `${Math.round(displayData.totalWeightLifted)}kg`;
+  }, [displayData.totalWeightLifted]);
+
+  const shareDateLine = React.useMemo(() => {
+    const raw = session?.completed_at || session?.date;
+    if (!raw) return undefined;
+    try {
+      return new Date(raw).toLocaleDateString(undefined, {
+        weekday: "long",
+        month: "short",
+        day: "numeric",
+      });
+    } catch {
+      return undefined;
+    }
+  }, [session?.completed_at, session?.date]);
+
   // Handle loading state
   if (isLoading) {
     return (
@@ -925,6 +947,37 @@ export default function WorkoutCompletedScreen() {
           />
         </ReanimatedAnimated.View>
 
+        <ReanimatedAnimated.View entering={FadeIn.duration(600).delay(450)} style={styles.sharePromptRow}>
+          <TouchableOpacity
+            style={styles.sharePromptButton}
+            onPress={() => setShareModalVisible(true)}
+            activeOpacity={0.85}
+          >
+            <Image
+              source={require("../assets/icons/share.svg")}
+              style={styles.sharePromptIcon}
+              contentFit="contain"
+            />
+            <View style={styles.sharePromptTextCol}>
+              <Text style={styles.sharePromptTitle}>Share story</Text>
+            </View>
+          </TouchableOpacity>
+        </ReanimatedAnimated.View>
+
+        <WorkoutShareStoryModal
+          visible={shareModalVisible}
+          onClose={() => setShareModalVisible(false)}
+          workoutName={displayData.workoutName}
+          totalTimeLabel={formatTime(displayData.totalTime)}
+          totalWeightLabel={shareWeightLabel}
+          completedExercises={displayData.completedExercises}
+          totalExercises={displayData.totalExercises}
+          completedSets={displayData.completedSets}
+          totalSets={displayData.totalSets}
+          isTrainNow={isTrainNow}
+          subtitleLine={shareDateLine}
+        />
+
         {/* Adjustments Display */}
         <AdjustmentDisplay
           adjustments={displayData.adjustments}
@@ -1037,13 +1090,50 @@ const styles = StyleSheet.create({
     backgroundColor: nucleus.light.global.white,
     borderRadius: 16,
     padding: 24,
-    marginBottom: 24,
+    marginBottom: 16,
     gap: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 8,
     elevation: 3,
+  },
+  sharePromptRow: {
+    width: '100%',
+    marginBottom: 24,
+  },
+  sharePromptButton: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    backgroundColor: nucleus.light.global.white,
+    borderRadius: 16,
+    paddingVertical: 18,
+    paddingHorizontal: 20,
+    borderWidth: 1,
+    borderColor: nucleus.light.global.blue["40"],
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  sharePromptIcon: {
+    width: 28,
+    height: 28,
+    tintColor: nucleus.light.global.blue["70"],
+  },
+  sharePromptTextCol: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  sharePromptTitle: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 16,
+    lineHeight: 20,
+    color: nucleus.light.global.grey["90"],
+    includeFontPadding: false,
   },
   statsTopRow: {
     flexDirection: 'row',
