@@ -20,9 +20,9 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { inferPrescriptionType, normalizePrescriptionType } from '../lib/workoutEntryParsing';
 import { nucleus } from '../BiXo_variables';
 import { GetWorkoutEntryBasicQuery } from '../graphql/generated';
+import { inferPrescriptionType, normalizePrescriptionType } from '../lib/workoutEntryParsing';
 import { useGetExerciseByIdQuery, useGetWorkoutEntryBasicQuery, useSwapExerciseWithAlternativeMutation, useUpdateWorkoutEntryMutation } from '../store/api/enhancedApi';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
