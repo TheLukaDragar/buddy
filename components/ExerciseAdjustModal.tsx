@@ -20,6 +20,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { inferPrescriptionType, normalizePrescriptionType } from '../lib/workoutEntryParsing';
 import { nucleus } from '../BiXo_variables';
 import { GetWorkoutEntryBasicQuery } from '../graphql/generated';
 import { useGetExerciseByIdQuery, useGetWorkoutEntryBasicQuery, useSwapExerciseWithAlternativeMutation, useUpdateWorkoutEntryMutation } from '../store/api/enhancedApi';
@@ -345,14 +346,27 @@ const ExerciseInfoModal = React.memo<ExerciseInfoModalProps>(function ExerciseIn
     }
   }, [workoutEntryNode]);
   
-  // Parse reps to get min value for adjustment
-  const parseReps = (reps: string): { min: number; max?: number; original: string } => {
-    if (reps.includes('-')) {
-      const [min, max] = reps.split('-').map(n => parseInt(n.trim()));
+  // Parse reps to get min value for adjustment (ranges use ASCII hyphen; "—" / no digits use time)
+  const parseReps = (
+    reps: string,
+    timeFallback?: string | null
+  ): { min: number; max?: number; original: string } => {
+    const trimmed = (reps ?? '').trim();
+    const rangeMatch = trimmed.match(/^(\d+)\s*[-–—]\s*(\d+)$/);
+    if (rangeMatch) {
+      const min = parseInt(rangeMatch[1], 10);
+      const max = parseInt(rangeMatch[2], 10);
       return { min, max, original: reps };
     }
-    const single = parseInt(reps);
-    return { min: single, original: reps };
+    const digitMatch = trimmed.match(/(\d+)/);
+    if (digitMatch) {
+      return { min: parseInt(digitMatch[1], 10), original: reps };
+    }
+    const fromTime = timeFallback ? parseInt(String(timeFallback).match(/\d+/)?.[0] || '', 10) : NaN;
+    if (Number.isFinite(fromTime) && fromTime > 0) {
+      return { min: fromTime, original: reps };
+    }
+    return { min: 1, original: reps };
   };
 
   // Parse time to get numeric value for display
@@ -362,6 +376,14 @@ const ExerciseInfoModal = React.memo<ExerciseInfoModalProps>(function ExerciseIn
     const match = time.match(/\d+/);
     return match ? match[0] : time;
   };
+
+  const isTimePrescription = React.useMemo(
+    () =>
+      (normalizePrescriptionType(workoutEntryNode?.prescription_type) ??
+        inferPrescriptionType(workoutEntryNode?.reps, workoutEntryNode?.time)) === 'time',
+    [workoutEntryNode?.prescription_type, workoutEntryNode?.reps, workoutEntryNode?.time]
+  );
+  const targetPrescriptionLabel = isTimePrescription ? 'HOLD' : 'REPS';
   
   // Parse weight to check if it's numeric
   const parseWeight = (weight: string): { value: number; unit: string } | null => {
@@ -429,6 +451,10 @@ const ExerciseInfoModal = React.memo<ExerciseInfoModalProps>(function ExerciseIn
         }, 500);
         
         return newWeight;
+      }
+      
+      if (!parsed) {
+        return currentWeight;
       }
       
       // Normal case: increment/decrement numeric weight
@@ -557,11 +583,11 @@ const ExerciseInfoModal = React.memo<ExerciseInfoModalProps>(function ExerciseIn
   // Adjust reps (simple increment) - debounced DB save
   const adjustRepsValue = (delta: number) => {
     setAdjustedReps((currentReps) => {
-      const parsed = parseReps(currentReps);
+      const parsed = parseReps(currentReps, adjustedTime);
       const newMin = Math.max(1, parsed.min + delta);
       let newReps: string;
       
-      if (parsed.max) {
+      if (parsed.max != null) {
         const newMax = Math.max(newMin + 1, parsed.max + delta);
         newReps = `${newMin}-${newMax}`;
       } else {
@@ -575,11 +601,21 @@ const ExerciseInfoModal = React.memo<ExerciseInfoModalProps>(function ExerciseIn
         clearTimeout(repsDebounceRef.current);
       }
       
+      const pt =
+        normalizePrescriptionType(workoutEntryNode?.prescription_type) ??
+        inferPrescriptionType(workoutEntryNode?.reps, workoutEntryNode?.time);
+      const isTimedDisplay = pt === 'time';
+      const newTimeStr = isTimedDisplay ? `${newMin} sec` : undefined;
+
       // Save to database after 500ms of inactivity
       repsDebounceRef.current = setTimeout(() => {
         updateWorkoutEntry({
           id: workoutEntryId,
           reps: newReps,
+          ...(newTimeStr != null ? { time: newTimeStr } : {}),
+          ...(workoutEntryNode?.prescription_type != null
+            ? { prescriptionType: workoutEntryNode.prescription_type }
+            : {}),
           isAdjusted: true,
           adjustmentReason: 'User adjusted reps'
         });
@@ -587,6 +623,16 @@ const ExerciseInfoModal = React.memo<ExerciseInfoModalProps>(function ExerciseIn
       
       return newReps;
     });
+    const ptModal =
+      normalizePrescriptionType(workoutEntryNode?.prescription_type) ??
+      inferPrescriptionType(workoutEntryNode?.reps, workoutEntryNode?.time);
+    if (ptModal === 'time') {
+      setAdjustedTime((t) => {
+        const base = parseInt(String(t).match(/\d+/)?.[0] || '0', 10) || 1;
+        const next = Math.max(1, base + delta);
+        return `${next} sec`;
+      });
+    }
   };
   
   // Handle alternative exercise selection
@@ -870,8 +916,15 @@ const ExerciseInfoModal = React.memo<ExerciseInfoModalProps>(function ExerciseIn
                     {/* Separator */}
                     <View style={styles.separator} />
 
-                    {/* Reps or Time - Centered in Right Section with Adjusters */}
-                    <View style={styles.infoItemRight}>
+                    {/* Reps or hold (seconds) — Centered in Right Section with Adjusters */}
+                    <View
+                      style={styles.infoItemRight}
+                      accessibilityLabel={
+                        isTimePrescription
+                          ? `Hold target ${parseTime(adjustedTime)} seconds`
+                          : `Rep target ${adjustedReps ? parseReps(adjustedReps, adjustedTime).min : '-'}`
+                      }
+                    >
                       <TouchableOpacity 
                         style={styles.adjusterButton}
                         onPressIn={() => startHoldIncrement(() => adjustRepsValue(1), repsHoldIntervalRef, repsHoldTimeoutRef)}
@@ -885,13 +938,12 @@ const ExerciseInfoModal = React.memo<ExerciseInfoModalProps>(function ExerciseIn
                         />
                       </TouchableOpacity>
                       <Text style={[styles.infoValue, { color: nucleus.light.global.blue["60"] }]}>
-                        {workoutEntryNode.time && !workoutEntryNode.reps 
+                        {isTimePrescription
                           ? parseTime(adjustedTime)
-                          : (adjustedReps ? parseReps(adjustedReps).min : '-')
-                        }
+                          : (adjustedReps ? parseReps(adjustedReps, adjustedTime).min : '-')}
                       </Text>
                       <Text style={[styles.infoLabel, { color: nucleus.light.global.grey["90"] }]}>
-                        {workoutEntryNode.time && !workoutEntryNode.reps ? 'TIME' : 'REPS'}
+                        {targetPrescriptionLabel}
                       </Text>
                       <TouchableOpacity 
                         style={styles.adjusterButton}

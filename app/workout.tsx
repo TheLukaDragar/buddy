@@ -51,6 +51,7 @@ export default function WorkoutScreen() {
     exercise_id: string;
     sets: number;
     reps: string;
+    prescription_type: string | null;
     weight: string | null;
     time: string | null;
     notes: string | null;
@@ -935,6 +936,7 @@ export default function WorkoutScreen() {
                         weight: entry.node.weight,
                         time: entry.node.time,
                         notes: entry.node.notes,
+                        prescription_type: entry.node.prescription_type ?? null,
                       }}
                       onPress={handleExercisePress}
                       getEquipmentIcon={getEquipmentIcon}
@@ -948,6 +950,7 @@ export default function WorkoutScreen() {
                           exercise_id: entryToDelete.exercise_id,
                           sets: entryToDelete.sets,
                           reps: entryToDelete.reps,
+                          prescription_type: entryToDelete.prescription_type ?? null,
                           weight: entryToDelete.weight ?? null,
                           time: entryToDelete.time ?? null,
                           notes: entryToDelete.notes ?? null,
@@ -1058,6 +1061,7 @@ export default function WorkoutScreen() {
                       sets: deletedExercise.sets,
                       reps: deletedExercise.reps,
                       streakExerciseId: deletedExercise.streak_exercise_id,
+                      prescriptionType: deletedExercise.prescription_type ?? undefined,
                       weight: deletedExercise.weight,
                       time: deletedExercise.time,
                       notes: deletedExercise.notes,
@@ -1295,6 +1299,7 @@ export default function WorkoutScreen() {
               sets: 3, // Default: 3 sets
               reps: reps, // Extracted from exercise name
               streakExerciseId: exercise.id, // Same as exercise_id for manually added exercises
+              prescriptionType: 'reps',
               weight: null,
               time: null,
               notes: null,

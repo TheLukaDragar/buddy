@@ -463,8 +463,8 @@ export const enhancedApi = generatedApi.enhanceEndpoints({
         console.log('UpdateWorkoutEntry invalidatesTags:', tags);
         return tags;
       },
-      async onQueryStarted({ id, sets, reps, weight, time, notes, isAdjusted, adjustmentReason }, { dispatch, queryFulfilled, getState }) {
-        console.log('UpdateWorkoutEntry onQueryStarted:', { id, sets, reps, weight, time, notes, isAdjusted, adjustmentReason });
+      async onQueryStarted({ id, sets, reps, prescriptionType, weight, time, notes, isAdjusted, adjustmentReason }, { dispatch, queryFulfilled, getState }) {
+        console.log('UpdateWorkoutEntry onQueryStarted:', { id, sets, reps, prescriptionType, weight, time, notes, isAdjusted, adjustmentReason });
         
         const state = getState() as RootState;
         const workoutState = state.workout;
@@ -495,6 +495,7 @@ export const enhancedApi = generatedApi.enhanceEndpoints({
                 const entry = draft.workout_entriesCollection.edges[0].node;
                 if (sets !== undefined) entry.sets = sets as number;
                 if (reps !== undefined) entry.reps = reps as string;
+                if (prescriptionType !== undefined) entry.prescription_type = prescriptionType as string;
                 if (weight !== undefined) entry.weight = weight as string;
                 if (time !== undefined) entry.time = time as string;
                 if (notes !== undefined) entry.notes = notes as string;
@@ -518,6 +519,7 @@ export const enhancedApi = generatedApi.enhanceEndpoints({
                   const entry = entryEdge.node;
                   if (sets !== undefined) entry.sets = sets as number;
                   if (reps !== undefined) entry.reps = reps as string;
+                  if (prescriptionType !== undefined) entry.prescription_type = prescriptionType as string;
                   if (weight !== undefined) entry.weight = weight as string;
                   if (time !== undefined) entry.time = time as string;
                   if (notes !== undefined) entry.notes = notes as string;

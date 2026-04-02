@@ -1617,6 +1617,7 @@ export type Workout_Entries = Node & {
   nodeId: Scalars["ID"]["output"];
   notes?: Maybe<Scalars["String"]["output"]>;
   position: Scalars["Int"]["output"];
+  prescription_type: Scalars["String"]["output"];
   preset_id?: Maybe<Scalars["UUID"]["output"]>;
   reps: Scalars["String"]["output"];
   sets: Scalars["Int"]["output"];
@@ -1714,6 +1715,7 @@ export type Workout_EntriesFilter = {
   /** Returns true if at least one of its inner filters is true, otherwise returns false */
   or?: InputMaybe<Array<Workout_EntriesFilter>>;
   position?: InputMaybe<IntFilter>;
+  prescription_type?: InputMaybe<StringFilter>;
   preset_id?: InputMaybe<UuidFilter>;
   reps?: InputMaybe<StringFilter>;
   sets?: InputMaybe<IntFilter>;
@@ -1738,6 +1740,7 @@ export type Workout_EntriesInsertInput = {
   is_adjusted?: InputMaybe<Scalars["Boolean"]["input"]>;
   notes?: InputMaybe<Scalars["String"]["input"]>;
   position?: InputMaybe<Scalars["Int"]["input"]>;
+  prescription_type?: InputMaybe<Scalars["String"]["input"]>;
   preset_id?: InputMaybe<Scalars["UUID"]["input"]>;
   reps?: InputMaybe<Scalars["String"]["input"]>;
   sets?: InputMaybe<Scalars["Int"]["input"]>;
@@ -1770,6 +1773,7 @@ export type Workout_EntriesOrderBy = {
   is_adjusted?: InputMaybe<OrderByDirection>;
   notes?: InputMaybe<OrderByDirection>;
   position?: InputMaybe<OrderByDirection>;
+  prescription_type?: InputMaybe<OrderByDirection>;
   preset_id?: InputMaybe<OrderByDirection>;
   reps?: InputMaybe<OrderByDirection>;
   sets?: InputMaybe<OrderByDirection>;
@@ -1794,6 +1798,7 @@ export type Workout_EntriesUpdateInput = {
   is_adjusted?: InputMaybe<Scalars["Boolean"]["input"]>;
   notes?: InputMaybe<Scalars["String"]["input"]>;
   position?: InputMaybe<Scalars["Int"]["input"]>;
+  prescription_type?: InputMaybe<Scalars["String"]["input"]>;
   preset_id?: InputMaybe<Scalars["UUID"]["input"]>;
   reps?: InputMaybe<Scalars["String"]["input"]>;
   sets?: InputMaybe<Scalars["Int"]["input"]>;
@@ -2297,6 +2302,7 @@ export type Workout_Preset_Entries = Node & {
   nodeId: Scalars["ID"]["output"];
   notes?: Maybe<Scalars["String"]["output"]>;
   position: Scalars["Int"]["output"];
+  prescription_type: Scalars["String"]["output"];
   preset_id: Scalars["UUID"]["output"];
   reps: Scalars["String"]["output"];
   sets: Scalars["Int"]["output"];
@@ -2353,6 +2359,7 @@ export type Workout_Preset_EntriesFilter = {
   /** Returns true if at least one of its inner filters is true, otherwise returns false */
   or?: InputMaybe<Array<Workout_Preset_EntriesFilter>>;
   position?: InputMaybe<IntFilter>;
+  prescription_type?: InputMaybe<StringFilter>;
   preset_id?: InputMaybe<UuidFilter>;
   reps?: InputMaybe<StringFilter>;
   sets?: InputMaybe<IntFilter>;
@@ -2369,6 +2376,7 @@ export type Workout_Preset_EntriesInsertInput = {
   id?: InputMaybe<Scalars["UUID"]["input"]>;
   notes?: InputMaybe<Scalars["String"]["input"]>;
   position?: InputMaybe<Scalars["Int"]["input"]>;
+  prescription_type?: InputMaybe<Scalars["String"]["input"]>;
   preset_id?: InputMaybe<Scalars["UUID"]["input"]>;
   reps?: InputMaybe<Scalars["String"]["input"]>;
   sets?: InputMaybe<Scalars["Int"]["input"]>;
@@ -2393,6 +2401,7 @@ export type Workout_Preset_EntriesOrderBy = {
   id?: InputMaybe<OrderByDirection>;
   notes?: InputMaybe<OrderByDirection>;
   position?: InputMaybe<OrderByDirection>;
+  prescription_type?: InputMaybe<OrderByDirection>;
   preset_id?: InputMaybe<OrderByDirection>;
   reps?: InputMaybe<OrderByDirection>;
   sets?: InputMaybe<OrderByDirection>;
@@ -2409,6 +2418,7 @@ export type Workout_Preset_EntriesUpdateInput = {
   id?: InputMaybe<Scalars["UUID"]["input"]>;
   notes?: InputMaybe<Scalars["String"]["input"]>;
   position?: InputMaybe<Scalars["Int"]["input"]>;
+  prescription_type?: InputMaybe<Scalars["String"]["input"]>;
   preset_id?: InputMaybe<Scalars["UUID"]["input"]>;
   reps?: InputMaybe<Scalars["String"]["input"]>;
   sets?: InputMaybe<Scalars["Int"]["input"]>;
@@ -3503,6 +3513,7 @@ export type GetWorkoutPlanQuery = {
               exercise_id: any;
               sets: number;
               reps: string;
+              prescription_type: string;
               weight?: string | null;
               time?: string | null;
               notes?: string | null;
@@ -3719,6 +3730,7 @@ export type GetWorkoutPlanByWeekQuery = {
               exercise_id: any;
               sets: number;
               reps: string;
+              prescription_type: string;
               weight?: string | null;
               time?: string | null;
               notes?: string | null;
@@ -3772,6 +3784,7 @@ export type GetWorkoutDayQuery = {
               exercise_id: any;
               sets: number;
               reps: string;
+              prescription_type: string;
               weight?: string | null;
               time?: string | null;
               notes?: string | null;
@@ -3881,6 +3894,7 @@ export type UpdateWorkoutEntryMutationVariables = Exact<{
   id: Scalars["UUID"]["input"];
   sets?: InputMaybe<Scalars["Int"]["input"]>;
   reps?: InputMaybe<Scalars["String"]["input"]>;
+  prescriptionType?: InputMaybe<Scalars["String"]["input"]>;
   weight?: InputMaybe<Scalars["String"]["input"]>;
   time?: InputMaybe<Scalars["String"]["input"]>;
   notes?: InputMaybe<Scalars["String"]["input"]>;
@@ -3903,6 +3917,7 @@ export type UpdateWorkoutEntryMutation = {
       exercise_id: any;
       sets: number;
       reps: string;
+      prescription_type: string;
       weight?: string | null;
       time?: string | null;
       notes?: string | null;
@@ -3961,6 +3976,7 @@ export type AddWorkoutEntryMutationVariables = Exact<{
   sets: Scalars["Int"]["input"];
   reps: Scalars["String"]["input"];
   streakExerciseId: Scalars["UUID"]["input"];
+  prescriptionType?: InputMaybe<Scalars["String"]["input"]>;
   weight?: InputMaybe<Scalars["String"]["input"]>;
   time?: InputMaybe<Scalars["String"]["input"]>;
   notes?: InputMaybe<Scalars["String"]["input"]>;
@@ -3983,6 +3999,7 @@ export type AddWorkoutEntryMutation = {
       exercise_id: any;
       sets: number;
       reps: string;
+      prescription_type: string;
       weight?: string | null;
       time?: string | null;
       notes?: string | null;
@@ -4047,6 +4064,7 @@ export type DeleteWorkoutEntryMutation = {
       exercise_id: any;
       sets: number;
       reps: string;
+      prescription_type: string;
       weight?: string | null;
       time?: string | null;
       notes?: string | null;
@@ -4076,6 +4094,7 @@ export type GetWorkoutEntryBasicQuery = {
         exercise_id: any;
         sets: number;
         reps: string;
+        prescription_type: string;
         weight?: string | null;
         time?: string | null;
         notes?: string | null;
@@ -4122,6 +4141,7 @@ export type GetWorkoutEntryQuery = {
         exercise_id: any;
         sets: number;
         reps: string;
+        prescription_type: string;
         weight?: string | null;
         time?: string | null;
         notes?: string | null;
@@ -4296,6 +4316,7 @@ export type GetWorkoutPresetQuery = {
               position: number;
               sets: number;
               reps: string;
+              prescription_type: string;
               weight?: string | null;
               time?: string | null;
               notes?: string | null;
@@ -4924,6 +4945,7 @@ export type GetFutureWorkoutEntriesQuery = {
         exercise_id: any;
         date: any;
         reps: string;
+        prescription_type: string;
         weight?: string | null;
         time?: string | null;
         sets: number;
@@ -4955,6 +4977,7 @@ export type ApplyAdjustmentToFutureWorkoutsMutation = {
       exercise_id: any;
       date: any;
       reps: string;
+      prescription_type: string;
       weight?: string | null;
       time?: string | null;
       is_adjusted?: boolean | null;
@@ -5012,6 +5035,7 @@ export type GetWorkoutEntriesByDayQuery = {
         exercise_id: any;
         sets: number;
         reps: string;
+        prescription_type: string;
         weight?: string | null;
         time?: string | null;
         notes?: string | null;
@@ -5197,6 +5221,7 @@ export const GetWorkoutPlanDocument = `
               exercise_id
               sets
               reps
+              prescription_type
               weight
               time
               notes
@@ -5370,6 +5395,7 @@ export const GetWorkoutPlanByWeekDocument = `
               exercise_id
               sets
               reps
+              prescription_type
               weight
               time
               notes
@@ -5412,6 +5438,7 @@ export const GetWorkoutDayDocument = `
               exercise_id
               sets
               reps
+              prescription_type
               weight
               time
               notes
@@ -5504,10 +5531,10 @@ export const SwapExerciseWithAlternativeDocument = `
 }
     `;
 export const UpdateWorkoutEntryDocument = `
-    mutation UpdateWorkoutEntry($id: UUID!, $sets: Int, $reps: String, $weight: String, $time: String, $notes: String, $isAdjusted: Boolean, $adjustmentReason: String) {
+    mutation UpdateWorkoutEntry($id: UUID!, $sets: Int, $reps: String, $prescriptionType: String, $weight: String, $time: String, $notes: String, $isAdjusted: Boolean, $adjustmentReason: String) {
   updateworkout_entriesCollection(
     filter: {id: {eq: $id}}
-    set: {sets: $sets, reps: $reps, weight: $weight, time: $time, notes: $notes, is_adjusted: $isAdjusted, adjustment_reason: $adjustmentReason}
+    set: {sets: $sets, reps: $reps, prescription_type: $prescriptionType, weight: $weight, time: $time, notes: $notes, is_adjusted: $isAdjusted, adjustment_reason: $adjustmentReason}
   ) {
     records {
       id
@@ -5518,6 +5545,7 @@ export const UpdateWorkoutEntryDocument = `
       exercise_id
       sets
       reps
+      prescription_type
       weight
       time
       notes
@@ -5563,9 +5591,9 @@ export const UpdateWorkoutEntryDocument = `
 }
     `;
 export const AddWorkoutEntryDocument = `
-    mutation AddWorkoutEntry($workoutPlanId: UUID!, $weekNumber: Int!, $dayName: String!, $day: weekday!, $date: Date!, $exerciseId: UUID!, $sets: Int!, $reps: String!, $streakExerciseId: UUID!, $weight: String, $time: String, $notes: String, $position: Int!, $workoutInstanceId: UUID) {
+    mutation AddWorkoutEntry($workoutPlanId: UUID!, $weekNumber: Int!, $dayName: String!, $day: weekday!, $date: Date!, $exerciseId: UUID!, $sets: Int!, $reps: String!, $streakExerciseId: UUID!, $prescriptionType: String, $weight: String, $time: String, $notes: String, $position: Int!, $workoutInstanceId: UUID) {
   insertIntoworkout_entriesCollection(
-    objects: [{workout_plan_id: $workoutPlanId, week_number: $weekNumber, day_name: $dayName, day: $day, date: $date, exercise_id: $exerciseId, sets: $sets, reps: $reps, streak_exercise_id: $streakExerciseId, weight: $weight, time: $time, notes: $notes, is_adjusted: false, position: $position, workout_instance_id: $workoutInstanceId}]
+    objects: [{workout_plan_id: $workoutPlanId, week_number: $weekNumber, day_name: $dayName, day: $day, date: $date, exercise_id: $exerciseId, sets: $sets, reps: $reps, streak_exercise_id: $streakExerciseId, prescription_type: $prescriptionType, weight: $weight, time: $time, notes: $notes, is_adjusted: false, position: $position, workout_instance_id: $workoutInstanceId}]
   ) {
     records {
       id
@@ -5576,6 +5604,7 @@ export const AddWorkoutEntryDocument = `
       exercise_id
       sets
       reps
+      prescription_type
       weight
       time
       notes
@@ -5629,6 +5658,7 @@ export const DeleteWorkoutEntryDocument = `
       exercise_id
       sets
       reps
+      prescription_type
       weight
       time
       notes
@@ -5652,6 +5682,7 @@ export const GetWorkoutEntryBasicDocument = `
         exercise_id
         sets
         reps
+        prescription_type
         weight
         time
         notes
@@ -5690,6 +5721,7 @@ export const GetWorkoutEntryDocument = `
         exercise_id
         sets
         reps
+        prescription_type
         weight
         time
         notes
@@ -5837,6 +5869,7 @@ export const GetWorkoutPresetDocument = `
               position
               sets
               reps
+              prescription_type
               weight
               time
               notes
@@ -6325,6 +6358,7 @@ export const GetFutureWorkoutEntriesDocument = `
         exercise_id
         date
         reps
+        prescription_type
         weight
         time
         sets
@@ -6346,6 +6380,7 @@ export const ApplyAdjustmentToFutureWorkoutsDocument = `
       exercise_id
       date
       reps
+      prescription_type
       weight
       time
       is_adjusted
@@ -6388,6 +6423,7 @@ export const GetWorkoutEntriesByDayDocument = `
         exercise_id
         sets
         reps
+        prescription_type
         weight
         time
         notes

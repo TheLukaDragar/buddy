@@ -585,6 +585,7 @@ query GetFutureWorkoutEntries(
         exercise_id
         date
         reps
+        prescription_type
         weight
         time
         sets
@@ -626,6 +627,7 @@ mutation ApplyAdjustmentToFutureWorkouts(
       exercise_id
       date
       reps
+      prescription_type
       weight
       time
       is_adjusted
@@ -691,6 +693,7 @@ query GetWorkoutEntriesByDay($planId: UUID!, $dayName: String!) {
         exercise_id
         sets
         reps
+        prescription_type
         weight
         time
         notes

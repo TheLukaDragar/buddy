@@ -205,7 +205,13 @@ const getToolCallMessage = (toolName: string, parameters?: any) => {
         return `Adjusting to ${parameters.newReps} reps`;
       }
       return 'Adjusting reps';
-      
+
+    case 'adjust_hold_seconds':
+      if (parameters?.newSeconds !== undefined) {
+        return `Adjusting hold to ${parameters.newSeconds}s`;
+      }
+      return 'Adjusting hold duration';
+
     case 'adjust_rest_time':
       if (parameters?.seconds !== undefined) {
         return `Setting rest time to ${parameters.seconds}s`;

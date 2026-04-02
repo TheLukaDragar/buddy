@@ -9127,7 +9127,12 @@ Reps = blank for Weeks 2–8.
 
 Weight = must be set appropriately based on exercise type and user level (see Baseline Weights section 6b). For dumbbells, specify weight per hand (e.g., "2kg" means 2kg in each hand). For bodyweight exercises, leave blank or use "Body".
 
-Time = used only for isometric core exercises.
+Time = used only for isometric core exercises and other timed holds (wall sits, isometric holds, etc.).
+
+⏱️ TIMED / ISOMETRIC EXERCISES (CRITICAL)
+- **time** is REQUIRED for holds: include a number (e.g. "30 sec", "45s", "60 seconds"). The app uses this for the timer.
+- **reps** for holds: use the em dash "—" (meaning not rep-based), OR the same hold length as a plain integer string in **seconds** (e.g. "30") so it stays in sync with **time**. Never use rep ranges like "8-12" for pure timed holds.
+- Never leave **time** empty for a timed exercise. Do not rely on **reps** alone for hold duration when **reps** is "—".
 
 ✅ Allowed Isometric Core Exercises
 
@@ -9139,6 +9144,8 @@ Plank Shoulder Taps	30 sec	—	Keep core tight
 
 📄 11. JSON OUTPUT FORMAT
 Add a "Day Name" column before "Day". Populate it with the session type based on the split (e.g., Push, Pull, Legs, Full-Body, Upper, Lower, Chest, Back, Shoulders, Arms, Core, Hypertrophy, Recovery). This column is required for every entry.
+Every entry MUST include **prescriptionType**: **"reps"** for standard lifts (use rep ranges in **reps**) or **"time"** for timed holds / isometrics (primary prescription in **time**).
+
 \`\`\`json
 {
   "dayName": "Push",
@@ -9148,8 +9155,9 @@ Add a "Day Name" column before "Day". Populate it with the session type based on
   "similar_alternative_exercises_notes": ["Targets upper chest more. Use if bench is occupied.", "Fixed bar path for safety. Good for training to failure without spotter."],
   "sets": 4,
   "reps": "8–12",
+  "prescriptionType": "reps",
   "weight": "40kg",
-  "time": "30 sec",
+  "time": "",
   "notes": "Tempo 3-1-1, full ROM",
   "streakExercise": "Push-Ups — Legs Elevated",
   "streakExerciseNotes": "Tempo 2-1-1"
@@ -9351,6 +9359,7 @@ const WorkoutEntry = z.object({
     similar_alternative_exercises_notes: z.array(z.string()), // Required: Brief notes for each alternative
     sets: z.number(), // Required: Always 4 per prompt rules
     reps: z.string(), // Required: Always filled with ranges like "8-12"
+    prescriptionType: z.enum(["reps", "time"]).default("reps"), // reps = standard lifts; time = holds / timed prescription
     weight: z.string(), // Must be set appropriately based on exercise type and user level (see Baseline Weights section 6b)
     time: z.string(), // Only filled for isometric core exercises - make it required but can be empty
     notes: z.string(), // Optional additional notes - make it required but can be empty
@@ -9618,6 +9627,7 @@ export const generateWorkoutPlanTask = task({
             exercise_id: exerciseIds[slugify(entry.exercise)],
             sets: entry.sets,
             reps: entry.reps,
+            prescription_type: entry.prescriptionType,
             weight: entry.weight,
             time: entry.time,
             notes: entry.notes,

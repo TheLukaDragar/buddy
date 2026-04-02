@@ -9123,7 +9123,12 @@ Reps = always filled with ranges like "8-12"
 
 Weight = must be set appropriately based on exercise type and user level (see Baseline Weights section 6b). For dumbbells, specify weight per hand (e.g., "2kg" means 2kg in each hand). For bodyweight exercises, use "bodyweight" or leave blank.
 
-Time = used only for isometric core exercises.
+Time = used only for isometric core exercises and other timed holds (wall sits, isometric holds, etc.).
+
+⏱️ TIMED / ISOMETRIC EXERCISES (CRITICAL)
+- **time** is REQUIRED for holds: include a number (e.g. "30 sec", "45s", "60 seconds"). The app uses this for the timer.
+- **reps** for holds: use the em dash "—" OR the hold length in **seconds** as a plain integer string (e.g. "30") matching **time**. Never use rep ranges like "8-12" for pure timed holds.
+- Never leave **time** empty for a timed exercise.
 
 ✅ Allowed Isometric Core Exercises
 
@@ -9139,7 +9144,7 @@ Return a single complete workout session with 4-9 exercises. The structure must 
 - **name**: Descriptive workout name based on muscle groups (e.g., "Chest & Triceps Power", "Full Body Strength")
 - **estimatedDuration**: Number matching the requested duration
 - **difficulty**: Must match requested difficulty ('easy', 'medium', or 'hard')
-- **exercises**: Array of exercise objects
+- **exercises**: Array of exercise objects; each MUST include **prescriptionType**: **"reps"** or **"time"**
 
 \`\`\`json
 {
@@ -9153,6 +9158,7 @@ Return a single complete workout session with 4-9 exercises. The structure must 
       "similar_alternative_exercises_notes": ["Targets upper chest more. Use if bench is occupied.", "Fixed bar path for safety. Good for training to failure without spotter."],
       "sets": 4,
       "reps": "8-12",
+      "prescriptionType": "reps",
       "weight": "40kg",
       "time": "",
       "notes": "Tempo 3-1-1, full ROM"
@@ -9163,6 +9169,7 @@ Return a single complete workout session with 4-9 exercises. The structure must 
       "similar_alternative_exercises_notes": ["More stable, easier to load heavy.", "Fixed path, good for drop sets."],
       "sets": 3,
       "reps": "10-15",
+      "prescriptionType": "reps",
       "weight": "15kg per hand",
       "time": "",
       "notes": "Focus on squeeze at top"
@@ -9173,6 +9180,7 @@ Return a single complete workout session with 4-9 exercises. The structure must 
       "similar_alternative_exercises_notes": ["Free weight variation, requires more stability.", "Machine variation, easier to isolate chest."],
       "sets": 3,
       "reps": "12-15",
+      "prescriptionType": "reps",
       "weight": "20kg",
       "time": "",
       "notes": "Slight bend in elbows, control the negative"
@@ -9183,6 +9191,7 @@ Return a single complete workout session with 4-9 exercises. The structure must 
       "similar_alternative_exercises_notes": ["Hits long head more, stretch at top.", "Good for unilateral work and mind-muscle connection."],
       "sets": 3,
       "reps": "12-15",
+      "prescriptionType": "reps",
       "weight": "30kg",
       "time": "",
       "notes": "Keep elbows locked at sides"
@@ -9193,6 +9202,7 @@ Return a single complete workout session with 4-9 exercises. The structure must 
       "similar_alternative_exercises_notes": ["More natural wrist angle.", "Fixed bar path, good for heavy loads."],
       "sets": 3,
       "reps": "8-12",
+      "prescriptionType": "reps",
       "weight": "30kg",
       "time": "",
       "notes": "Hands shoulder-width apart, elbows tucked"
@@ -9288,6 +9298,7 @@ const SingleWorkoutExerciseSchema = z.object({
   similar_alternative_exercises_notes: z.array(z.string()).describe('Brief notes for each alternative'),
   sets: z.number().describe('Number of sets (typically 3-4)'),
   reps: z.string().describe('Reps filled with ranges like "8-12"'),
+  prescriptionType: z.enum(['reps', 'time']).default('reps').describe('reps for lifts; time for holds / timed prescription'),
   weight: z.string().describe('Set appropriately based on exercise type and user level'),
   time: z.string().describe('Only filled for isometric core exercises - required but can be empty'),
   notes: z.string().describe('Optional additional notes - required but can be empty'),
@@ -9678,6 +9689,7 @@ Please generate a complete single workout session that meets these requirements.
           exercise_id: exerciseId,
           sets: exercise.sets,
           reps: finalReps, // Use historical reps if available
+          prescription_type: exercise.prescriptionType,
           weight: finalWeight, // Use historical weight if available
           time: exercise.time || null,
           notes: exercise.notes || null,

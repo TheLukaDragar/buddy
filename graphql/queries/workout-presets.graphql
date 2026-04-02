@@ -44,6 +44,7 @@ query GetWorkoutPreset($id: UUID!) {
               position
               sets
               reps
+              prescription_type
               weight
               time
               notes

@@ -1,4 +1,10 @@
 import { createListenerMiddleware, isAnyOf, type TypedStartListening } from '@reduxjs/toolkit';
+import {
+  inferPrescriptionType,
+  normalizePrescriptionType,
+  parseFirstInt,
+  targetRepsFromEntry,
+} from '../../lib/workoutEntryParsing';
 import { contextBridgeService } from '../../services/contextBridgeService';
 import { getMusicStatus } from '../actions/musicActions';
 import { getWorkoutStatus } from '../actions/workoutActions';
@@ -785,13 +791,24 @@ startAppListening({
     const currentSetIndex = state.workout.activeWorkout?.currentSetIndex || 0;
     const totalSets = state.workout.activeWorkout?.currentExercise?.sets.length || 0;
     const remainingSets = totalSets - currentSetIndex;
-    const contextMessage = `SYSTEM: reps-adjusted - Reps changed from ${oldReps} to ${newReps} for current set and all ${remainingSets} remaining sets. Reason: ${reason}.`;
-    
-    dispatch(addContextMessage({
-      event: 'reps-adjusted',
-      message: contextMessage,
-      data: { from: oldReps, to: newReps, reason },
-    }));
+    const exerciseIdx = originalState.workout.activeWorkout?.currentExerciseIndex ?? 0;
+    const entry = originalState.workout.workoutEntries?.[exerciseIdx];
+    const pt =
+      entry &&
+      (normalizePrescriptionType(entry.prescription_type) ??
+        inferPrescriptionType(entry.reps, entry.time));
+    const contextMessage =
+      pt === 'time'
+        ? `SYSTEM: hold-duration-adjusted - Hold duration changed from ${oldReps}s to ${newReps}s for current set and all ${remainingSets} remaining sets. Reason: ${reason}.`
+        : `SYSTEM: reps-adjusted - Reps changed from ${oldReps} to ${newReps} for current set and all ${remainingSets} remaining sets. Reason: ${reason}.`;
+
+    dispatch(
+      addContextMessage({
+        event: pt === 'time' ? 'hold-duration-adjusted' : 'reps-adjusted',
+        message: contextMessage,
+        data: { from: oldReps, to: newReps, reason, prescriptionType: pt ?? 'reps' },
+      })
+    );
     
     contextBridgeService.sendContextualUpdate(contextMessage).catch(err => 
       console.log('🎙️ Could not send reps adjustment context:', err)
@@ -1662,12 +1679,17 @@ startAppListening({
     // If actualReps is not set, use targetReps from the CURRENT entry (not stale state)
     let actualRepsToSave = currentSet.actualReps;
     if (actualRepsToSave === undefined || actualRepsToSave === null) {
-      // Parse reps from current entry to ensure we're not using stale data
-      const parseReps = (repsStr: string): number => {
-        const match = repsStr.match(/(\d+)/);
-        return match ? parseInt(match[1], 10) : currentSet.targetReps || 0;
-      };
-      actualRepsToSave = parseReps(currentEntry.reps);
+      // Parse from entry; timed holds use `time` when `reps` has no digit
+      const repsTrim = (currentEntry.reps ?? '').trim();
+      let parsed = targetRepsFromEntry(
+        currentEntry.reps,
+        currentEntry.time,
+        currentEntry.prescription_type
+      );
+      if (!/\d/.test(repsTrim) && parseFirstInt(currentEntry.time) == null) {
+        parsed = currentSet.targetReps ?? parsed;
+      }
+      actualRepsToSave = parsed;
       console.warn('⚠️ [completeSet] actualReps was not set, using parsed value from current entry:', {
         actualRepsToSave,
         currentEntryReps: currentEntry.reps,
@@ -1719,13 +1741,19 @@ startAppListening({
       const targetWeightStr = currentSet.targetWeight != null ? currentSet.targetWeight.toString() : null;
       const actualWeightStr = currentSet.actualWeight != null ? currentSet.actualWeight.toString() : null;
       
+      const entryPt =
+        normalizePrescriptionType(currentEntry.prescription_type) ??
+        inferPrescriptionType(currentEntry.reps, currentEntry.time);
+      const targetRepsForDb =
+        entryPt === 'time' ? null : currentSet.targetReps ?? null;
+
       await dispatch(
         enhancedApi.endpoints.CompleteWorkoutSet.initiate({
           sessionId,
           workoutEntryId: currentEntry.id,
           exerciseId: activeWorkout.currentExercise.id,
           setNumber: activeWorkout.currentSetIndex + 1,
-          targetReps: currentSet.targetReps,
+          targetReps: targetRepsForDb,
           targetWeight: targetWeightStr,
           targetTime: currentSet.targetTime || null,
           actualReps: actualRepsToSave,
@@ -1895,12 +1923,17 @@ startAppListening({
         // Use the latest reps value from state
         const latestReps = latestWorkout.currentSet?.targetReps || newReps;
         const repsStr = latestReps.toString();
-        
+        const pt =
+          normalizePrescriptionType(latestEntry.prescription_type) ??
+          inferPrescriptionType(latestEntry.reps, latestEntry.time);
+
         // Update workout_entry table with new reps value (affects all future sets)
         await dispatch(
           enhancedApi.endpoints.UpdateWorkoutEntry.initiate({
             id: latestEntry.id,
             reps: repsStr,
+            time: pt === 'time' ? `${latestReps} sec` : undefined,
+            prescriptionType: latestEntry.prescription_type ?? undefined,
             isAdjusted: true,
             adjustmentReason: reason || 'User adjusted reps',
           })
@@ -2018,6 +2051,7 @@ startAppListening({
       updates: {
         sets: updatedEntry.sets,
         reps: updatedEntry.reps,
+        prescriptionType: updatedEntry.prescription_type,
         weight: updatedEntry.weight,
         time: updatedEntry.time,
         notes: updatedEntry.notes,

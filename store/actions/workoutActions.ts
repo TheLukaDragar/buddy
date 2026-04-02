@@ -1,4 +1,5 @@
 import { createAsyncThunk } from '@reduxjs/toolkit'
+import { inferPrescriptionType, normalizePrescriptionType, parseFirstInt } from '../../lib/workoutEntryParsing'
 import { supabase } from '../../lib/supabase'
 import { WorkoutSession } from '../../types/workout'
 import { enhancedApi } from '../api/enhancedApi'
@@ -458,14 +459,113 @@ export const adjustReps = createAsyncThunk(
       return rejectWithValue('No current set to adjust')
     }
 
+    if (!Number.isFinite(newReps) || newReps < 1 || !Number.isInteger(newReps)) {
+      return rejectWithValue('newReps must be a whole number of at least 1')
+    }
+
+    const idx = state.workout.activeWorkout.currentExerciseIndex
+    const entry = state.workout.workoutEntries?.[idx]
+    if (entry) {
+      const pt =
+        normalizePrescriptionType(entry.prescription_type) ??
+        inferPrescriptionType(entry.reps, entry.time)
+      const repsTrim = (entry.reps ?? '').trim()
+      const hasRepDigits = /\d/.test(repsTrim)
+      const hasTime = parseFirstInt(entry.time) != null
+      if (pt === 'time') {
+        if (!hasTime && !hasRepDigits) {
+          return rejectWithValue(
+            'Cannot adjust: timed exercise needs a time value or numeric seconds in reps'
+          )
+        }
+      } else if (!hasRepDigits && !hasTime) {
+        return rejectWithValue(
+          'Cannot adjust target: plan entry has no numeric reps and no time (fix the plan or add a time value)'
+        )
+      }
+    }
+
     const oldReps = state.workout.activeWorkout.currentSet.targetReps
+    const ptForMessage =
+      entry &&
+      (normalizePrescriptionType(entry.prescription_type) ??
+        inferPrescriptionType(entry.reps, entry.time))
     dispatch(adjustRepsReducer({ newReps, reason }))
 
-    return { 
+    const message =
+      ptForMessage === 'time'
+        ? `Hold duration adjusted from ${oldReps}s to ${newReps}s`
+        : `Reps adjusted from ${oldReps} to ${newReps}`
+
+    return {
       success: true,
-      message: `Reps adjusted from ${oldReps} to ${newReps}`,
+      message,
       from: oldReps,
-      to: newReps 
+      to: newReps,
+    }
+  }
+)
+
+const HOLD_SECONDS_INVALID_MSG =
+  'Hold duration must be a whole number of seconds (1 or more). Pass newSeconds (e.g. 45).'
+
+function normalizeHoldSecondsForThunk(raw: unknown): number | null {
+  if (raw === undefined || raw === null) return null
+  const n = typeof raw === 'string' ? parseFloat(raw.trim()) : Number(raw)
+  if (!Number.isFinite(n)) return null
+  const rounded = Math.round(n)
+  if (rounded < 1) return null
+  return rounded
+}
+
+function unwrapThunkError(e: unknown): string {
+  if (typeof e === 'string') return e
+  if (e instanceof Error) return e.message
+  if (e && typeof e === 'object' && 'message' in e && typeof (e as { message: unknown }).message === 'string') {
+    return (e as { message: string }).message
+  }
+  return String(e)
+}
+
+/** Timed holds only — updates the same target field as reps (seconds for time prescriptions). */
+export const adjustHoldSeconds = createAsyncThunk(
+  'workout/adjustHoldSeconds',
+  async (
+    { newSeconds, reason }: { newSeconds: number; reason: string },
+    { getState, dispatch, rejectWithValue }
+  ) => {
+    const state = getState() as RootState
+
+    if (!state.workout.activeWorkout?.currentSet) {
+      return rejectWithValue('No current set to adjust')
+    }
+
+    const idx = state.workout.activeWorkout.currentExerciseIndex
+    const entry = state.workout.workoutEntries?.[idx]
+    const pt =
+      entry &&
+      (normalizePrescriptionType(entry.prescription_type) ??
+        inferPrescriptionType(entry.reps, entry.time))
+
+    if (!entry || pt !== 'time') {
+      return rejectWithValue(
+        'This exercise is not a timed hold; change reps or weight instead.'
+      )
+    }
+
+    const seconds = normalizeHoldSecondsForThunk(newSeconds as unknown)
+    if (seconds === null) {
+      return rejectWithValue(HOLD_SECONDS_INVALID_MSG)
+    }
+
+    try {
+      return await dispatch(adjustReps({ newReps: seconds, reason })).unwrap()
+    } catch (e: unknown) {
+      let msg = unwrapThunkError(e)
+      if (msg.includes('newReps must be')) {
+        msg = HOLD_SECONDS_INVALID_MSG
+      }
+      return rejectWithValue(msg)
     }
   }
 )
@@ -867,6 +967,8 @@ export const getWorkoutStatus = createAsyncThunk(
         status: isCurrent ? 'current' : isCompleted ? 'completed' : isUpcoming ? 'upcoming' : 'pending',
         sets: entry.sets,
         reps: entry.reps,
+        prescription_type: entry.prescription_type ?? null,
+        time: entry.time ?? null,
         weight: entry.weight,
         isCurrent,
         isCompleted,
@@ -918,14 +1020,20 @@ export const getExerciseInstructions = createAsyncThunk(
     
     const exercise = state.workout.activeWorkout.currentExercise
     const currentSet = state.workout.activeWorkout.currentSet
-    
+    const currentEntry = state.workout.workoutEntries?.[state.workout.activeWorkout.currentExerciseIndex]
+    const pt =
+      normalizePrescriptionType(currentEntry?.prescription_type) ??
+      inferPrescriptionType(currentEntry?.reps, currentEntry?.time)
+    const targetUnit = pt === 'time' ? 'seconds (hold)' : 'reps'
+
     const instructions = exercise.description || `Exercise: ${exercise.name}`
-    const detailedInstructions = `${instructions}\n\nCurrent set: ${currentSet?.targetReps} reps${currentSet?.targetWeight ? ` at ${currentSet.targetWeight}kg` : ''}`
+    const detailedInstructions = `${instructions}\n\nCurrent set: ${currentSet?.targetReps} ${targetUnit}${currentSet?.targetWeight ? ` at ${currentSet.targetWeight}kg` : ''}`
     
     // Build comprehensive exercise data for AI agent
     const exerciseData: Record<string, any> = {
       exerciseName: exercise.name,
       description: exercise.description,
+      prescriptionType: pt,
       targetReps: currentSet?.targetReps,
       targetWeight: currentSet?.targetWeight,
       instructions: exercise.instructions,
@@ -970,6 +1078,7 @@ export const extend_rest = extendRest // extend current rest only
 export const jump_to_set = jumpToSet
 export const adjust_weight = adjustWeight
 export const adjust_reps = adjustReps
+export const adjust_hold_seconds = adjustHoldSeconds
 export const adjust_rest_time = adjustRestTime
 export const get_workout_status = getWorkoutStatus
 export const get_exercise_instructions = getExerciseInstructions

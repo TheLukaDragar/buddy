@@ -72,6 +72,7 @@ query GetWorkoutPlan($id: UUID!) {
               exercise_id
               sets
               reps
+              prescription_type
               weight
               time
               notes
@@ -252,6 +253,7 @@ query GetWorkoutPlanByWeek($planId: UUID!, $weekNumber: Int!) {
               exercise_id
               sets
               reps
+              prescription_type
               weight
               time
               notes
@@ -298,6 +300,7 @@ query GetWorkoutDay($planId: UUID!, $weekNumber: Int!, $day: weekday!, $dayName:
               exercise_id
               sets
               reps
+              prescription_type
               weight
               time
               notes
@@ -406,6 +409,7 @@ mutation UpdateWorkoutEntry(
   $id: UUID!
   $sets: Int
   $reps: String
+  $prescriptionType: String
   $weight: String
   $time: String
   $notes: String
@@ -417,6 +421,7 @@ mutation UpdateWorkoutEntry(
     set: {
       sets: $sets
       reps: $reps
+      prescription_type: $prescriptionType
       weight: $weight
       time: $time
       notes: $notes
@@ -433,6 +438,7 @@ mutation UpdateWorkoutEntry(
       exercise_id
       sets
       reps
+      prescription_type
       weight
       time
       notes
@@ -488,6 +494,7 @@ mutation AddWorkoutEntry(
   $sets: Int!
   $reps: String!
   $streakExerciseId: UUID!
+  $prescriptionType: String
   $weight: String
   $time: String
   $notes: String
@@ -505,6 +512,7 @@ mutation AddWorkoutEntry(
       sets: $sets
       reps: $reps
       streak_exercise_id: $streakExerciseId
+      prescription_type: $prescriptionType
       weight: $weight
       time: $time
       notes: $notes
@@ -522,6 +530,7 @@ mutation AddWorkoutEntry(
       exercise_id
       sets
       reps
+      prescription_type
       weight
       time
       notes
@@ -575,6 +584,7 @@ mutation DeleteWorkoutEntry($id: UUID!) {
       exercise_id
       sets
       reps
+      prescription_type
       weight
       time
       notes
@@ -599,6 +609,7 @@ query GetWorkoutEntryBasic($id: UUID!) {
         exercise_id
         sets
         reps
+        prescription_type
         weight
         time
         notes
@@ -637,6 +648,7 @@ query GetWorkoutEntry($id: UUID!) {
         exercise_id
         sets
         reps
+        prescription_type
         weight
         time
         notes

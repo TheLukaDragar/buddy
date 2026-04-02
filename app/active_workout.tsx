@@ -1,3 +1,4 @@
+import { inferPrescriptionType, normalizePrescriptionType } from '@/lib/workoutEntryParsing';
 import { supabase } from '@/lib/supabase';
 import { enhancedApi } from '@/store/api/enhancedApi';
 import { unwrapResult } from '@reduxjs/toolkit';
@@ -44,6 +45,7 @@ import {
   syncPlaylistToSpotify
 } from '../store/actions/musicActions';
 import {
+  adjustHoldSeconds,
   adjustReps,
   adjustRestTime,
   adjustWeight,
@@ -104,6 +106,19 @@ interface ProgressSegment {
   isActive?: boolean;
   isCompleted?: boolean;
   progress?: number; // 0-100 for current segment
+}
+
+/** Voice tools may send `newSeconds`, or reuse `newReps` / strings — normalize to whole seconds ≥ 1 */
+function parseHoldSecondsFromClientToolParams(params: unknown): number | null {
+  if (params == null || typeof params !== 'object') return null;
+  const p = params as Record<string, unknown>;
+  const raw = p.newSeconds ?? p.newReps ?? p.seconds ?? p.holdSeconds;
+  if (raw === undefined || raw === null) return null;
+  const n = typeof raw === 'string' ? parseFloat(raw.trim()) : Number(raw);
+  if (!Number.isFinite(n)) return null;
+  const rounded = Math.round(n);
+  if (rounded < 1) return null;
+  return rounded;
 }
 
 interface WorkoutProgressProps {
@@ -704,6 +719,7 @@ const WorkoutProgress: React.FC<WorkoutProgressProps> = ({
   // Get workout state from Redux
   const activeWorkout = useSelector(selectActiveWorkout);
   const currentSet = useSelector(selectCurrentSet);
+  const workoutEntries = useSelector((s: RootState) => s.workout.workoutEntries);
   const timers = useSelector(selectTimers);
   const status = useSelector(selectWorkoutStatus);
   const warmup = useSelector(selectWarmup);
@@ -720,6 +736,15 @@ const WorkoutProgress: React.FC<WorkoutProgressProps> = ({
   // Calculate current values from Redux state
   const currentWeight = currentSet?.targetWeight ? `${currentSet.targetWeight} kg` : 'Body';
   const currentReps = currentSet?.targetReps || 0;
+  const currentEntry = workoutEntries?.[activeWorkout?.currentExerciseIndex ?? 0];
+  const isTimePrescription = useMemo(() => {
+    const pt = normalizePrescriptionType(currentEntry?.prescription_type);
+    if (pt === 'time') return true;
+    if (pt === 'reps') return false;
+    return inferPrescriptionType(currentEntry?.reps, currentEntry?.time) === 'time';
+  }, [currentEntry?.prescription_type, currentEntry?.reps, currentEntry?.time]);
+  /** Right column: rep count vs hold seconds (same underlying state uses targetReps for both). */
+  const targetPrescriptionLabel = isTimePrescription ? 'HOLD' : 'REPS';
   const elapsedTime = activeWorkout?.elapsedTime ? Math.floor(activeWorkout.elapsedTime / 1000) : 0;
   const isRunning = status === 'exercising' && !activeWorkout?.isPaused;
   const theme = useBiXoTheme();
@@ -801,7 +826,7 @@ const WorkoutProgress: React.FC<WorkoutProgressProps> = ({
     }));
   }, [dispatch]);
 
-  // Adjust reps value - using refs to get latest values
+  // Adjust rep target or hold seconds (+/-) — uses adjustReps thunk for both prescription types
   const adjustRepsValue = useCallback((delta: number) => {
     const latestReps = currentRepsRef.current;
     const latestSet = currentSetRef.current;
@@ -1128,9 +1153,16 @@ const WorkoutProgress: React.FC<WorkoutProgressProps> = ({
         {/* Separator - Hidden during warmup */}
         {!isWarmupActive && <View style={styles.separator} />}
 
-        {/* Reps - Centered in Right Section with Adjusters - Hidden during warmup */}
+        {/* Reps or hold (seconds) — Centered in Right Section with Adjusters - Hidden during warmup */}
         {!isWarmupActive && (
-          <View style={styles.infoItemRight}>
+          <View
+            style={styles.infoItemRight}
+            accessibilityLabel={
+              isTimePrescription
+                ? `Hold target ${currentReps} seconds`
+                : `Rep target ${currentReps}`
+            }
+          >
             <TouchableOpacity 
               style={styles.adjusterButton}
               onPressIn={() => startHoldIncrement(() => adjustRepsValue(1), repsHoldIntervalRef, repsHoldTimeoutRef)}
@@ -1147,7 +1179,7 @@ const WorkoutProgress: React.FC<WorkoutProgressProps> = ({
               {currentReps}
             </Text>
             <Text style={[styles.infoLabel, { color: nucleus.light.global.grey["90"] }]}>
-              REPS
+              {targetPrescriptionLabel}
             </Text>
             <TouchableOpacity 
               style={styles.adjusterButton}
@@ -3140,7 +3172,39 @@ export default function ActiveWorkoutScreen() {
           return JSON.stringify({ success: false, message: `Failed to adjust reps: ${error}` });
         }
       },
-      
+
+      adjust_hold_seconds: async (params: unknown) => {
+        try {
+          const seconds = parseHoldSecondsFromClientToolParams(params);
+          if (seconds == null) {
+            return JSON.stringify({
+              success: false,
+              message:
+                'Invalid or missing hold duration. Pass newSeconds as a positive whole number (seconds), e.g. {"newSeconds": 45, "reason": "..."}. You may also send newReps with the same numeric value.',
+            });
+          }
+          const reason =
+            typeof params === 'object' && params !== null && 'reason' in params
+              ? String((params as { reason?: unknown }).reason ?? '')
+              : '';
+          const result = await dispatch(
+            adjustHoldSeconds({
+              newSeconds: seconds,
+              reason,
+            })
+          );
+          const data = unwrapResult(result);
+          console.log('🎯 [Client Tool] adjust_hold_seconds result:', data);
+          return JSON.stringify(data);
+        } catch (error) {
+          console.error('❌ [Client Tool] adjust_hold_seconds failed:', error);
+          return JSON.stringify({
+            success: false,
+            message: `Failed to adjust hold duration: ${error instanceof Error ? error.message : error}`,
+          });
+        }
+      },
+
       adjust_rest_time: async (params: unknown) => {
         try {
           const typedParams = params as { newRestTime: number; reason: string };

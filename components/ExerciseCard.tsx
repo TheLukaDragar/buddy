@@ -4,6 +4,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { AutoSkeletonView } from "react-native-auto-skeleton";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { nucleus } from "../BiXo_variables";
+import { inferPrescriptionType, normalizePrescriptionType, parseFirstInt } from "../lib/workoutEntryParsing";
 import { useGetExerciseByIdQuery } from "../store/api/enhancedApi";
 
 interface ExerciseCardProps {
@@ -15,6 +16,8 @@ interface ExerciseCardProps {
     weight?: string | null;
     time?: string | null;
     notes?: string | null;
+    /** When set, distinguishes timed holds from rep ranges; otherwise inferred from reps/time */
+    prescription_type?: string | null;
   };
   onPress: (exercise: any) => void; // Pass exercise data to parent
   getEquipmentIcon: (slug: string) => any;
@@ -59,6 +62,19 @@ export default function ExerciseCard({ workoutEntry, onPress, getEquipmentIcon, 
 
   // Get muscles
   const muscles = exercise?.muscle_categories?.join(', ') || '';
+
+  /** Short label for the plan row: "8–12 reps" vs "45s hold" */
+  const prescriptionSummary = useMemo(() => {
+    const pt =
+      normalizePrescriptionType(workoutEntry.prescription_type) ??
+      inferPrescriptionType(workoutEntry.reps, workoutEntry.time);
+    if (pt === "time") {
+      const sec = parseFirstInt(workoutEntry.time) ?? parseFirstInt(workoutEntry.reps);
+      return sec != null ? `${sec}s hold` : "Hold";
+    }
+    const r = (workoutEntry.reps ?? "").trim();
+    return r ? `${r} reps` : "";
+  }, [workoutEntry.prescription_type, workoutEntry.reps, workoutEntry.time]);
 
   // Check if only one equipment item
   const totalEquipmentItems = equipmentGroups.reduce((sum, group) => sum + group.length, 0);
@@ -115,7 +131,9 @@ export default function ExerciseCard({ workoutEntry, onPress, getEquipmentIcon, 
                   {cleanName}
                 </Text>
                 <Text style={styles.exerciseDetails} numberOfLines={1} ellipsizeMode="tail">
-                  {workoutEntry.sets} sets  •  {muscles}
+                  {workoutEntry.sets} sets
+                  {prescriptionSummary ? ` • ${prescriptionSummary}` : ""}
+                  {muscles ? ` • ${muscles}` : ""}
                 </Text>
                 
                 {/* If only one equipment, show it here inline */}

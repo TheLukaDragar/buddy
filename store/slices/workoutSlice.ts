@@ -1,6 +1,7 @@
 import type { PayloadAction } from '@reduxjs/toolkit';
 import { createSelector, createSlice } from '@reduxjs/toolkit';
 import type { GetWorkoutDayQuery } from '../../graphql/generated';
+import { normalizePrescriptionType, targetRepsFromEntry } from '../../lib/workoutEntryParsing';
 import { ActiveWorkoutState, WorkoutSession } from '../../types/workout';
 
 // Type for workout entries from database
@@ -177,12 +178,6 @@ const workoutSlice = createSlice({
         // Calculate total sets across all entries
         const totalSets = workoutEntries.reduce((sum, entry) => sum + entry.sets, 0);
 
-        // Parse reps to get target reps for first set (e.g., "8–12" -> 8)
-        const parseReps = (repsStr: string): number => {
-          const match = repsStr.match(/(\d+)/);
-          return match ? parseInt(match[1], 10) : 8;
-        };
-
         // Parse weight to get target weight (e.g., "40kg" -> 40)
         const parseWeight = (weightStr: string | null | undefined): number | undefined => {
           if (!weightStr) return undefined;
@@ -205,7 +200,7 @@ const workoutSlice = createSlice({
         };
 
         // Create WorkoutSet from first entry, first set
-        const targetReps = parseReps(firstEntry.reps);
+        const targetReps = targetRepsFromEntry(firstEntry.reps, firstEntry.time, firstEntry.prescription_type);
         const targetWeight = parseWeight(firstEntry.weight);
         const targetTime = parseTime(firstEntry.time);
         const restTimeAfter = parseRestTime(firstEntry.notes);
@@ -358,11 +353,6 @@ const workoutSlice = createSlice({
         state.sessionId = sessionId;
 
         // Helper functions for parsing
-        const parseReps = (repsStr: string): number => {
-          const match = repsStr.match(/(\d+)/);
-          return match ? parseInt(match[1], 10) : 8;
-        };
-
         const parseWeight = (weightStr: string | null | undefined): number | undefined => {
           if (!weightStr) return undefined;
           const match = weightStr.match(/(\d+(?:\.\d+)?)/);
@@ -387,7 +377,7 @@ const workoutSlice = createSlice({
             throw new Error(`Entry ${entry.id} missing exercise data`);
           }
 
-          const targetReps = parseReps(entry.reps);
+          const targetReps = targetRepsFromEntry(entry.reps, entry.time, entry.prescription_type);
           const targetWeight = parseWeight(entry.weight);
           const targetTime = parseTime(entry.time);
           const restTimeAfter = parseRestTime(entry.notes);
@@ -946,10 +936,6 @@ const workoutSlice = createSlice({
         const nextEntry = state.workoutEntries![state.activeWorkout!.currentExerciseIndex];
         
         // Parse values for next exercise
-        const parseReps = (repsStr: string): number => {
-          const match = repsStr.match(/(\d+)/);
-          return match ? parseInt(match[1], 10) : 8;
-        };
         const parseWeight = (weightStr: string | null | undefined): number | undefined => {
           if (!weightStr) return undefined;
           const match = weightStr.match(/(\d+(?:\.\d+)?)/);
@@ -966,7 +952,7 @@ const workoutSlice = createSlice({
           return match ? parseInt(match[1], 10) : 90;
         };
 
-        const targetReps = parseReps(nextEntry.reps);
+        const targetReps = targetRepsFromEntry(nextEntry.reps, nextEntry.time, nextEntry.prescription_type);
         const targetWeight = parseWeight(nextEntry.weight);
         const targetTime = parseTime(nextEntry.time);
         const restTimeAfter = parseRestTime(nextEntry.notes);
@@ -1287,19 +1273,45 @@ const workoutSlice = createSlice({
 
     adjustReps: (state, action: PayloadAction<{ newReps: number; reason: string }>) => {
       const { newReps, reason } = action.payload;
-      const oldReps = state.activeWorkout!.currentSet!.targetReps;
-      
-      // Update current set and all subsequent sets in current exercise
+      const currentSet = state.activeWorkout!.currentSet!;
+      const oldReps = currentSet.targetReps;
+      const oldTargetTime = currentSet.targetTime;
+      const entryRow = state.workoutEntries?.[state.activeWorkout!.currentExerciseIndex];
+      const pt = normalizePrescriptionType(entryRow?.prescription_type);
+      /** Timed prescriptions: explicit type, or legacy rows that already had targetTime */
+      const isTimedHold =
+        pt === 'time' || (pt == null && oldTargetTime != null && oldTargetTime > 0);
+
       const currentExercise = state.activeWorkout!.currentExercise!;
       const currentSetIndex = state.activeWorkout!.currentSetIndex;
-      
+
       for (let i = currentSetIndex; i < currentExercise.sets.length; i++) {
         currentExercise.sets[i].targetReps = newReps;
+        if (isTimedHold) {
+          currentExercise.sets[i].targetTime = newReps;
+        }
       }
-      
-      // Update the current active set reference
-      state.activeWorkout!.currentSet!.targetReps = newReps;
-      
+
+      currentSet.targetReps = newReps;
+      if (isTimedHold) {
+        currentSet.targetTime = newReps;
+      }
+
+      if (
+        isTimedHold &&
+        state.status === 'exercising' &&
+        state.timers.setTimer &&
+        oldTargetTime != null
+      ) {
+        const deltaMs = (newReps - oldTargetTime) * 1000;
+        const newDurationMs = newReps * 1000;
+        state.timers.setTimer.duration = newDurationMs;
+        state.timers.setTimer.remaining = Math.min(
+          Math.max(0, state.timers.setTimer.remaining + deltaMs),
+          newDurationMs
+        );
+      }
+
       state.activeWorkout!.adjustmentsMade.push({
         type: 'reps',
         from: oldReps,
@@ -1458,10 +1470,6 @@ const workoutSlice = createSlice({
       
       // Build exercise structure from entry
       const targetEntry = state.workoutEntries[exerciseIndex];
-      const parseReps = (repsStr: string): number => {
-        const match = repsStr.match(/(\d+)/);
-        return match ? parseInt(match[1], 10) : 8;
-      };
       const parseWeight = (weightStr: string | null | undefined): number | undefined => {
         if (!weightStr) return undefined;
         const match = weightStr.match(/(\d+(?:\.\d+)?)/);
@@ -1478,7 +1486,7 @@ const workoutSlice = createSlice({
         return match ? parseInt(match[1], 10) : 90;
       };
       
-      const targetReps = parseReps(targetEntry.reps);
+      const targetReps = targetRepsFromEntry(targetEntry.reps, targetEntry.time, targetEntry.prescription_type);
       const targetWeight = parseWeight(targetEntry.weight);
       const targetTime = parseTime(targetEntry.time);
       const restTimeAfter = parseRestTime(targetEntry.notes);
@@ -1622,10 +1630,6 @@ const workoutSlice = createSlice({
       state.activeWorkout.currentExerciseIndex = effectiveIndex;
       const entryToShow = reordered[effectiveIndex] as typeof targetEntry;
 
-      const parseReps = (repsStr: string): number => {
-        const match = repsStr.match(/(\d+)/);
-        return match ? parseInt(match[1], 10) : 8;
-      };
       const parseWeight = (weightStr: string | null | undefined): number | undefined => {
         if (!weightStr) return undefined;
         const match = weightStr.match(/(\d+(?:\.\d+)?)/);
@@ -1642,7 +1646,7 @@ const workoutSlice = createSlice({
         return match ? parseInt(match[1], 10) : 90;
       };
       
-      const targetReps = parseReps(entryToShow.reps);
+      const targetReps = targetRepsFromEntry(entryToShow.reps, entryToShow.time, entryToShow.prescription_type);
       const targetWeight = parseWeight(entryToShow.weight);
       const targetTime = parseTime(entryToShow.time);
       const restTimeAfter = parseRestTime(entryToShow.notes);
@@ -1850,6 +1854,7 @@ const workoutSlice = createSlice({
       updates: {
         sets?: number;
         reps?: string;
+        prescriptionType?: string;
         weight?: string;
         time?: string;
         notes?: string;
@@ -1891,6 +1896,7 @@ const workoutSlice = createSlice({
       // CRITICAL: After swap, updates.reps/time contain fresh data from refetch, not stale nested data
       if (updates.sets !== undefined) entry.sets = updates.sets;
       if (updates.reps !== undefined) entry.reps = updates.reps;
+      if (updates.prescriptionType !== undefined) entry.prescription_type = updates.prescriptionType;
       if (updates.weight !== undefined) entry.weight = updates.weight;
       if (updates.time !== undefined) entry.time = updates.time;
       if (updates.notes !== undefined) entry.notes = updates.notes;
@@ -1903,10 +1909,6 @@ const workoutSlice = createSlice({
       const isCurrentExercise = activeWorkout && activeWorkout.currentExerciseIndex === entryIndex;
       
       if (isCurrentExercise) {
-        const parseReps = (repsStr: string): number => {
-          const match = repsStr.match(/(\d+)/);
-          return match ? parseInt(match[1], 10) : 8;
-        };
         const parseWeight = (weightStr: string | null | undefined): number | undefined => {
           if (!weightStr) return undefined;
           const match = weightStr.match(/(\d+(?:\.\d+)?)/);
@@ -1925,7 +1927,7 @@ const workoutSlice = createSlice({
         
         // CRITICAL: entry.reps/time are now fresh after updates applied above
         // After swap, these come from GetWorkoutDay refetch, ensuring correct values for new exercise
-        const targetReps = parseReps(entry.reps);
+        const targetReps = targetRepsFromEntry(entry.reps, entry.time, entry.prescription_type);
         const targetWeight = parseWeight(entry.weight);
         const targetTime = parseTime(entry.time);
         const restTimeAfter = parseRestTime(entry.notes);
