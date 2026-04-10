@@ -1,21 +1,24 @@
 import Constants from 'expo-constants';
 
 export const generateAPIUrl = (relativePath: string) => {
-  const origin = Constants.experienceUrl?.replace('exp://', 'http://') || 'http://localhost:8081';
-
   const path = relativePath.startsWith('/') ? relativePath : `/${relativePath}`;
 
+  // When set, always use the deployed API (dev client off cable, TestFlight, production).
+  // Dev-only: omit EXPO_PUBLIC_API_BASE_URL to hit Metro for local API routes.
+  const publicBase = process.env.EXPO_PUBLIC_API_BASE_URL?.replace(/\/$/, '');
+  if (publicBase) {
+    return `${publicBase}${path}`;
+  }
+
   if (process.env.NODE_ENV === 'development') {
+    const origin =
+      Constants.experienceUrl?.replace('exp://', 'http://') || 'http://localhost:8081';
     return origin.concat(path);
   }
 
-  if (!process.env.EXPO_PUBLIC_API_BASE_URL) {
-    throw new Error(
-      'EXPO_PUBLIC_API_BASE_URL environment variable is not defined',
-    );
-  }
-
-  return process.env.EXPO_PUBLIC_API_BASE_URL.concat(path);
+  throw new Error(
+    'EXPO_PUBLIC_API_BASE_URL environment variable is not defined',
+  );
 };
 
 /**

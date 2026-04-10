@@ -25,6 +25,7 @@ import ReanimatedAnimated, {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
 import { nucleus } from '../BiXo_variables.js';
+import { generateAPIUrl } from '../utils';
 import ChatComponent from '../components/ChatComponent';
 import MusicModal from '../components/MusicModal';
 import { useBiXoTheme } from '../constants/BiXoTheme';
@@ -3752,7 +3753,7 @@ export default function ActiveWorkoutScreen() {
   // Function to fetch conversation token
   const fetchConversationToken = async () => {
     try {
-      const response = await fetch('/api/elevenlabs-token', {
+      const response = await fetch(generateAPIUrl('/api/elevenlabs-token'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

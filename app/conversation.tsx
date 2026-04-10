@@ -13,6 +13,7 @@ import type { ConversationStatus, ConversationEvent, Role } from "@elevenlabs/re
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { nucleus } from '../BiXo_variables.js';
 import { useMicrophonePermission } from '../hooks/useMicrophonePermission';
+import { generateAPIUrl } from '../utils';
 
 export default function ConversationScreen() {
   const { requestMicrophonePermission } = useMicrophonePermission();
@@ -89,7 +90,7 @@ export default function ConversationScreen() {
 
       // Get conversation token from your API
       const agentId = 'agent_7501k2pbpjmqe2et3qh3634a66rv';
-      const tokenResponse = await fetch('/api/elevenlabs-token', {
+      const tokenResponse = await fetch(generateAPIUrl('/api/elevenlabs-token'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
