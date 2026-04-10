@@ -4,8 +4,12 @@
 # 1) Link GitHub: Expo dashboard → Project → GitHub settings → install app → connect this repo.
 # 2) Commit and push this file; workflows appear under Project → Workflows.
 # 3) Adjust `branches` if your default branch is not `master`.
+#
+# On each push: native builds (production profile) + EAS Update to channel `production`
+# (same channel as eas.json → build.production.channel). See:
+# https://docs.expo.dev/eas/workflows/pre-packaged-jobs/#update
 
-name: Production builds
+name: Production builds + OTA
 
 on:
   push:
@@ -26,3 +30,13 @@ jobs:
     params:
       platform: ios
       profile: production
+
+  publish_update:
+    name: Publish EAS Update (production channel)
+    type: update
+    environment: production
+    params:
+      channel: production
+      platform: all
+      # Head commit message on push & schedule only; manual `eas workflow:run` has no commit.
+      message: "${{ github.commit_message || 'EAS Update' }}"
