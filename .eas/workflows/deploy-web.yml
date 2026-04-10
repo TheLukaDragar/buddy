@@ -1,0 +1,20 @@
+# EAS Hosting: export web + deploy API routes to production.
+# Docs: https://docs.expo.dev/eas/hosting/workflows/
+#
+# Runs on push to master (same branch as production-build.yml). Requires GitHub ↔ Expo linked.
+# This does NOT replace `eas update` — native OTA is still published by production-build.yml.
+
+name: Deploy web + API
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  deploy:
+    name: Deploy to EAS Hosting (production)
+    type: deploy
+    environment: production
+    params:
+      prod: true

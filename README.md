@@ -208,6 +208,10 @@ User App → Supabase Edge Function → Trigger.dev → Database
 
 # NOTE DEPLOY
 
+**Automated:** pushing to `master` runs [`.eas/workflows/deploy-web.yml`](.eas/workflows/deploy-web.yml) (`type: deploy`, `prod: true`) — see [Web deployments with EAS Workflows](https://docs.expo.dev/eas/hosting/workflows/).
+
+**Manual (same result):**
+
 ```bash
 npx expo export --platform web
 npx eas-cli deploy --prod
