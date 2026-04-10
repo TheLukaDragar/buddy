@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "BiXo",
-    "slug": "buddy",
+    "slug": "bixo",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -15,7 +15,8 @@
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSMicrophoneUsageDescription": "This app needs microphone access to enable voice conversations with AI agents."
-      }
+      },
+      "bitcode": false
     },
     "android": {
       "adaptiveIcon": {
@@ -29,7 +30,13 @@
         "android.permission.GET_TASKS",
         "android.permission.ACCESS_NOTIFICATION_POLICY",
         "android.permission.BIND_NOTIFICATION_LISTENER_SERVICE",
-        "android.permission.MEDIA_CONTENT_CONTROL"
+        "android.permission.MEDIA_CONTENT_CONTROL",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.CAMERA",
+        "android.permission.INTERNET",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.WAKE_LOCK",
+        "android.permission.BLUETOOTH"
       ],
       "edgeToEdgeEnabled": true,
       "package": "com.theluka.bixo",
@@ -82,13 +89,16 @@
       "typedRoutes": true
     },
     "extra": {
-      "router": {},
+      "router": {
+        "origin": "https://theluka-bixo.expo.app/"
+      },
       "eas": {
-        "projectId": "82097d94-4f98-4761-a22d-d926faf1997b"
+        "projectId": "4516ead3-2f7d-4026-913c-dabe2ff0ac16"
       }
     },
     "updates": {
-      "url": "https://u.expo.dev/82097d94-4f98-4761-a22d-d926faf1997b"
-    }
+      "url": "https://u.expo.dev/4516ead3-2f7d-4026-913c-dabe2ff0ac16"
+    },
+    "owner": "theluka"
   }
 }

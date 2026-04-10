@@ -1,0 +1,28 @@
+# EAS Workflows — runs on Expo’s servers when triggered.
+# Docs: https://docs.expo.dev/eas/workflows/get-started/
+#
+# 1) Link GitHub: Expo dashboard → Project → GitHub settings → install app → connect this repo.
+# 2) Commit and push this file; workflows appear under Project → Workflows.
+# 3) Adjust `branches` if your default branch is not `master`.
+
+name: Production builds
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  build_android:
+    name: Build Android (production)
+    type: build
+    params:
+      platform: android
+      profile: production
+
+  build_ios:
+    name: Build iOS (production)
+    type: build
+    params:
+      platform: ios
+      profile: production
