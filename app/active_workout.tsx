@@ -4153,6 +4153,7 @@ export default function ActiveWorkoutScreen() {
         onPress={handleBiXoAIPress}
         disabled={false}
         conversationStatus={conversationStatus}
+        conversationMode={conversationMode === 'speaking' ? 'speaking' : 'listening'}
       />
 
       {/* Set feedback layer - tap to respond when Buddy asks "How did that feel?" */}
