@@ -1,11 +1,21 @@
 import * as Haptics from 'expo-haptics';
 import { BlurView } from 'expo-blur';
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Modal, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from 'react-native-paper';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated, {
+  cancelAnimation,
+  Easing,
+  FadeIn,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { nucleus } from '../BiXo_variables.js';
+
+const AUTO_DISMISS_MS = 7000;
 
 const FEEDBACK_OPTIONS = [
   'Easy',
@@ -28,6 +38,37 @@ export default function SetFeedbackLayer({
   onDismiss,
 }: SetFeedbackLayerProps) {
   const insets = useSafeAreaInsets();
+  const onDismissRef = useRef(onDismiss);
+  onDismissRef.current = onDismiss;
+
+  const autoDismissProgress = useSharedValue(1);
+
+  useEffect(() => {
+    if (!visible) {
+      cancelAnimation(autoDismissProgress);
+      autoDismissProgress.value = 1;
+      return;
+    }
+
+    cancelAnimation(autoDismissProgress);
+    autoDismissProgress.value = 1;
+
+    autoDismissProgress.value = withTiming(
+      0,
+      { duration: AUTO_DISMISS_MS, easing: Easing.linear },
+      (finished) => {
+        if (finished) runOnJS(onDismissRef.current)();
+      },
+    );
+
+    return () => {
+      cancelAnimation(autoDismissProgress);
+    };
+  }, [visible]);
+
+  const progressBarFillStyle = useAnimatedStyle(() => ({
+    width: `${autoDismissProgress.value * 100}%`,
+  }));
 
   const handleSelect = (feedback: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -70,6 +111,12 @@ export default function SetFeedbackLayer({
           <Text style={styles.closeIcon}>✕</Text>
         </TouchableOpacity>
         <View style={styles.content}>
+          <View
+            style={styles.autoDismissProgressTrack}
+            accessibilityLabel="Feedback closes automatically when timer ends"
+          >
+            <Animated.View style={[styles.autoDismissProgressFill, progressBarFillStyle]} />
+          </View>
           {/* Title - white, bold per Figma */}
           <Text style={styles.title}>How did this exercise feel? 😎</Text>
 
@@ -125,6 +172,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  autoDismissProgressTrack: {
+    alignSelf: 'stretch',
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.35)',
+    overflow: 'hidden',
+    marginBottom: 24,
+  },
+  autoDismissProgressFill: {
+    height: '100%',
+    borderRadius: 2,
+    backgroundColor: nucleus.light.global.white,
   },
   closeButton: {
     position: 'absolute',
