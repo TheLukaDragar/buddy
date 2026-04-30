@@ -661,10 +661,15 @@ export default function WorkoutCompletedScreen() {
       const lastSet = sortedSets[sortedSets.length - 1];
       const firstSet = sortedSets.find(s => s.is_completed) || sortedSets[0];
       const exerciseId = lastSet?.exercise_id ?? entry.sets[0]?.exercise_id ?? '';
+      const exerciseDisplayName =
+        lastSet?.exercises?.name ??
+        sortedSets.find(s => s.exercises?.name)?.exercises?.name ??
+        undefined;
 
       return {
         id: entry.id,
         exercise_id: exerciseId,
+        exerciseName: exerciseDisplayName,
         sets: entry.sets.filter(s => s.is_completed).length || entry.sets.length,
         reps: firstSet?.actual_reps?.toString() || firstSet?.target_reps?.toString() || null,
         weight: firstSet?.actual_weight?.toString() || firstSet?.target_weight?.toString() || null,
@@ -691,25 +696,40 @@ export default function WorkoutCompletedScreen() {
       return [];
     }
 
+    const entryMetaByWorkoutEntryId = new Map(
+      completedExercises.map((e) => [
+        e.id,
+        { exerciseId: e.exercise_id, exerciseName: e.exerciseName },
+      ]),
+    );
+
     const rawAdjustments = adjustmentsData.workout_session_adjustmentsCollection.edges.map(e => e.node);
     const filtered = rawAdjustments.filter(adj => ['weight', 'reps', 'rest'].includes(adj.type));
 
-    const formatted = filtered.map(adj => ({
+    const formatted = filtered.map(adj => {
+      const entryMeta =
+        adj.workout_entry_id != null ? entryMetaByWorkoutEntryId.get(adj.workout_entry_id) : undefined;
+
+      const exerciseIdResolved =
+        (adj.exercise_id as string | undefined) || entryMeta?.exerciseId || undefined;
+
+      return {
       type: adj.type as 'weight' | 'reps' | 'rest',
       from: parseFloat(adj.from_value) || 0,
       to: parseFloat(adj.to_value) || 0,
       reason: adj.reason,
-      exerciseId: adj.exercise_id || undefined,
-      exerciseName: adj.exercises?.name || undefined,
+      exerciseId: exerciseIdResolved,
+      exerciseName: adj.exercises?.name || entryMeta?.exerciseName || undefined,
       affectedSetNumbers: adj.affected_set_numbers
         ? adj.affected_set_numbers.filter((n): n is number => n !== null)
         : undefined,
       isApplied: adj.is_applied || false,
       createdAt: adj.created_at || undefined,
-    }));
+      };
+    });
 
     return formatted;
-  }, [adjustmentsData]);
+  }, [adjustmentsData, completedExercises]);
 
   // Calculate total weight lifted (incl. bar weight for barbell +20kg, ez-bar +8kg)
   const totalWeightLifted = React.useMemo(() => {

@@ -983,7 +983,7 @@ const workoutSlice = createSlice({
         state.activeWorkout.currentSetIndex = targetSetIndex;
 
         const nextExercise = {
-          id: nextEntry.exercises.id,
+          id: nextEntry.exercise_id, // Use FK column, not nested join (join can be absent/stale)
           name: nextEntry.exercises.name.replace(/\s*\([^)]*\)/g, '').trim(),
           description: nextEntry.exercises.instructions,
           type: 'strength' as const,
@@ -1492,7 +1492,7 @@ const workoutSlice = createSlice({
       const restTimeAfter = parseRestTime(targetEntry.notes);
       
       state.activeWorkout.currentExercise = {
-        id: targetEntry.exercises?.id || '',
+        id: targetEntry.exercise_id, // Use FK column, not nested join (join can be absent/stale)
         name: targetEntry.exercises?.name?.replace(/\s*\([^)]*\)/g, '').trim() || '',
         description: targetEntry.exercises?.instructions || '',
         type: 'strength' as const,
@@ -1681,7 +1681,7 @@ const workoutSlice = createSlice({
       const targetSetIndex = firstIncompleteSetIndex !== -1 ? firstIncompleteSetIndex : sets.length - 1;
       
       state.activeWorkout.currentExercise = {
-        id: entryToShow.exercises?.id || '',
+        id: entryToShow.exercise_id, // Use FK column, not nested join (join can be absent/stale)
         name: entryToShow.exercises?.name?.replace(/\s*\([^)]*\)/g, '').trim() || '',
         description: entryToShow.exercises?.instructions || '',
         type: 'strength' as const,

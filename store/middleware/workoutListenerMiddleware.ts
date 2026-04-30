@@ -1886,13 +1886,16 @@ startAppListening({
     
     // Record each individual adjustment immediately (not debounced)
     // This ensures all adjustments are tracked, even during rapid changes
+    const exerciseIdForRecord =
+      activeWorkout.currentExercise?.id ?? currentEntry.exercise_id;
+
     try {
       await dispatch(
         enhancedApi.endpoints.AddWorkoutAdjustment.initiate({
           sessionId,
           type: 'reps',
           workoutEntryId: currentEntry.id,
-          exerciseId: activeWorkout.currentExercise?.id,
+          exerciseId: exerciseIdForRecord,
           fromValue: oldReps.toString(),
           toValue: newReps.toString(),
           reason: reason || 'User adjusted reps',
@@ -1972,13 +1975,16 @@ startAppListening({
     
     // Record each individual adjustment immediately (not debounced)
     // This ensures all adjustments are tracked, even during rapid changes
+    const exerciseIdForRecord =
+      activeWorkout.currentExercise?.id ?? currentEntry.exercise_id;
+
     try {
       await dispatch(
         enhancedApi.endpoints.AddWorkoutAdjustment.initiate({
           sessionId,
           type: 'weight',
           workoutEntryId: currentEntry.id,
-          exerciseId: activeWorkout.currentExercise?.id,
+          exerciseId: exerciseIdForRecord,
           fromValue: oldWeight.toString(),
           toValue: newWeight.toString(),
           reason: reason || 'User adjusted weight',
