@@ -97,15 +97,29 @@ export default function WorkoutPlanProgress() {
 
   // Get profile from Redux
   const extractedProfile = useAppSelector((state: RootState) => (state as any).user?.extractedProfile);
+  // Non-persisted: set when generateWorkoutPlanFromProfile.fulfilled fires this session
+  const workoutPlanRequestId = useAppSelector((state: RootState) => (state as any).user?.workoutPlanRequestId);
 
   // Monitor workout plan requests with real-time updates
   const { data: requestsData, isLoading } = useGetWorkoutPlanRequestsQuery(
     { userId: user?.id || '' },
-    { skip: !user?.id, pollingInterval: 2000, refetchOnReconnect: true, refetchOnFocus: true, refetchOnMountOrArgChange: true } // Poll every 2 seconds for updates
+    { skip: !user?.id, pollingInterval: 2000, refetchOnReconnect: true, refetchOnFocus: true, refetchOnMountOrArgChange: true }
   );
 
   const requests = requestsData?.workout_plan_requestsCollection?.edges?.map(edge => edge.node) || [];
-  const latestRequest = requests[0]; // Most recent request
+
+  const latestRequest = React.useMemo(() => {
+    if (!requests.length) return undefined;
+    // Prefer the exact row we started this session — avoids stale completed rows
+    if (workoutPlanRequestId) {
+      return requests.find(r => r.request_id === workoutPlanRequestId) ?? undefined;
+    }
+    // Fallback (e.g. app reopened mid-generation): only pick an in-flight row
+    return (
+      requests.find(r => r.status === 'processing' || r.status === 'pending') ??
+      undefined
+    );
+  }, [requests, workoutPlanRequestId]);
 
 
   const steps = [
