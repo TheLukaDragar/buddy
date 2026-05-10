@@ -10,6 +10,7 @@ import type { GetWorkoutSessionByDateQueryVariables } from '../graphql/generated
 import { supabase } from '../lib/supabase';
 import { enhancedApi, useGetWorkoutEntriesPresetIdQuery, useGetWorkoutSessionByDateQuery } from '../store/api/enhancedApi';
 import { getDayNameImage } from '../utils';
+import { isWorkoutFullyCompletedByCounts } from '../utils/workoutCompletion';
 
 export interface WorkoutItemData {
   id: string;
@@ -149,10 +150,14 @@ export default function WorkoutItem({ workout, index, onPress, planId, isPastWee
     // Session exists - use session data
     // Calculate progress from completed sets / total sets
     let sessionProgress = 0;
-    if (session.total_sets && session.total_sets > 0) {
-      sessionProgress = Math.round((session.completed_sets || 0) / session.total_sets * 100);
-      console.log('[WorkoutItem] Progress calc:', session.completed_sets, '/', session.total_sets, '=', sessionProgress, '%');
+    const totalSetsCount = session.total_sets ?? 0;
+    const completedSetsCount = session.completed_sets ?? 0;
+    if (totalSetsCount > 0) {
+      sessionProgress = Math.round(completedSetsCount / totalSetsCount * 100);
+      console.log('[WorkoutItem] Progress calc:', completedSetsCount, '/', totalSetsCount, '=', sessionProgress, '%');
     }
+
+    const allSetsLogged = totalSetsCount > 0 && completedSetsCount >= totalSetsCount;
 
     // ✅ FIX: Check session.status to handle abandoned/finished_early correctly
     const status = session.status;
@@ -169,13 +174,20 @@ export default function WorkoutItem({ workout, index, onPress, planId, isPastWee
       };
     }
 
-    // Show checkmark only for fully completed OR finished early with >= 80%
-    const showCheckmark = session.is_fully_completed || (session.finished_early && sessionProgress >= 80);
+    // Checkmark: DB flag, every planned set logged, or finished early with strong set progress
+    const showCheckmark =
+      !!session.is_fully_completed ||
+      allSetsLogged ||
+      !!(session.finished_early && sessionProgress >= 80);
 
     // Only show "Completed" status if:
     // 1. Status is "completed" AND is_fully_completed is true, OR
-    // 2. Progress >= 80% (regardless of status for finished_early)
-    const sessionIsCompleted = (status === 'completed' && session.is_fully_completed) || sessionProgress >= 80;
+    // 2. Progress >= 80% (regardless of status for finished_early), OR
+    // 3. All planned sets logged (matches product: finishing every set = workout done)
+    const sessionIsCompleted =
+      (status === 'completed' && !!session.is_fully_completed) ||
+      sessionProgress >= 80 ||
+      allSetsLogged;
 
     // If session is in progress but not completed, ensure we show some progress
     if (!showCheckmark && status && ['exercising', 'preparing', 'resting', 'paused'].includes(status)) {
@@ -185,7 +197,8 @@ export default function WorkoutItem({ workout, index, onPress, planId, isPastWee
     const result = {
       isCompleted: sessionIsCompleted,
       isFullyCompleted: showCheckmark,
-      progress: session.is_fully_completed ? 100 : sessionProgress,
+      progress:
+        session.is_fully_completed || allSetsLogged ? 100 : sessionProgress,
       hasSession: true,
       sessionStatus: status
     };
@@ -253,7 +266,12 @@ export default function WorkoutItem({ workout, index, onPress, planId, isPastWee
           id: session.id,
           status: 'completed',
           completedAt: new Date().toISOString(),
-          isFullyCompleted: totalExercises > 0 && completedExercises >= totalExercises,
+          isFullyCompleted: isWorkoutFullyCompletedByCounts({
+            completedSets,
+            totalSets,
+            completedExercises,
+            totalExercises,
+          }),
           finishedEarly: false,
           completedExercises,
           completedSets,

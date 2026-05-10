@@ -1,4 +1,5 @@
 import { createListenerMiddleware, isAnyOf, type TypedStartListening } from '@reduxjs/toolkit';
+import { isWorkoutFullyCompletedByCounts } from '../../utils/workoutCompletion';
 import {
   inferPrescriptionType,
   normalizePrescriptionType,
@@ -863,7 +864,12 @@ startAppListening({
       
       if (sessionId && !sessionId.startsWith('temp-') && activeWorkout) {
         // Calculate if workout was fully completed
-        const isFullyCompleted = activeWorkout.completedExercises === activeWorkout.totalExercises;
+        const isFullyCompleted = isWorkoutFullyCompletedByCounts({
+          completedSets: activeWorkout.completedSets,
+          totalSets: activeWorkout.totalSets,
+          completedExercises: activeWorkout.completedExercises,
+          totalExercises: activeWorkout.totalExercises,
+        });
         
         // Calculate total workout time (elapsed time minus pause time)
         const now = Date.now();
@@ -927,16 +933,24 @@ startAppListening({
       const systemMessage = `SYSTEM: workout-completed - User finished entire workout. Great job!`;
       
       // Get workout summary data
+      const summaryAw = workoutState.activeWorkout;
       const workoutSummary = {
         sessionName: workoutState.session?.name || workoutState.dayName || 'Unknown',
-        totalTime: workoutState.activeWorkout ? Date.now() - workoutState.activeWorkout.startTime.getTime() : 0,
-        completedExercises: workoutState.activeWorkout?.completedExercises || 0,
-        totalExercises: workoutState.activeWorkout?.totalExercises || 0,
-        completedSets: workoutState.activeWorkout?.completedSets || 0,
-        totalSets: workoutState.activeWorkout?.totalSets || 0,
-        setsCompleted: workoutState.activeWorkout?.setsCompleted || [],
-        adjustmentsMade: workoutState.activeWorkout?.adjustmentsMade || [],
-        isFullyCompleted: true,
+        totalTime: summaryAw ? Date.now() - summaryAw.startTime.getTime() : 0,
+        completedExercises: summaryAw?.completedExercises || 0,
+        totalExercises: summaryAw?.totalExercises || 0,
+        completedSets: summaryAw?.completedSets || 0,
+        totalSets: summaryAw?.totalSets || 0,
+        setsCompleted: summaryAw?.setsCompleted || [],
+        adjustmentsMade: summaryAw?.adjustmentsMade || [],
+        isFullyCompleted: summaryAw
+          ? isWorkoutFullyCompletedByCounts({
+              completedSets: summaryAw.completedSets,
+              totalSets: summaryAw.totalSets,
+              completedExercises: summaryAw.completedExercises,
+              totalExercises: summaryAw.totalExercises,
+            })
+          : false,
       };
       
       dispatch(addContextMessage({
@@ -1100,16 +1114,24 @@ startAppListening({
     const systemMessage = `SYSTEM: workout-completed - User finished entire workout. Great job!`;
     
     // Get workout summary data
+    const cwAw = state.workout.activeWorkout;
     const workoutSummary = {
       sessionName: state.workout.session?.name || state.workout.dayName || 'Unknown',
-      totalTime: state.workout.activeWorkout ? Date.now() - state.workout.activeWorkout.startTime.getTime() : 0,
-      completedExercises: state.workout.activeWorkout?.completedExercises || 0,
-      totalExercises: state.workout.activeWorkout?.totalExercises || 0,
-      completedSets: state.workout.activeWorkout?.completedSets || 0,
-      totalSets: state.workout.activeWorkout?.totalSets || 0,
-      setsCompleted: state.workout.activeWorkout?.setsCompleted || [],
-      adjustmentsMade: state.workout.activeWorkout?.adjustmentsMade || [],
-      isFullyCompleted: true,
+      totalTime: cwAw ? Date.now() - cwAw.startTime.getTime() : 0,
+      completedExercises: cwAw?.completedExercises || 0,
+      totalExercises: cwAw?.totalExercises || 0,
+      completedSets: cwAw?.completedSets || 0,
+      totalSets: cwAw?.totalSets || 0,
+      setsCompleted: cwAw?.setsCompleted || [],
+      adjustmentsMade: cwAw?.adjustmentsMade || [],
+      isFullyCompleted: cwAw
+        ? isWorkoutFullyCompletedByCounts({
+            completedSets: cwAw.completedSets,
+            totalSets: cwAw.totalSets,
+            completedExercises: cwAw.completedExercises,
+            totalExercises: cwAw.totalExercises,
+          })
+        : false,
     };
     
     dispatch(addContextMessage({
@@ -1510,19 +1532,27 @@ startAppListening({
     const state = listenerApi.getState() as RootState;
     // Generate context message for early finish instead of reading pendingUpdates
     
+    const feAw = state.workout.activeWorkout;
     const workoutSummary = {
       sessionName: state.workout.session?.name || state.workout.dayName || 'Unknown',
-      totalTime: state.workout.activeWorkout ? Date.now() - state.workout.activeWorkout.startTime.getTime() : 0,
-      completedExercises: state.workout.activeWorkout?.completedExercises || 0,
-      totalExercises: state.workout.activeWorkout?.totalExercises || 0,
-      completedSets: state.workout.activeWorkout?.completedSets || 0,
-      totalSets: state.workout.activeWorkout?.totalSets || 0,
-      setsCompleted: state.workout.activeWorkout?.setsCompleted || [],
-      adjustmentsMade: state.workout.activeWorkout?.adjustmentsMade || [],
-      isFullyCompleted: false,
+      totalTime: feAw ? Date.now() - feAw.startTime.getTime() : 0,
+      completedExercises: feAw?.completedExercises || 0,
+      totalExercises: feAw?.totalExercises || 0,
+      completedSets: feAw?.completedSets || 0,
+      totalSets: feAw?.totalSets || 0,
+      setsCompleted: feAw?.setsCompleted || [],
+      adjustmentsMade: feAw?.adjustmentsMade || [],
+      isFullyCompleted: feAw
+        ? isWorkoutFullyCompletedByCounts({
+            completedSets: feAw.completedSets,
+            totalSets: feAw.totalSets,
+            completedExercises: feAw.completedExercises,
+            totalExercises: feAw.totalExercises,
+          })
+        : false,
       finishedEarly: true,
-      currentExercise: state.workout.activeWorkout?.currentExercise?.name,
-      currentSet: (state.workout.activeWorkout?.currentSetIndex || 0) + 1,
+      currentExercise: feAw?.currentExercise?.name,
+      currentSet: (feAw?.currentSetIndex || 0) + 1,
     };
     
     dispatch(addContextMessage({
@@ -2380,7 +2410,12 @@ startAppListening({
     }
     
     // Calculate if workout was fully completed
-    const isFullyCompleted = activeWorkout.completedExercises === activeWorkout.totalExercises;
+    const isFullyCompleted = isWorkoutFullyCompletedByCounts({
+      completedSets: activeWorkout.completedSets,
+      totalSets: activeWorkout.totalSets,
+      completedExercises: activeWorkout.completedExercises,
+      totalExercises: activeWorkout.totalExercises,
+    });
     
     // Calculate total workout time (elapsed time minus pause time)
     const now = Date.now();
@@ -2450,7 +2485,12 @@ startAppListening({
       return;
     }
     
-    const isFullyCompleted = activeWorkout.completedExercises === activeWorkout.totalExercises;
+    const isFullyCompleted = isWorkoutFullyCompletedByCounts({
+      completedSets: activeWorkout.completedSets,
+      totalSets: activeWorkout.totalSets,
+      completedExercises: activeWorkout.completedExercises,
+      totalExercises: activeWorkout.totalExercises,
+    });
     
     // Flush any pending adjustment updates before finishing early (after capturing state)
     await flushPendingAdjustments();

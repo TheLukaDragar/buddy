@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
+import { isWorkoutFullyCompletedByCounts } from '../utils/workoutCompletion';
 import { enhancedApi } from '../store/api/enhancedApi';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { selectSessionId } from '../store/slices/workoutSlice';
@@ -40,8 +41,12 @@ export function useWorkoutSyncOnBackground() {
               id: sessionId,
               status: 'completed',
               completedAt: new Date().toISOString(),
-              isFullyCompleted:
-                activeWorkout.completedExercises === activeWorkout.totalExercises,
+              isFullyCompleted: isWorkoutFullyCompletedByCounts({
+                completedSets: activeWorkout.completedSets,
+                totalSets: activeWorkout.totalSets,
+                completedExercises: activeWorkout.completedExercises,
+                totalExercises: activeWorkout.totalExercises,
+              }),
               finishedEarly: false,
               completedExercises: activeWorkout.completedExercises,
               completedSets: activeWorkout.completedSets,

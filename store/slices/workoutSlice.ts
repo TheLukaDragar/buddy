@@ -3,6 +3,7 @@ import { createSelector, createSlice } from '@reduxjs/toolkit';
 import type { GetWorkoutDayQuery } from '../../graphql/generated';
 import { normalizePrescriptionType, targetRepsFromEntry } from '../../lib/workoutEntryParsing';
 import { ActiveWorkoutState, WorkoutSession } from '../../types/workout';
+import { isWorkoutFullyCompletedByCounts } from '../../utils/workoutCompletion';
 
 // Type for workout entries from database
 type WorkoutPlansCollection = NonNullable<GetWorkoutDayQuery['workout_plansCollection']>;
@@ -1026,16 +1027,22 @@ const workoutSlice = createSlice({
       // Get workout name from either session (legacy) or dayName (new structure)
       const workoutName = state.session?.name || state.dayName || 'Workout';
 
+      const aw = state.activeWorkout!;
       const workoutSummary = {
         sessionName: workoutName,
-        totalTime: Date.now() - state.activeWorkout!.startTime.getTime(),
-        completedExercises: state.activeWorkout!.completedExercises,
-        totalExercises: state.activeWorkout!.totalExercises,
-        completedSets: state.activeWorkout!.completedSets,
-        totalSets: state.activeWorkout!.totalSets,
-        setsCompleted: state.activeWorkout!.setsCompleted,
-        adjustmentsMade: state.activeWorkout!.adjustmentsMade,
-        isFullyCompleted: state.activeWorkout!.completedExercises === state.activeWorkout!.totalExercises,
+        totalTime: Date.now() - aw.startTime.getTime(),
+        completedExercises: aw.completedExercises,
+        totalExercises: aw.totalExercises,
+        completedSets: aw.completedSets,
+        totalSets: aw.totalSets,
+        setsCompleted: aw.setsCompleted,
+        adjustmentsMade: aw.adjustmentsMade,
+        isFullyCompleted: isWorkoutFullyCompletedByCounts({
+          completedSets: aw.completedSets,
+          totalSets: aw.totalSets,
+          completedExercises: aw.completedExercises,
+          totalExercises: aw.totalExercises,
+        }),
       };
 
       // Middleware will handle context message generation
@@ -1065,19 +1072,25 @@ const workoutSlice = createSlice({
         return;
       }
 
+      const awEarly = state.activeWorkout;
       const workoutSummary = {
         sessionName: workoutName,
-        totalTime: Date.now() - state.activeWorkout.startTime.getTime(),
-        completedExercises: state.activeWorkout.completedExercises,
-        totalExercises: state.activeWorkout.totalExercises,
-        completedSets: state.activeWorkout.completedSets,
-        totalSets: state.activeWorkout.totalSets,
-        setsCompleted: state.activeWorkout.setsCompleted,
-        adjustmentsMade: state.activeWorkout.adjustmentsMade,
-        isFullyCompleted: false,
+        totalTime: Date.now() - awEarly.startTime.getTime(),
+        completedExercises: awEarly.completedExercises,
+        totalExercises: awEarly.totalExercises,
+        completedSets: awEarly.completedSets,
+        totalSets: awEarly.totalSets,
+        setsCompleted: awEarly.setsCompleted,
+        adjustmentsMade: awEarly.adjustmentsMade,
+        isFullyCompleted: isWorkoutFullyCompletedByCounts({
+          completedSets: awEarly.completedSets,
+          totalSets: awEarly.totalSets,
+          completedExercises: awEarly.completedExercises,
+          totalExercises: awEarly.totalExercises,
+        }),
         finishedEarly: true,
-        currentExercise: state.activeWorkout.currentExercise?.name,
-        currentSet: state.activeWorkout.currentSetIndex + 1,
+        currentExercise: awEarly.currentExercise?.name,
+        currentSet: awEarly.currentSetIndex + 1,
       };
 
       // Middleware will handle context message generation
