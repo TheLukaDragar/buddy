@@ -4,7 +4,7 @@ import { Image } from "expo-image";
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { fetch as expoFetch } from 'expo/fetch';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Animated, Keyboard, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SystemBars } from 'react-native-edge-to-edge';
 import ReanimatedAnimated, {
   Easing,
@@ -20,7 +20,7 @@ import CategoryPills from '../../components/CategoryPills';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSingleWorkoutGeneration } from '../../hooks/useSingleWorkoutGeneration';
 import { RootState } from '../../store';
-import { enhancedApi, useGetUserWorkoutPlansQuery, useGetWorkoutEntriesByDayQuery } from '../../store/api/enhancedApi';
+import { enhancedApi, useGetUserWorkoutPlansQuery, useGetWorkoutEntriesByDayQuery, useGetWorkoutSessionByDateQuery } from '../../store/api/enhancedApi';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { addMessage, clearMessages, setError, setInputCollapsed, setLoading, type ChatMessage } from '../../store/slices/chatSlice';
 import { generateAPIUrl } from '../../utils';
@@ -143,6 +143,20 @@ export default function ChatScreen() {
   );
   const userWorkoutPlans = workoutPlansData?.workout_plansCollection?.edges?.map(edge => edge.node) || [];
   const activeWorkoutPlan = userWorkoutPlans.find(plan => plan.status === 'active');
+
+  // Today's date string (YYYY-MM-DD) for session checks
+  const todayDateString = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  })();
+
+  // Check if user already has a Train Now session today
+  const { data: todayTrainNowSessionData } = useGetWorkoutSessionByDateQuery(
+    { workoutPlanId: activeWorkoutPlan?.id || '', date: todayDateString, dayName: 'Train Now' },
+    { skip: !activeWorkoutPlan?.id, refetchOnMountOrArgChange: true }
+  );
+  const hasTodayTrainNowSession =
+    (todayTrainNowSessionData?.workout_sessionsCollection?.edges?.length ?? 0) > 0;
 
   // Fetch generated Train Now workout entries when workout is completed
   const { data: trainNowEntriesData, refetch: refetchTrainNowEntries, isLoading: isLoadingEntries } = useGetWorkoutEntriesByDayQuery(
@@ -309,6 +323,9 @@ export default function ChatScreen() {
   // Category pills state
   const [selectedCategory, setSelectedCategory] = useState('general');
 
+  // "Already trained today" gate modal
+  const [showTrainNowLimitModal, setShowTrainNowLimitModal] = useState(false);
+
   // Chat session management - include category in ID to force new instance when switching modes
   const chatId = useMemo(() => `chat-${selectedCategory}-${Date.now()}`, [selectedCategory]);
 
@@ -324,6 +341,11 @@ export default function ChatScreen() {
       if (params.mode === 'train_now') {
         console.log('🎯 Chat focused with mode:', params.mode);
         console.log('🎯 Current selectedCategory:', selectedCategory);
+
+        if (hasTodayTrainNowSession) {
+          setShowTrainNowLimitModal(true);
+          return;
+        }
 
         // Clear existing messages and set category
         console.log('Clearing messages');
@@ -932,6 +954,11 @@ export default function ChatScreen() {
   };
 
   const handleCategorySelect = (categoryId: string) => {
+    if (categoryId === 'train_now' && hasTodayTrainNowSession) {
+      setShowTrainNowLimitModal(true);
+      return;
+    }
+
     // Animate text out first
     textOpacity.value = withTiming(0, {
       duration: 200,
@@ -1392,6 +1419,31 @@ export default function ChatScreen() {
           </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
+
+      {/* Train Now daily limit modal */}
+      <Modal
+        visible={showTrainNowLimitModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowTrainNowLimitModal(false)}
+      >
+        <View style={styles.trainNowLimitOverlay}>
+          <View style={styles.trainNowLimitCard}>
+            <Text style={styles.trainNowLimitEmoji}>🏋️</Text>
+            <Text style={styles.trainNowLimitTitle}>Already trained today!</Text>
+            <Text style={styles.trainNowLimitBody}>
+              Train Now is limited to one workout per day. Rest up and come back tomorrow!
+            </Text>
+            <TouchableOpacity
+              style={styles.trainNowLimitButton}
+              onPress={() => setShowTrainNowLimitModal(false)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.trainNowLimitButtonText}>Got it</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </ReanimatedAnimated.View>
   );
 }
@@ -1983,5 +2035,59 @@ const styles = StyleSheet.create({
   },
   suggestionTextSelected: {
     color: nucleus.light.global.blue["10"],
+  },
+  trainNowLimitOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  trainNowLimitCard: {
+    backgroundColor: nucleus.light.semantic.bg.canvas,
+    borderRadius: 20,
+    padding: 28,
+    alignItems: 'center',
+    gap: 12,
+    width: '100%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    elevation: 12,
+  },
+  trainNowLimitEmoji: {
+    fontSize: 40,
+    lineHeight: 48,
+  },
+  trainNowLimitTitle: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 20,
+    lineHeight: 26,
+    color: nucleus.light.semantic.fg.base,
+    textAlign: 'center',
+  },
+  trainNowLimitBody: {
+    fontFamily: 'PlusJakartaSans-Regular',
+    fontSize: 15,
+    lineHeight: 22,
+    color: nucleus.light.semantic.fg.muted,
+    textAlign: 'center',
+  },
+  trainNowLimitButton: {
+    marginTop: 8,
+    backgroundColor: nucleus.light.global.blue["70"],
+    borderRadius: 48,
+    paddingVertical: 14,
+    paddingHorizontal: 40,
+    alignSelf: 'stretch',
+    alignItems: 'center',
+  },
+  trainNowLimitButtonText: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 16,
+    lineHeight: 20,
+    color: nucleus.light.global.blue["10"],
+    includeFontPadding: false,
   },
 }); 
