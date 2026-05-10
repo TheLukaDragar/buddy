@@ -758,19 +758,25 @@ export default function WorkoutCompletedScreen() {
     return total;
   }, [setsData]);
 
-  // Check if workout is in the past (comparing dates only, not time)
+  // Past vs today uses completion time (not planned `date`). If `completed_at` is missing (e.g. brief
+  // cache lag after navigate), fall back to `last_activity_at` — not `started_at` (multi-day resume).
   const isWorkoutInPast = React.useMemo(() => {
-    if (!session?.date) return false;
+    const completedRaw = session?.completed_at ?? null;
+    const lastActivityRaw = session?.last_activity_at ?? null;
+    const anchorRaw = completedRaw ?? lastActivityRaw;
 
-    const workoutDate = new Date(session.date);
+    if (!anchorRaw) {
+      return false;
+    }
+
+    const anchor = new Date(anchorRaw);
     const today = new Date();
 
-    // Reset time components to compare only dates
-    const workoutDateOnly = new Date(workoutDate.getFullYear(), workoutDate.getMonth(), workoutDate.getDate());
+    const anchorDateOnly = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate());
     const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
 
-    return workoutDateOnly.getTime() < todayOnly.getTime();
-  }, [session?.date]);
+    return anchorDateOnly.getTime() < todayOnly.getTime();
+  }, [session?.completed_at, session?.last_activity_at]);
 
   // Prepare display data.
   // Use reconstructed list length for completedExercises so the count matches the list
