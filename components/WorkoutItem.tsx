@@ -189,9 +189,14 @@ export default function WorkoutItem({ workout, index, onPress, planId, isPastWee
       sessionProgress >= 80 ||
       allSetsLogged;
 
-    // If session is in progress but not completed, ensure we show some progress
-    if (!showCheckmark && status && ['exercising', 'preparing', 'resting', 'paused'].includes(status)) {
-      sessionProgress = Math.max(sessionProgress, 1); // At least 1% if started
+    // Show at least 1% only when real set progress exists (not warmup / pre-exercise pause)
+    if (
+      !showCheckmark &&
+      completedSetsCount > 0 &&
+      status &&
+      ['exercising', 'preparing', 'resting', 'paused'].includes(status)
+    ) {
+      sessionProgress = Math.max(sessionProgress, 1);
     }
 
     const result = {
@@ -406,6 +411,7 @@ export default function WorkoutItem({ workout, index, onPress, planId, isPastWee
       let text = "In Progress";
       if (sessionStatus === 'paused') text = "Paused";
       if (sessionStatus === 'preparing') text = "Preparing";
+      if (sessionStatus === 'selected') text = "Warmup";
 
       return {
         text,

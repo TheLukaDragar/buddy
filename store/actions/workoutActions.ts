@@ -396,6 +396,10 @@ export const saveWorkoutForLater = createAsyncThunk(
     const totalPauseTimeMs = activeWorkout.totalPauseTime || 0
     const lastActivityAt = new Date().toISOString()
 
+    // Warmup uses Redux status "selected" — keep DB status "selected" so resume restores warmup,
+    // not mid-set "paused" (which would skip warmup and land on sets).
+    const dbStatus = state.workout.status === 'selected' ? 'selected' : 'paused'
+
     try {
       await dispatch(
         enhancedApi.endpoints.UpdateWorkoutSessionProgress.initiate({
@@ -412,7 +416,7 @@ export const saveWorkoutForLater = createAsyncThunk(
       await dispatch(
         enhancedApi.endpoints.UpdateWorkoutSessionStatus.initiate({
           id: sessionId,
-          status: 'paused',
+          status: dbStatus,
           lastActivityAt,
         })
       ).unwrap()

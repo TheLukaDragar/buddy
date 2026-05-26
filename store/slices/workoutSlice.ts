@@ -512,9 +512,14 @@ const workoutSlice = createSlice({
           phase = 'resting';
           isPaused = true;
           console.log('⏸️ Resuming workout paused at start of rest segment - user can resume when ready');
-        } else if (status === 'preparing' || status === 'selected') {
-          // If preparing or selected, stay in that state (not paused - user hasn't started set yet)
-          reduxStatus = status === 'preparing' ? 'preparing' : 'selected';
+        } else if (
+          status === 'preparing' ||
+          status === 'selected' ||
+          (status === 'paused' && completedSets === 0 && completedSetsData.length === 0)
+        ) {
+          // preparing/selected: pre-exercise. paused with 0 sets: legacy save during warmup.
+          reduxStatus =
+            status === 'preparing' ? 'preparing' : 'selected';
           phase = 'preparing';
         } else {
           // For 'exercising' or 'paused' status:
@@ -576,6 +581,16 @@ const workoutSlice = createSlice({
           state.timers = {
             setTimer: null,
             restTimer: null,
+          };
+        }
+
+        // Restore warmup when resuming before any sets (selected or legacy paused-with-0-sets)
+        if (reduxStatus === 'selected' && completedSets === 0) {
+          state.warmup = {
+            phase: 'ready',
+            startTime: null,
+            duration: 600,
+            remaining: 600,
           };
         }
 
@@ -1117,6 +1132,12 @@ const workoutSlice = createSlice({
       state.planId = null;
       state.dayName = null;
       state.activeWorkout = null;
+      state.warmup = {
+        phase: 'inactive',
+        startTime: null,
+        duration: 600,
+        remaining: 600,
+      };
     },
 
     // Voice agent integration
