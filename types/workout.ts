@@ -105,6 +105,8 @@ export interface ActiveWorkoutState {
     difficulty: 'easy' | 'medium' | 'hard' | 'impossible';
     timestamp: Date;
   };
+  /** Set index user already gave difficulty feedback for (prevents duplicate agent prompts). */
+  feedbackCollectedForSetIndex?: number;
 }
 
 export interface WorkoutSession {

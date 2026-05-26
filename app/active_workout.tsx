@@ -84,6 +84,7 @@ import {
   selectWarmup,
   selectWorkoutSession,
   selectWorkoutStatus,
+  recordSetFeedback,
   setVoiceAgentStatus,
   trackConversation,
 } from '../store/slices/workoutSlice';
@@ -120,6 +121,29 @@ function parseHoldSecondsFromClientToolParams(params: unknown): number | null {
   const rounded = Math.round(n);
   if (rounded < 1) return null;
   return rounded;
+}
+
+const EARLY_FINISH_UTTERANCE = /\b(finished|i'?m done|i am done|done with (this )?set|okay,? finished)\b/i;
+
+function isEarlyFinishUtterance(text: string): boolean {
+  return EARLY_FINISH_UTTERANCE.test(text.trim());
+}
+
+function parseDifficultyFeedback(text: string): 'easy' | 'medium' | 'hard' | 'impossible' | null {
+  const normalized = text.trim().toLowerCase();
+  if (/\b(impossible|couldn'?t finish|could barely|could not finish)\b/.test(normalized)) {
+    return 'impossible';
+  }
+  if (/\b(hard|too hard|really hard|tough)\b/.test(normalized)) {
+    return 'hard';
+  }
+  if (/\b(easy|too easy|way too easy)\b/.test(normalized)) {
+    return 'easy';
+  }
+  if (/\b(medium|middle|sweet spot|just right|perfect)\b/.test(normalized)) {
+    return 'medium';
+  }
+  return null;
 }
 
 interface WorkoutProgressProps {
@@ -3707,6 +3731,31 @@ export default function ActiveWorkoutScreen() {
         return;
       }
 
+      if (eventType === 'user_transcript') {
+        const userEvent = message as Extract<ConversationEvent, { type: 'user_transcript' }>;
+        const transcript = userEvent.user_transcription_event?.user_transcript?.trim() ?? '';
+        if (transcript) {
+          const workoutState = store.getState().workout;
+          const currentStatus = workoutState.status;
+
+          if (currentStatus === 'exercising' && isEarlyFinishUtterance(transcript)) {
+            console.log('🏁 [Voice] Early finish detected, auto-completing set');
+            void dispatch(completeSet({}));
+          }
+
+          const difficulty = parseDifficultyFeedback(transcript);
+          if (
+            difficulty &&
+            (currentStatus === 'exercising' ||
+              currentStatus === 'set-complete' ||
+              currentStatus === 'resting')
+          ) {
+            dispatch(recordSetFeedback({ difficulty }));
+            setFeedbackLayerDismissed(true);
+          }
+        }
+      }
+
       setConversationEvents(prev => [...prev, message]);
     },
     onError: (error) => {
@@ -4162,7 +4211,8 @@ export default function ActiveWorkoutScreen() {
           visible={
             (status === 'resting' || status === 'set-complete') &&
             conversationStatus === 'connected' &&
-            !feedbackLayerDismissed
+            !feedbackLayerDismissed &&
+            activeWorkout?.feedbackCollectedForSetIndex !== activeWorkout?.currentSetIndex
           }
           onSelectFeedback={(feedback) => {
             if (conversation?.status === 'connected') {
@@ -4172,6 +4222,10 @@ export default function ActiveWorkoutScreen() {
                 user_transcription_event: { user_transcript: feedback },
               } as ConversationEvent;
               setConversationEvents((prev) => [...prev, userMessageEvent]);
+            }
+            const difficulty = parseDifficultyFeedback(feedback);
+            if (difficulty) {
+              dispatch(recordSetFeedback({ difficulty }));
             }
             setFeedbackLayerDismissed(true);
           }}

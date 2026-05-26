@@ -780,6 +780,23 @@ const workoutSlice = createSlice({
       // Middleware will handle context message generation
     },
 
+    recordSetFeedback: (
+      state,
+      action: PayloadAction<{ difficulty: 'easy' | 'medium' | 'hard' | 'impossible' }>,
+    ) => {
+      if (!state.activeWorkout) return;
+
+      state.activeWorkout.lastFeedback = {
+        difficulty: action.payload.difficulty,
+        timestamp: new Date(),
+      };
+      state.activeWorkout.feedbackCollectedForSetIndex = state.activeWorkout.currentSetIndex;
+
+      if (state.activeWorkout.currentSet) {
+        state.activeWorkout.currentSet.difficulty = action.payload.difficulty;
+      }
+    },
+
     completeSet: {
       reducer: (state, action: PayloadAction<{ actualReps?: number; timestamp: number }>) => {
         const { actualReps, timestamp } = action.payload;
@@ -796,6 +813,11 @@ const workoutSlice = createSlice({
           }
           console.log('🔥 [Warmup] Completed via complete_set() - transitioning to first exercise');
           return; // Don't proceed to set completion logic
+        }
+
+        if (state.activeWorkout?.currentSet?.isCompleted) {
+          console.log('⏭️ [Workout] Set already completed, skipping duplicate completeSet');
+          return;
         }
 
         // Capture pause time BEFORE clearing timer/resetting state
@@ -2142,6 +2164,7 @@ export const {
   startExercisePreparation,
   confirmReadyAndStartSet,
   completeSet,
+  recordSetFeedback,
   startRest,
   triggerRestEnding,
   completeExercise,

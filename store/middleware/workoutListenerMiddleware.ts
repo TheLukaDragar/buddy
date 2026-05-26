@@ -148,6 +148,15 @@ const clearAllTimers = () => {
   });
   adjustmentDebounceTimers.clear();
   adjustmentUpdateFunctions.clear();
+  lastSetCompletedNotificationKey = null;
+};
+
+let lastSetCompletedNotificationKey: string | null = null;
+
+const getSetCompletionNotificationKey = (state: RootState): string | null => {
+  const activeWorkout = state.workout.activeWorkout;
+  if (!activeWorkout?.currentSet) return null;
+  return `${activeWorkout.sessionId}:${activeWorkout.currentExercise?.id ?? 'exercise'}:${activeWorkout.currentSetIndex}`;
 };
 
 // Helper to start timer updates - Clean countdown implementation
@@ -337,6 +346,8 @@ startAppListening({
     const { dispatch, getState } = listenerApi;
     const state = getState() as RootState;
     const workoutState = state.workout;
+
+    lastSetCompletedNotificationKey = null;
     
     // CRITICAL: If warmup phase is "active" and status is "selected", warmup was started via start_set()
     if (workoutState.warmup.phase === 'active' && workoutState.status === 'selected' && !workoutState.timers.setTimer) {
@@ -544,12 +555,29 @@ startAppListening({
     
     // Generate context message for set completion
     if (workoutState.activeWorkout) {
+      const completionKey = getSetCompletionNotificationKey(workoutState);
+      if (completionKey && completionKey === lastSetCompletedNotificationKey) {
+        console.log('⏭️ [Workout Middleware] set-completed already sent for this set, skipping duplicate');
+        return;
+      }
+
       const setNumber = workoutState.activeWorkout.currentSetIndex + 1;
       const totalSets = workoutState.activeWorkout.currentExercise?.sets.length || 0;
       const isLastSet = setNumber === totalSets;
+      const feedbackAlreadyCollected =
+        workoutState.activeWorkout.feedbackCollectedForSetIndex === workoutState.activeWorkout.currentSetIndex;
+
+      const feedbackSuffix = feedbackAlreadyCollected
+        ? ' User already gave difficulty feedback — acknowledge briefly only. Do NOT ask how it felt again.'
+        : ' Ask for difficulty feedback once using varied language.';
+
       const systemMessage = isLastSet
-        ? `SYSTEM: set-completed - Set ${setNumber} finished (LAST SET). Rest will start automatically, but user can ask to skip rest and move to next exercise anytime.`
-        : `SYSTEM: set-completed - Set ${setNumber} finished.`;
+        ? `SYSTEM: set-completed - Set ${setNumber} finished (LAST SET). Rest will start automatically, but user can ask to skip rest and move to next exercise anytime.${feedbackSuffix}`
+        : `SYSTEM: set-completed - Set ${setNumber} finished.${feedbackSuffix}`;
+
+      if (completionKey) {
+        lastSetCompletedNotificationKey = completionKey;
+      }
       
       dispatch(addContextMessage({
         event: 'set-completed',
@@ -559,6 +587,7 @@ startAppListening({
           actualReps: workoutState.activeWorkout.currentSet?.actualReps,
           targetReps: workoutState.activeWorkout.currentSet?.targetReps,
           isLastSet,
+          feedbackAlreadyCollected,
         },
       }));
       
