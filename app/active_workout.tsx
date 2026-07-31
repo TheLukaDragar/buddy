@@ -1,6 +1,7 @@
 import { inferPrescriptionType, normalizePrescriptionType } from '@/lib/workoutEntryParsing';
 import { supabase } from '@/lib/supabase';
 import { enhancedApi } from '@/store/api/enhancedApi';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { unwrapResult } from '@reduxjs/toolkit';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
@@ -14,14 +15,18 @@ import { PanGestureHandler } from 'react-native-gesture-handler';
 import { Button, Text } from 'react-native-paper';
 import ReanimatedAnimated, {
   Easing,
+  Extrapolation,
   FadeIn,
+  interpolate,
   runOnJS,
   useAnimatedGestureHandler,
+  useAnimatedReaction,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
   withTiming
 } from 'react-native-reanimated';
+import type { SharedValue } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
 import { nucleus } from '../BiXo_variables.js';
@@ -173,7 +178,6 @@ const warmupPlaceholderStyles = StyleSheet.create({
     flex: 1,
     width: '100%',
     height: '100%',
-    transform: [{ rotate: '90deg' }, { scale: 1.78 }], // Rotate 90deg and scale to fit 16:9 (9:16 rotated becomes 16:9, scale by 16/9)
   },
 });
 
@@ -225,27 +229,49 @@ const WorkoutSummary: React.FC<WorkoutSummaryProps> = ({ activeWorkout, session,
   // Start initial animation and cycling
   useEffect(() => {
     if (exercisesSummary.length === 0) return;
-    
-    // Initial animation (same as chat.tsx pattern)
-    setTimeout(() => {
+
+    let cancelled = false;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+
+    const fadeIn = () => {
       Animated.parallel([
         Animated.timing(subtitleOpacity, {
           toValue: 1,
-          duration: 800,
+          duration: 300,
           useNativeDriver: true,
         }),
         Animated.timing(subtitleTranslateY, {
           toValue: 0,
-          duration: 800,
+          duration: 300,
           useNativeDriver: true,
         }),
       ]).start();
-    }, 400); // Start after 400ms like chat animation
-    
+    };
+
+    // Initial animation
+    timers.push(
+      setTimeout(() => {
+        if (cancelled) return;
+        Animated.parallel([
+          Animated.timing(subtitleOpacity, {
+            toValue: 1,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+          Animated.timing(subtitleTranslateY, {
+            toValue: 0,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+        ]).start();
+      }, 400)
+    );
+
     // Cycle through exercises if more than one
+    let cycleInterval: ReturnType<typeof setInterval> | undefined;
     if (exercisesSummary.length > 1) {
-      const cycleInterval = setInterval(() => {
-        // Fade out and move up
+      cycleInterval = setInterval(() => {
+        if (cancelled) return;
         Animated.parallel([
           Animated.timing(subtitleOpacity, {
             toValue: 0,
@@ -257,33 +283,31 @@ const WorkoutSummary: React.FC<WorkoutSummaryProps> = ({ activeWorkout, session,
             duration: 300,
             useNativeDriver: true,
           }),
-        ]).start(() => {
-          // Change text
-          setCurrentExerciseIndex((prev) => (prev + 1) % exercisesSummary.length);
-          
-          // Fade in and slide down from top
-          Animated.parallel([
-            Animated.timing(subtitleOpacity, {
-              toValue: 1,
-              duration: 300,
-              useNativeDriver: true,
-            }),
-            Animated.timing(subtitleTranslateY, {
-              toValue: 0,
-              duration: 300,
-              useNativeDriver: true,
-            }),
-          ]).start();
+        ]).start(({ finished }) => {
+          if (!finished || cancelled) return;
+          // Defer setState — Animated completion can run during useInsertionEffect
+          timers.push(
+            setTimeout(() => {
+              if (cancelled) return;
+              setCurrentExerciseIndex((prev) => (prev + 1) % exercisesSummary.length);
+              fadeIn();
+            }, 0)
+          );
         });
-      }, 2000); // Change every 2 seconds
-      
-      return () => clearInterval(cycleInterval);
+      }, 2000);
     }
+
+    return () => {
+      cancelled = true;
+      timers.forEach(clearTimeout);
+      if (cycleInterval) clearInterval(cycleInterval);
+    };
   }, [exercisesSummary.length, subtitleOpacity, subtitleTranslateY]);
   
   if (exercisesSummary.length === 0) return null;
   
   const currentExercise = exercisesSummary[currentExerciseIndex];
+  if (!currentExercise) return null;
   
   return (
     <Animated.Text 
@@ -739,7 +763,7 @@ const VideoContainer: React.FC<VideoContainerProps> = ({
 };
 
 const WorkoutProgress: React.FC<WorkoutProgressProps> = ({ 
-  segments
+  segments,
 }) => {
   // Get workout state from Redux
   const activeWorkout = useSelector(selectActiveWorkout);
@@ -749,7 +773,7 @@ const WorkoutProgress: React.FC<WorkoutProgressProps> = ({
   const status = useSelector(selectWorkoutStatus);
   const warmup = useSelector(selectWarmup);
   const dispatch = useAppDispatch();
-  
+
   // Check if we're in warmup phase
   const isWarmupActive = status === 'selected' && (warmup.phase === 'ready' || warmup.phase === 'active');
   
@@ -1886,6 +1910,22 @@ const workoutControlsStyles = StyleSheet.create({
 // Move dimensions outside component to prevent recalculation on every render
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 
+/** Enhanced collapsed chat peek — high enough for even spacing under the timer */
+const ENHANCED_CHAT_PEEK = Math.max(184, Math.round(SCREEN_HEIGHT * 0.21));
+/** Classic layout: wider video + taller chat sheet */
+const CLASSIC_VIDEO_HEIGHT = SCREEN_WIDTH / 1.2;
+const CLASSIC_CHAT_HEIGHT = SCREEN_HEIGHT * 0.45;
+/** Even vertical rhythm: progress → timer and timer → chat */
+const ENHANCED_STATS_GAP = 20;
+/** Progress bar + weight/timer/reps block (padding + bar + gaps + info row) */
+const WORKOUT_STATS_HEIGHT = 8 + 32 + ENHANCED_STATS_GAP + 80 + ENHANCED_STATS_GAP;
+/** Vertical drag distance that maps 0→1 layout progress */
+const LAYOUT_SWIPE_DISTANCE = 180;
+const LAYOUT_STORAGE_KEY = '@buddy/workout_layout_mode';
+
+/** @deprecated use ENHANCED_CHAT_PEEK — kept as alias for call sites during morph */
+const COLLAPSED_CHAT_HEIGHT = ENHANCED_CHAT_PEEK;
+
 interface BottomModalProps {
   visible: boolean;
   onShowFinishAlert: () => void;
@@ -1898,6 +1938,14 @@ interface BottomModalProps {
   // ElevenLabs conversation instance
   conversation?: any; // Type from useConversation hook
   onAddConversationEvent?: (event: ConversationEvent) => void;
+  /** 0 = classic chat height, 1 = enhanced compact chat */
+  layoutProgress: SharedValue<number>;
+  classicCollapsedHeight: number;
+  enhancedCollapsedHeight: number;
+  /** Bump when main workout layout snaps (classic ↔ enhanced) to scroll chat */
+  layoutScrollTrigger?: number;
+  /** True after layout preference is loaded from AsyncStorage */
+  layoutReady?: boolean;
 }
 
 const BottomModal: React.FC<BottomModalProps> = ({ 
@@ -1909,13 +1957,18 @@ const BottomModal: React.FC<BottomModalProps> = ({
   canSendFeedback,
   onEventReceived,
   conversation,
-  onAddConversationEvent
+  onAddConversationEvent,
+  layoutProgress,
+  classicCollapsedHeight,
+  enhancedCollapsedHeight,
+  layoutScrollTrigger = 0,
+  layoutReady = true,
 }) => {
   const insets = useSafeAreaInsets();
   // Memoize height calculations to prevent recalculation on every render
   const modalDimensions = useMemo(() => {
-    const COLLAPSED_HEIGHT = SCREEN_HEIGHT * 0.45; // 40% of screen height
-    const EXPANDED_HEIGHT = SCREEN_HEIGHT * 1 ; // Height of modal when expanded
+    const COLLAPSED_HEIGHT = enhancedCollapsedHeight;
+    const EXPANDED_HEIGHT = SCREEN_HEIGHT;
     
     // Calculate positions from bottom of screen
     const COLLAPSED_POSITION = SCREEN_HEIGHT - COLLAPSED_HEIGHT; // Near bottom
@@ -1927,20 +1980,37 @@ const BottomModal: React.FC<BottomModalProps> = ({
       COLLAPSED_POSITION,
       EXPANDED_POSITION
     };
-  }, []);
+  }, [enhancedCollapsedHeight]);
   
   const { COLLAPSED_HEIGHT, EXPANDED_HEIGHT, COLLAPSED_POSITION, EXPANDED_POSITION } = modalDimensions;
+
+  const getCollapsedHeight = (progress: number) => {
+    'worklet';
+    return interpolate(
+      progress,
+      [0, 1],
+      [classicCollapsedHeight, enhancedCollapsedHeight],
+      Extrapolation.CLAMP
+    );
+  };
+
+  const getCollapsedPosition = (progress: number) => {
+    'worklet';
+    return SCREEN_HEIGHT - getCollapsedHeight(progress);
+  };
   
-  const modalTranslateY = useSharedValue(COLLAPSED_POSITION);
+  // Init from classic heights only — never read shared values during render
+  const modalTranslateY = useSharedValue(SCREEN_HEIGHT - classicCollapsedHeight);
   
   // State to track visible modal height
-  const [visibleModalHeight, setVisibleModalHeight] = useState(COLLAPSED_HEIGHT);
+  const [visibleModalHeight, setVisibleModalHeight] = useState(classicCollapsedHeight);
   
   // State to track if modal is collapsed or expanded
   const [isModalCollapsed, setIsModalCollapsed] = useState(true);
+  const isModalCollapsedSV = useSharedValue(1);
   
   // Shared value to track last updated height to prevent unnecessary updates
-  const lastUpdatedHeight = useSharedValue(COLLAPSED_HEIGHT);
+  const lastUpdatedHeight = useSharedValue(classicCollapsedHeight);
   
   // Track if we're in the middle of an animation to reduce updates
   const [isAnimating, setIsAnimating] = useState(false);
@@ -1951,6 +2021,13 @@ const BottomModal: React.FC<BottomModalProps> = ({
   
   // Scroll trigger for ChatComponent
   const [scrollTrigger, setScrollTrigger] = useState(0);
+
+  // Auto-scroll when main UI layout morph settles
+  useEffect(() => {
+    if (layoutScrollTrigger > 0) {
+      setScrollTrigger(layoutScrollTrigger);
+    }
+  }, [layoutScrollTrigger]);
   
   // Memoize modal header height calculation
   const MODAL_HEADER_HEIGHT = useMemo(() => 
@@ -1959,7 +2036,7 @@ const BottomModal: React.FC<BottomModalProps> = ({
   );
 
   // Throttled height update function
-  const updateVisibleHeight = (newHeight: number) => {
+  const updateVisibleHeight = useCallback((newHeight: number) => {
     try {
       // Add safety check to ensure valid height
       if (newHeight > 0 && newHeight <= SCREEN_HEIGHT && !isNaN(newHeight)) {
@@ -1968,7 +2045,24 @@ const BottomModal: React.FC<BottomModalProps> = ({
     } catch (error) {
       console.error('Error updating visible height:', error);
     }
-  };
+  }, []);
+
+  // Follow layout morph while chat sheet is collapsed
+  useAnimatedReaction(
+    () => layoutProgress.value,
+    (progress) => {
+      if (isModalCollapsedSV.value === 1) {
+        const collapsedH = getCollapsedHeight(progress);
+        const collapsedPos = SCREEN_HEIGHT - collapsedH;
+        modalTranslateY.value = collapsedPos;
+        if (Math.abs(collapsedH - lastUpdatedHeight.value) > 2) {
+          lastUpdatedHeight.value = collapsedH;
+          runOnJS(updateVisibleHeight)(collapsedH);
+        }
+      }
+    },
+    [classicCollapsedHeight, enhancedCollapsedHeight]
+  );
   
   // Animation start/end handlers
   const startAnimation = () => {
@@ -1986,6 +2080,11 @@ const BottomModal: React.FC<BottomModalProps> = ({
       console.error('Error ending animation:', error);
     }
   };
+
+  const setCollapsedState = useCallback((collapsed: boolean) => {
+    setIsModalCollapsed(collapsed);
+    isModalCollapsedSV.value = collapsed ? 1 : 0;
+  }, [isModalCollapsedSV]);
 
   // Handle keyboard state changes from ChatComponent
   const handleKeyboardToggle = (isVisible: boolean, height: number) => {
@@ -2007,7 +2106,7 @@ const BottomModal: React.FC<BottomModalProps> = ({
       }, (finished) => {
         if (finished) {
           // Update collapsed state and trigger scroll
-          runOnJS(setIsModalCollapsed)(false);
+          runOnJS(setCollapsedState)(false);
           runOnJS(setScrollTrigger)(Date.now()); // Use timestamp to ensure unique value
         }
       });
@@ -2018,18 +2117,14 @@ const BottomModal: React.FC<BottomModalProps> = ({
   };
 
   useEffect(() => {
-    if (visible) {
-      modalTranslateY.value = withSpring(COLLAPSED_POSITION, { 
-        damping: 25, 
-        stiffness: 150, 
-        mass: 0.8 
-      });
-      setIsModalCollapsed(true); // Ensure state matches initial position
-      // Debug the calculations on startup
-      // console.log('INITIAL CALCULATIONS:');
-      // console.log('Screen height:', SCREEN_HEIGHT);
-      // console.log('Collapsed height:', COLLAPSED_HEIGHT);
-      // console.log('Collapsed position:', COLLAPSED_POSITION);
+    if (visible && layoutReady) {
+      const collapsedPos = getCollapsedPosition(layoutProgress.value);
+      const collapsedH = getCollapsedHeight(layoutProgress.value);
+      // Snap to restored layout immediately (no spring flash from classic → saved)
+      modalTranslateY.value = collapsedPos;
+      setCollapsedState(true);
+      lastUpdatedHeight.value = collapsedH;
+      updateVisibleHeight(collapsedH);
     }
     
     // Cleanup function to reset animation state
@@ -2039,12 +2134,12 @@ const BottomModal: React.FC<BottomModalProps> = ({
         setIsKeyboardVisible(false);
         setKeyboardHeight(0);
         setScrollTrigger(0);
-        setIsModalCollapsed(true);
+        setCollapsedState(true);
       } catch (error) {
         console.error('Error in cleanup:', error);
       }
     };
-  }, [visible, COLLAPSED_POSITION]);
+  }, [visible, layoutReady]);
 
   const gestureHandler = useAnimatedGestureHandler({
     onStart: (_, context: { startY: number }) => {
@@ -2052,9 +2147,10 @@ const BottomModal: React.FC<BottomModalProps> = ({
       runOnJS(startAnimation)();
     },
     onActive: (event, context: { startY: number }) => {
+      const collapsedPos = getCollapsedPosition(layoutProgress.value);
       const newTranslateY = context.startY + event.translationY;
       // Constrain between collapsed and expanded positions
-      modalTranslateY.value = Math.min(Math.max(newTranslateY, EXPANDED_POSITION), COLLAPSED_POSITION);
+      modalTranslateY.value = Math.min(Math.max(newTranslateY, EXPANDED_POSITION), collapsedPos);
       
       // Calculate visible height based on current position
       const currentVisibleHeight = SCREEN_HEIGHT - modalTranslateY.value;
@@ -2066,8 +2162,10 @@ const BottomModal: React.FC<BottomModalProps> = ({
       }
     },
     onEnd: (event) => {
+      const collapsedPos = getCollapsedPosition(layoutProgress.value);
+      const collapsedH = getCollapsedHeight(layoutProgress.value);
       const currentPosition = modalTranslateY.value;
-      const midPoint = (COLLAPSED_POSITION + EXPANDED_POSITION) / 2;
+      const midPoint = (collapsedPos + EXPANDED_POSITION) / 2;
       
       // Determine if we should expand or collapse based on position and velocity
       const shouldExpand = currentPosition < midPoint || event.velocityY < -800;
@@ -2082,28 +2180,22 @@ const BottomModal: React.FC<BottomModalProps> = ({
             const expandedHeight = SCREEN_HEIGHT - EXPANDED_POSITION;
             lastUpdatedHeight.value = expandedHeight;
             runOnJS(updateVisibleHeight)(expandedHeight);
-            runOnJS(setIsModalCollapsed)(false);
+            runOnJS(setCollapsedState)(false);
             runOnJS(endAnimation)();
             // Trigger scroll after manual expansion - simplified
             runOnJS(setScrollTrigger)(Date.now());
           }
         });
-        
-        console.log('CALCULATIONS:');
-        console.log('Screen height:', SCREEN_HEIGHT);
-        console.log('Collapsed height:', COLLAPSED_HEIGHT);
-        console.log('Collapsed position:', COLLAPSED_POSITION);
-        console.log('Expanded position:', EXPANDED_POSITION);
       } else {
-        modalTranslateY.value = withTiming(COLLAPSED_POSITION, {
+        modalTranslateY.value = withTiming(collapsedPos, {
           duration: 300,
           easing: Easing.out(Easing.quad),
         }, (finished) => {
           if (finished) {
             // Update visible height for collapsed state after animation completes
-            lastUpdatedHeight.value = COLLAPSED_HEIGHT;
-            runOnJS(updateVisibleHeight)(COLLAPSED_HEIGHT);
-            runOnJS(setIsModalCollapsed)(true);
+            lastUpdatedHeight.value = collapsedH;
+            runOnJS(updateVisibleHeight)(collapsedH);
+            runOnJS(setCollapsedState)(true);
             runOnJS(endAnimation)();
             // Trigger scroll after collapse - simplified
             runOnJS(setScrollTrigger)(Date.now());
@@ -2152,16 +2244,18 @@ const BottomModal: React.FC<BottomModalProps> = ({
   useEffect(() => {
     const backAction = () => {
       if (!isModalCollapsed) {
+        const collapsedPos = getCollapsedPosition(layoutProgress.value);
+        const collapsedH = getCollapsedHeight(layoutProgress.value);
         // Modal is expanded, collapse it (no alert)
-        modalTranslateY.value = withTiming(COLLAPSED_POSITION, {
+        modalTranslateY.value = withTiming(collapsedPos, {
           duration: 300,
           easing: Easing.out(Easing.quad),
         }, (finished) => {
           if (finished) {
             // Update visible height for collapsed state after animation completes
-            lastUpdatedHeight.value = COLLAPSED_HEIGHT;
-            runOnJS(updateVisibleHeight)(COLLAPSED_HEIGHT);
-            runOnJS(setIsModalCollapsed)(true);
+            lastUpdatedHeight.value = collapsedH;
+            runOnJS(updateVisibleHeight)(collapsedH);
+            runOnJS(setCollapsedState)(true);
             runOnJS(endAnimation)();
             // Trigger scroll after collapse
             runOnJS(setScrollTrigger)(Date.now());
@@ -2181,7 +2275,7 @@ const BottomModal: React.FC<BottomModalProps> = ({
     );
 
     return () => backHandler.remove();
-  }, [isModalCollapsed, modalTranslateY, COLLAPSED_POSITION, COLLAPSED_HEIGHT, lastUpdatedHeight, updateVisibleHeight, endAnimation, setScrollTrigger, onShowFinishAlert]);
+  }, [isModalCollapsed, modalTranslateY, lastUpdatedHeight, updateVisibleHeight, endAnimation, setScrollTrigger, onShowFinishAlert, setCollapsedState, layoutProgress]);
 
   if (!visible) return null;
 
@@ -2217,6 +2311,7 @@ const BottomModal: React.FC<BottomModalProps> = ({
             onKeyboardToggle={handleKeyboardToggle}
             disableKeyboardAvoidance={true}
             scrollToBottomTrigger={scrollTrigger}
+            showInputBar={!isModalCollapsed}
             // Conversation event props
             conversationEvents={conversationEvents}
             conversationMode={conversationMode}
@@ -2479,6 +2574,111 @@ export default function ActiveWorkoutScreen() {
   const [showAdjustModal, setShowAdjustModal] = useState(false);
   const [showSwitchModal, setShowSwitchModal] = useState(false);
   const [isRestoringSession, setIsRestoringSession] = useState(false);
+  // 0 = classic (wide video), 1 = enhanced (tall video) — swipe on video or timer
+  const layoutProgress = useSharedValue(0);
+  const layoutGestureStart = useSharedValue(0);
+  const classicCollapsedHeight = CLASSIC_CHAT_HEIGHT;
+  const enhancedCollapsedHeight = ENHANCED_CHAT_PEEK + insets.bottom;
+  const enhancedVideoHeight = Math.max(
+    CLASSIC_VIDEO_HEIGHT,
+    SCREEN_HEIGHT - insets.bottom - ENHANCED_CHAT_PEEK - WORKOUT_STATS_HEIGHT
+  );
+  /** null until AsyncStorage hydrate finishes — avoids flashing the wrong layout */
+  const [layoutHydrated, setLayoutHydrated] = useState(false);
+
+  const persistLayoutMode = useCallback(async (target: number) => {
+    const mode = target >= 0.5 ? 'enhanced' : 'classic';
+    try {
+      await AsyncStorage.setItem(LAYOUT_STORAGE_KEY, mode);
+    } catch (error) {
+      console.warn('Failed to persist workout layout mode', error);
+    }
+  }, []);
+
+  // Restore last selected layout from app storage
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const mode = await AsyncStorage.getItem(LAYOUT_STORAGE_KEY);
+        if (!mounted) return;
+        layoutProgress.value = mode === 'enhanced' || mode === '1' ? 1 : 0;
+      } catch {
+        if (mounted) {
+          layoutProgress.value = 0;
+        }
+      } finally {
+        if (mounted) {
+          setLayoutHydrated(true);
+        }
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [layoutProgress]);
+
+  const [layoutScrollTrigger, setLayoutScrollTrigger] = useState(0);
+
+  const onLayoutSnapComplete = useCallback((target: number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    // Persist immediately (don't wait for spring `finished` — can be skipped if interrupted)
+    persistLayoutMode(target);
+    // Chat height changed with the morph — keep latest messages in view
+    setLayoutScrollTrigger(Date.now());
+  }, [persistLayoutMode]);
+
+  const layoutGestureHandler = useAnimatedGestureHandler({
+    onStart: (_, context: { startProgress: number }) => {
+      context.startProgress = layoutProgress.value;
+      layoutGestureStart.value = layoutProgress.value;
+    },
+    onActive: (event, context: { startProgress: number }) => {
+      // Swipe down (positive translationY) → enhanced; swipe up → classic
+      const next = context.startProgress + (event.translationY / LAYOUT_SWIPE_DISTANCE);
+      layoutProgress.value = Math.min(1, Math.max(0, next));
+    },
+    onEnd: (event) => {
+      let target = layoutProgress.value > 0.5 ? 1 : 0;
+      if (event.velocityY > 700) target = 1;
+      if (event.velocityY < -700) target = 0;
+      // Save as soon as the user commits to a layout
+      runOnJS(persistLayoutMode)(target);
+      layoutProgress.value = withSpring(
+        target,
+        { damping: 22, stiffness: 180, mass: 0.85 },
+        (finished) => {
+          if (finished) {
+            runOnJS(onLayoutSnapComplete)(target);
+          }
+        }
+      );
+    },
+  });
+
+  const animatedMainContentStyle = useAnimatedStyle(() => {
+    const classicPad = Math.max(0, classicCollapsedHeight - insets.bottom);
+    const enhancedPad = ENHANCED_CHAT_PEEK;
+    return {
+      paddingBottom: interpolate(
+        layoutProgress.value,
+        [0, 1],
+        [classicPad, enhancedPad],
+        Extrapolation.CLAMP
+      ),
+    };
+  });
+
+  const animatedVideoContainerStyle = useAnimatedStyle(() => ({
+    height: interpolate(
+      layoutProgress.value,
+      [0, 1],
+      [CLASSIC_VIDEO_HEIGHT, enhancedVideoHeight],
+      Extrapolation.CLAMP
+    ),
+    flexGrow: 0,
+    flexShrink: 0,
+  }));
   
   // Auth context
   const { user } = useAuth();
@@ -2512,19 +2712,6 @@ export default function ActiveWorkoutScreen() {
       });
       return null;
     }
-    
-    // Log for debugging adjust modal issues
-    // NOTE: entry.exercises may be stale from nested cache - currentExercise uses fresh data
-    console.log('🔧 [ActiveWorkout] Current workout entry ID:', {
-      entryId: entry.id,
-      entryExerciseId: entry.exercise_id, // Always fresh - this is the source of truth
-      entryExerciseSlug: entry.exercises?.slug, // May be stale from nested cache
-      entryExerciseName: entry.exercises?.name, // May be stale from nested cache
-      currentExerciseId: currentExercise?.id,
-      currentExerciseSlug: (currentExercise as any)?.slug, // Type assertion - slug exists at runtime
-      currentExerciseName: currentExercise?.name,
-      currentIndex,
-    });
     
     // Verify the entry matches the current exercise (by exercise_id - most reliable)
     if (currentExercise?.id && entry.exercise_id !== currentExercise.id) {
@@ -4155,28 +4342,35 @@ export default function ActiveWorkoutScreen() {
     >
       <SystemBars style="dark" />
       <SafeAreaView style={[styles.container, { backgroundColor: nucleus.light.semantic.bg.subtle }]} edges={['bottom']}>
-        <ReanimatedAnimated.View 
-          entering={FadeIn.duration(500).delay(200)}
-          style={styles.mainContent}
+        <PanGestureHandler
+          onGestureEvent={layoutGestureHandler}
+          activeOffsetY={[-16, 16]}
+          failOffsetX={[-28, 28]}
+          enabled={status !== 'workout-completed'}
         >
-          <View style={styles.topContainer}>
-            {/* Exercise Video - Full width */}
-            <VideoContainer 
-              currentExercise={currentExercise}
-              status={status}
-              activeWorkout={activeWorkout}
-              onShowFinishAlert={() => setShowFinishAlert(true)}
-              onShowAdjustModal={() => setShowAdjustModal(true)}
-              onShowSwitchModal={() => setShowSwitchModal(true)}
-              dispatch={dispatch}
-              onEndConversation={endConversation}
-            />
-          </View>
-          
-          <View style={styles.workoutStatusContainer}>
-            <WorkoutProgress segments={progressSegments} />
-          </View>
-        </ReanimatedAnimated.View>
+          <ReanimatedAnimated.View 
+            entering={FadeIn.duration(500).delay(200)}
+            style={[styles.mainContent, animatedMainContentStyle]}
+          >
+            <ReanimatedAnimated.View style={[styles.topContainer, animatedVideoContainerStyle]}>
+              {/* Exercise Video — morphs classic ↔ enhanced; Supabase *_cropped_video.mp4 */}
+              <VideoContainer 
+                currentExercise={currentExercise}
+                status={status}
+                activeWorkout={activeWorkout}
+                onShowFinishAlert={() => setShowFinishAlert(true)}
+                onShowAdjustModal={() => setShowAdjustModal(true)}
+                onShowSwitchModal={() => setShowSwitchModal(true)}
+                dispatch={dispatch}
+                onEndConversation={endConversation}
+              />
+            </ReanimatedAnimated.View>
+            
+            <View style={styles.workoutStatusContainer}>
+              <WorkoutProgress segments={progressSegments} />
+            </View>
+          </ReanimatedAnimated.View>
+        </PanGestureHandler>
       </SafeAreaView>
       
       {/* Bottom Modal */}
@@ -4194,6 +4388,11 @@ export default function ActiveWorkoutScreen() {
         onAddConversationEvent={(event) => {
           setConversationEvents(prev => [...prev, event]);
         }}
+        layoutProgress={layoutProgress}
+        classicCollapsedHeight={classicCollapsedHeight}
+        enhancedCollapsedHeight={enhancedCollapsedHeight}
+        layoutScrollTrigger={layoutScrollTrigger}
+        layoutReady={layoutHydrated}
       />
 
       <AnimatedAIButton
@@ -4310,15 +4509,18 @@ const styles = StyleSheet.create({
   },
   topContainer: {
     width: '100%',
-    aspectRatio: 1.2,
+    minHeight: 0,
     flexDirection: 'column',
     alignItems: 'stretch',
     alignSelf: 'stretch',
+    overflow: 'hidden',
   },
   videoContainer: {
     flex: 1,
     width: '100%',
+    minHeight: 0,
     position: 'relative',
+    backgroundColor: nucleus.light.global.grey["20"],
   },
   workoutCompletedContainer: {
     flex: 1,
@@ -4547,15 +4749,17 @@ const styles = StyleSheet.create({
     display: 'flex',
     width: '100%',
     paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingTop: 8,
+    paddingBottom: ENHANCED_STATS_GAP,
     flexDirection: 'column',
     alignItems: 'stretch',
-    gap: 20,
-    
+    gap: ENHANCED_STATS_GAP,
+    flexShrink: 0,
+    backgroundColor: nucleus.light.semantic.bg.subtle,
   },
   progressContainer: {
     width: '100%',
-    gap: 20,
+    gap: ENHANCED_STATS_GAP,
     paddingHorizontal: 0,
   },
   progressBarContainer: {
@@ -4564,7 +4768,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     flexDirection: 'row',
     gap: 2,
-    
   },
   progressSegment: {
     height: '100%',
@@ -4619,14 +4822,14 @@ const styles = StyleSheet.create({
   },
   infoValue: {
     fontFamily: 'PlusJakartaSans-Bold',
-    fontSize: 18,
-    lineHeight: 21.6, // 1.2 * 18
+    fontSize: 16,
+    lineHeight: 19.2, // 1.2 * 16
     includeFontPadding: false,
   },
   infoLabel: {
     fontFamily: 'PlusJakartaSans-Regular',
-    fontSize: 14,
-    lineHeight: 14,
+    fontSize: 12,
+    lineHeight: 12,
     includeFontPadding: false,
   },
   timerContainer: {
@@ -4643,6 +4846,7 @@ const styles = StyleSheet.create({
     fontSize: 40,
     lineHeight: 48,
     letterSpacing: 0,
+    includeFontPadding: false,
   },
   separator: {
     width: 1,

@@ -20,35 +20,21 @@ import { getDayNameImage } from '../../utils';
 import { useIntro } from '../_layout';
 
 export default function ExploreScreen() {
-  console.log('🏠 [MAIN] ExploreScreen component rendering');
   const theme = useBiXoTheme();
   const { setShowIntro } = useIntro();
   const { user } = useAuth();
-  console.log('🏠 [MAIN] User:', user?.id || 'null');
 
   // Get user profile data from Redux store
   const userProfile = useAppSelector((state: RootState) => (state as any).user?.extractedProfile);
-  console.log('🏠 [MAIN] User profile:', userProfile ? 'exists' : 'null');
 
   // Fetch real workout plans from database
-  console.log('🏠 [MAIN] Fetching workout plans for user:', user?.id || 'null');
   const { data: workoutPlansData, isLoading: isLoadingWorkoutPlans, isFetching: isFetchingWorkoutPlans, refetch: refetchWorkoutPlans } = useGetUserWorkoutPlansQuery(
     { userId: user?.id || '' },
     { skip: !user?.id }
   );
-  console.log('🏠 [MAIN] Workout plans - isLoading:', isLoadingWorkoutPlans, 'isFetching:', isFetchingWorkoutPlans, 'hasData:', !!workoutPlansData);
   
   const userWorkoutPlans = workoutPlansData?.workout_plansCollection?.edges?.map(edge => edge.node) || [];
   const activeWorkoutPlan = userWorkoutPlans.find(plan => plan.status === 'active');
-  if (activeWorkoutPlan) {
-    console.log('🏠 [MAIN] Active plan:', {
-      id: activeWorkoutPlan.id,
-      start_date: activeWorkoutPlan.start_date,
-      summary: activeWorkoutPlan.summary ?? '(no summary)'
-    });
-  } else {
-    console.log('🏠 [MAIN] Active workout plan: none');
-  }
   
   // Function to generate personalized morning message
   const getPersonalizedGreeting = () => {
@@ -172,7 +158,6 @@ export default function ExploreScreen() {
 
   // Start entrance animations
   useEffect(() => {
-    console.log('🏠 [MAIN] Starting entrance animations');
     const startAnimations = () => {
       // Staggered entrance animations
       greetingOpacity.value = withTiming(1, { duration: 600 });
@@ -197,7 +182,6 @@ export default function ExploreScreen() {
     startAnimations();
   }, []);
 
-  console.log('🏠 [MAIN] ExploreScreen render complete - rendering UI');
   // Week calendar data
   const weeks = [1, 2, 3, 4, 5, 6, 7, 8];
 
@@ -237,7 +221,6 @@ export default function ExploreScreen() {
   // Week 1 = the Monday–Sunday that contains plan start; only advances on Monday.
   const getCurrentWeekNumber = () => {
     if (!activeWorkoutPlan?.start_date) {
-      console.log('📅 [WEEK] No plan start_date, defaulting to week 1');
       return 1; // Default to week 1 if no active plan
     }
 
@@ -248,19 +231,7 @@ export default function ExploreScreen() {
     const thisWeekMonday = getMondayOfWeek(today);
 
     const daysBetween = Math.floor((thisWeekMonday.getTime() - referenceMonday.getTime()) / (1000 * 60 * 60 * 24));
-    const weekNumber = Math.min(8, Math.max(1, Math.floor(daysBetween / 7) + 1));
-
-    console.log('📅 [WEEK] getCurrentWeekNumber:', {
-      start_date_raw: activeWorkoutPlan.start_date,
-      planStartDate_local: planStartDate.toDateString(),
-      referenceMonday: referenceMonday.toDateString(),
-      today: today.toDateString(),
-      thisWeekMonday: thisWeekMonday.toDateString(),
-      daysBetween,
-      weekNumber
-    });
-
-    return weekNumber;
+    return Math.min(8, Math.max(1, Math.floor(daysBetween / 7) + 1));
   };
 
   // Active week state - auto-select current week based on plan start date
@@ -568,7 +539,6 @@ export default function ExploreScreen() {
     transform: [{ translateY: (1 - statsOpacity.value) * 60 }]
   }));
 
-  console.log('🏠 [MAIN] Rendering SafeAreaView');
   return (
     <SafeAreaView edges={['top']} style={[styles.container, { backgroundColor: nucleus.light.semantic.bg.subtle }]}>
 
@@ -589,7 +559,7 @@ export default function ExploreScreen() {
         <Animated.View style={[styles.greetingContainer, greetingAnimatedStyle]}>
           <View style={styles.greetingContent}>
             <View style={styles.morningRow}>
-              <Text onPress={() => router.push('/active_workout')} style={styles.morningText}>
+              <Text style={styles.morningText}>
                 {greeting}
               </Text>
             </View>

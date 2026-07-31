@@ -371,6 +371,8 @@ interface ChatComponentProps extends ConversationEventHandlers {
   onKeyboardToggle?: (isVisible: boolean, keyboardHeight: number) => void; // Callback for keyboard state changes
   disableKeyboardAvoidance?: boolean; // Disable KeyboardAvoidingView when parent handles it
   scrollToBottomTrigger?: number; // Increment this to trigger scroll to bottom
+  /** When false, input is hidden so messages use the space (e.g. chat sheet collapsed). */
+  showInputBar?: boolean;
 }
 
 export default function ChatComponent({
@@ -388,6 +390,7 @@ export default function ChatComponent({
   onKeyboardToggle,
   disableKeyboardAvoidance = false,
   scrollToBottomTrigger = 0,
+  showInputBar = true,
   // Conversation event props
   conversationEvents = [],
   conversationMode,
@@ -396,15 +399,6 @@ export default function ChatComponent({
   onEventReceived,
   onSendTextMessage
 }: ChatComponentProps) {
-  // Input collapse animation values
-  const keyboardButtonScale = useSharedValue(1);
-  const inputWrapperWidth = useSharedValue(-1); // -1 means not set yet
-  const initialWrapperWidth = useSharedValue(0); // Store the initial width
-  const inputOpacity = useSharedValue(1);
-  const sendButtonOpacity = useSharedValue(1);
-  const inputScale = useSharedValue(1);
-  const sendButtonScale = useSharedValue(1);
-  const [isInputCollapsed, setIsInputCollapsed] = useState(false);
   
   // Animated height for smooth transitions
   const animatedHeight = useSharedValue(maxHeight || 400); // Start with reasonable default
@@ -656,7 +650,7 @@ export default function ChatComponent({
     }
   }, [processedEvents]);
 
-  // Scroll to bottom when external trigger changes (from modal transitions)
+  // Scroll to bottom when external trigger changes (sheet / layout morph)
   useEffect(() => {
     if (scrollToBottomTrigger > 0) {
       // Delay scroll to ensure layout has settled after height changes
@@ -673,13 +667,28 @@ export default function ChatComponent({
     }
   }, [scrollToBottomTrigger]);
 
-  // Trigger animation only on first mount
+  // Keep Redux in sync for consumers (e.g. tab bar); dismiss keyboard when bar hides
   useEffect(() => {
-    // Collapse input after 100ms (default state)
-    setTimeout(() => {
-      handleCollapseInput();
-    }, 500);
+    dispatch(setInputCollapsed(!showInputBar));
+    if (!showInputBar) {
+      Keyboard.dismiss();
+    }
+  }, [showInputBar, dispatch]);
 
+  // Auto-scroll when input bar appears/hides (chat sheet fully open ↔ peek)
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      try {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      } catch (error) {
+        console.error('Error scrolling to bottom after input visibility change:', error);
+      }
+    }, 150);
+    return () => clearTimeout(timeoutId);
+  }, [showInputBar]);
+
+  // Trigger message entrance on first mount
+  useEffect(() => {
     // Animate messages after main animation completes
     setTimeout(() => {
       Animated.parallel([
@@ -1003,117 +1012,35 @@ export default function ChatComponent({
     }
   };
 
-  const handleCollapseInput = () => {
-    const newCollapsedState = !isInputCollapsed;
-    setIsInputCollapsed(newCollapsedState);
-    
-    // Dispatch to Redux store
-    dispatch(setInputCollapsed(newCollapsedState));
-    
-    if (newCollapsedState) {
-      // Store initial width if not stored yet
-      if (initialWrapperWidth.value === 0 && inputWrapperWidth.value > 0) {
-        initialWrapperWidth.value = inputWrapperWidth.value;
-      }
-      
-      // Collapse animation - animate everything at once
-      inputWrapperWidth.value = withTiming(56, {
-        duration: 400,
-        easing: Easing.out(Easing.cubic),
-      });
-      
-      // Input field disappears
-      inputOpacity.value = withTiming(0, {
-        duration: 250,
-        easing: Easing.out(Easing.cubic),
-      });
-      inputScale.value = withTiming(0.8, {
-        duration: 250,
-        easing: Easing.out(Easing.cubic),
-      });
-      
-      // Send button disappears
-      sendButtonOpacity.value = withTiming(0, {
-        duration: 250,
-        easing: Easing.out(Easing.cubic),
-      });
-      sendButtonScale.value = withTiming(0.8, {
-        duration: 250,
-        easing: Easing.out(Easing.cubic),
-      });
-      
-      // Keyboard button scales up slightly
-      keyboardButtonScale.value = withTiming(1.0, {
-        duration: 400,
-        easing: Easing.out(Easing.cubic),
-      });
-    } else {
-      // Expand animation - everything appears at once
-      inputWrapperWidth.value = withTiming(initialWrapperWidth.value, {
-        duration: 400,
-        easing: Easing.out(Easing.cubic),
-      });
-      
-      // Input field appears
-      inputOpacity.value = withTiming(1, {
-        duration: 300,
-        easing: Easing.out(Easing.cubic),
-      });
-      inputScale.value = withTiming(1, {
-        duration: 300,
-        easing: Easing.out(Easing.cubic),
-      });
-      
-      // Send button appears
-      sendButtonOpacity.value = withTiming(1, {
-        duration: 300,
-        easing: Easing.out(Easing.cubic),
-      });
-      sendButtonScale.value = withTiming(1, {
-        duration: 300,
-        easing: Easing.out(Easing.cubic),
-      });
-      
-      // Keyboard button returns to normal
-      keyboardButtonScale.value = withTiming(1, {
-        duration: 400,
-        easing: Easing.out(Easing.cubic),
-      });
-    }
+  const renderInputBar = () => {
+    if (!showInputBar) return null;
+
+    return (
+      <View style={[styles.inputContainer, { paddingBottom: isKeyboardVisible ? 16 : 0 }]}>
+        <View style={styles.inputWrapper}>
+          <TextInput
+            style={styles.textInputField}
+            placeholder="Type a message..."
+            placeholderTextColor={nucleus.light.semantic.fg.muted}
+            value={inputText}
+            onChangeText={setInputText}
+            multiline
+            maxLength={500}
+          />
+          <TouchableOpacity
+            style={[
+              styles.sendButton,
+              { opacity: inputText.trim() ? 1 : 0.5 },
+            ]}
+            onPress={handleSendMessage}
+            disabled={!inputText.trim() || isLoading}
+          >
+            <Text style={styles.sendButtonText}>Send</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
   };
-
-  // Animated styles for input collapse
-  const animatedInputStyle = useAnimatedStyle(() => ({
-    flex: inputOpacity.value > 0.1 ? 1 : 0,
-    opacity: inputOpacity.value,
-    transform: [{ scale: inputScale.value }],
-    position: inputOpacity.value > 0.1 ? 'relative' : 'absolute',
-    width: inputOpacity.value > 0.1 ? 'auto' : 0,
-    height: inputOpacity.value > 0.1 ? 'auto' : 0,
-    overflow: 'hidden',
-  }));
-
-  const animatedSendButtonStyle = useAnimatedStyle(() => ({
-    opacity: sendButtonOpacity.value,
-    transform: [{ scale: sendButtonScale.value }],
-    position: sendButtonOpacity.value > 0.1 ? 'relative' : 'absolute',
-    width: sendButtonOpacity.value > 0.1 ? 'auto' : 0,
-    height: sendButtonOpacity.value > 0.1 ? 'auto' : 0,
-    overflow: 'hidden',
-  }));
-
-  const animatedKeyboardButtonStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: keyboardButtonScale.value }],
-  }));
-
-  const animatedWrapperStyle = useAnimatedStyle(() => ({
-    width: inputWrapperWidth.value === -1 ? 'auto' : inputWrapperWidth.value,
-    minHeight: 56, // Fixed height to prevent vertical jumping
-    maxHeight: 56, // Keep input wrapper at fixed height
-    overflow: 'hidden', // Clip any overflowing content
-    justifyContent: 'center',
-    alignItems: 'center',
-  }));
 
   // Animated container style
   const animatedContainerStyle = useAnimatedStyle(() => ({
@@ -1174,7 +1101,10 @@ export default function ChatComponent({
             <ScrollView 
               ref={scrollViewRef}
               style={styles.scrollContainer}
-              contentContainerStyle={[styles.scrollContent, { paddingBottom: isKeyboardVisible ? 20 : 0 }]}
+              contentContainerStyle={[
+                styles.scrollContent,
+                { paddingBottom: isKeyboardVisible ? 20 : 0 },
+              ]}
               showsVerticalScrollIndicator={false}
               scrollEventThrottle={16}
               decelerationRate="normal"
@@ -1214,59 +1144,10 @@ export default function ChatComponent({
                     </View>
                   </View>
                 )}
-                
               </Animated.View>
             </ScrollView>
 
-            {/* Input Area */}
-            <View style={[styles.inputContainer, { paddingBottom: isKeyboardVisible ? 16 : 0 }]}>
-              <ReanimatedAnimated.View 
-                style={[styles.inputWrapper, animatedWrapperStyle]}
-                onLayout={(e) => {
-                  if (inputWrapperWidth.value === -1) {
-                    const width = e.nativeEvent.layout.width;
-                    inputWrapperWidth.value = width;
-                    initialWrapperWidth.value = width;
-                  }
-                }}
-              >
-                <ReanimatedAnimated.View style={animatedKeyboardButtonStyle}>
-                  <TouchableOpacity 
-                    style={styles.keyboardIconButton}
-                    onPress={handleCollapseInput}
-                  >
-                    <Image
-                      source={require('../assets/icons/keyboard.svg')}
-                      style={styles.keyboardIcon}
-                      contentFit="contain"
-                    />
-                  </TouchableOpacity>
-                </ReanimatedAnimated.View>
-                <ReanimatedAnimated.View style={[animatedInputStyle]}>
-                  <TextInput
-                    style={styles.textInputField}
-                    placeholder="Type a message..."
-                    placeholderTextColor={nucleus.light.semantic.fg.muted}
-                    value={inputText}
-                    onChangeText={setInputText}
-                    multiline
-                    maxLength={500}
-                  />
-                </ReanimatedAnimated.View>
-                <ReanimatedAnimated.View style={animatedSendButtonStyle}>
-                  <TouchableOpacity 
-                    style={[
-                      styles.sendButton,
-                      { opacity: inputText.trim() ? 1 : 0.5 }
-                    ]}
-                    onPress={handleSendMessage}
-                    disabled={!inputText.trim() || isLoading}
-                  >
-                    <Text style={styles.sendButtonText}>Send</Text>
-                  </TouchableOpacity>
-                </ReanimatedAnimated.View>
-              </ReanimatedAnimated.View>
-            </View>
+            {renderInputBar()}
           </View>
         ) : (
           // With KeyboardAvoidingView
@@ -1278,7 +1159,10 @@ export default function ChatComponent({
             <ScrollView 
               ref={scrollViewRef}
               style={styles.scrollContainer}
-              contentContainerStyle={[styles.scrollContent, { paddingBottom: isKeyboardVisible ? 20 : 80 }]}
+              contentContainerStyle={[
+                styles.scrollContent,
+                { paddingBottom: isKeyboardVisible ? 20 : 0 },
+              ]}
               showsVerticalScrollIndicator={false}
               scrollEventThrottle={16}
               decelerationRate="normal"
@@ -1318,59 +1202,10 @@ export default function ChatComponent({
                     </View>
                   </View>
                 )}
-                
               </Animated.View>
             </ScrollView>
 
-            {/* Input Area */}
-            <View style={[styles.inputContainer, { paddingBottom: isKeyboardVisible ? 16 : 0 }]}>
-              <ReanimatedAnimated.View 
-                style={[styles.inputWrapper, animatedWrapperStyle]}
-                onLayout={(e) => {
-                  if (inputWrapperWidth.value === -1) {
-                    const width = e.nativeEvent.layout.width;
-                    inputWrapperWidth.value = width;
-                    initialWrapperWidth.value = width;
-                  }
-                }}
-              >
-                <ReanimatedAnimated.View style={animatedKeyboardButtonStyle}>
-                  <TouchableOpacity 
-                    style={styles.keyboardIconButton}
-                    onPress={handleCollapseInput}
-                  >
-                    <Image
-                      source={require('../assets/icons/keyboard.svg')}
-                      style={styles.keyboardIcon}
-                      contentFit="contain"
-                    />
-                  </TouchableOpacity>
-                </ReanimatedAnimated.View>
-                <ReanimatedAnimated.View style={[animatedInputStyle]}>
-                  <TextInput
-                    style={styles.textInputField}
-                    placeholder="Type a message..."
-                    placeholderTextColor={nucleus.light.semantic.fg.muted}
-                    value={inputText}
-                    onChangeText={setInputText}
-                    multiline
-                    maxLength={500}
-                  />
-                </ReanimatedAnimated.View>
-                <ReanimatedAnimated.View style={animatedSendButtonStyle}>
-                  <TouchableOpacity 
-                    style={[
-                      styles.sendButton,
-                      { opacity: inputText.trim() ? 1 : 0.5 }
-                    ]}
-                    onPress={handleSendMessage}
-                    disabled={!inputText.trim() || isLoading}
-                  >
-                    <Text style={styles.sendButtonText}>Send</Text>
-                  </TouchableOpacity>
-                </ReanimatedAnimated.View>
-              </ReanimatedAnimated.View>
-            </View>
+            {renderInputBar()}
           </KeyboardAvoidingView>
         )}
       </ReanimatedAnimated.View>
@@ -1455,12 +1290,15 @@ const styles = StyleSheet.create({
     paddingTop: 24,
     flexDirection: 'column',
     justifyContent: 'flex-start',
-    alignItems: 'flex-start',
+    alignItems: 'stretch',
     gap: 8,
     alignSelf: 'stretch',
+    width: '100%',
   },
   headerInScroll: {
     gap: 8,
+    alignSelf: 'stretch',
+    width: '100%',
   },
   title: {
     fontFamily: 'PlusJakartaSans-Bold',
@@ -1601,7 +1439,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: 8,
     marginTop: 8,
-    paddingBottom: 80,
+    paddingBottom: 8,
   },
   loadingBubble: {
     display: 'flex',
@@ -1630,11 +1468,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 0,
-    marginRight: 64,
+    // Keep Send clear of the floating BiXo button (64px + right offset)
+    marginRight: 80,
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
+    alignSelf: 'stretch',
+    width: '100%',
     backgroundColor: 'rgba(255, 255, 255, 0.50)',
     borderRadius: 24,
     paddingHorizontal: 12,
@@ -1653,21 +1494,6 @@ const styles = StyleSheet.create({
     elevation: 25,
     shadowOpacity: 1,
   },
-  keyboardIconButton: {
-    padding: 8,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    minWidth: 48,
-    minHeight: 48,
-    width: 48,
-    height: 48,
-  },
-  keyboardIcon: {
-    width: 28,
-    height: 28,
-    tintColor: nucleus.light.semantic.accent.intense,
-  },
   textInputField: {
     flex: 1,
     fontFamily: 'PlusJakartaSans-Regular',
@@ -1675,7 +1501,6 @@ const styles = StyleSheet.create({
     color: nucleus.light.semantic.fg.base,
     paddingVertical: 0,
     minHeight: 40,
-
   },
   sendButton: {
     paddingHorizontal: 16,
@@ -1698,6 +1523,7 @@ const styles = StyleSheet.create({
   },
   mainContent: {
     flex: 1,
+    position: 'relative',
   },
   
   // Event indicator styles

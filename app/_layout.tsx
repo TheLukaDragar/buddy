@@ -57,7 +57,6 @@ const BiXoNavigationTheme = {
 // Moved outside RootLayout to prevent remounting on every render
 // Using a stable component reference so it doesn't get recreated
 function PersistGateContent() {
-  console.log('🚀 [ENTRY] PersistGate - rehydration complete, rendering app');
   const [showIntro, setShowIntro] = useState(false);
   useWorkoutSyncOnBackground();
   
