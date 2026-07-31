@@ -1169,6 +1169,10 @@ const workoutSlice = createSlice({
 
     // Timer updates (called by middleware)
     updateSetTimer: (state, action: PayloadAction<{ remaining: number; elapsed: number }>) => {
+      // Ignore ghost ticks after leave / completion (intervals may lag one beat)
+      if (state.status === 'inactive' || state.status === 'workout-completed' || !state.activeWorkout) {
+        return;
+      }
       // Create timer if it doesn't exist
       if (!state.timers.setTimer) {
         state.timers.setTimer = {
@@ -1180,13 +1184,14 @@ const workoutSlice = createSlice({
       } else {
         state.timers.setTimer.remaining = action.payload.remaining;
       }
-      if (state.activeWorkout) {
-        state.activeWorkout.elapsedTime = action.payload.elapsed;
-        state.activeWorkout.exactSeconds = Math.floor(action.payload.elapsed / 1000);
-      }
+      state.activeWorkout.elapsedTime = action.payload.elapsed;
+      state.activeWorkout.exactSeconds = Math.floor(action.payload.elapsed / 1000);
     },
 
     updateRestTimer: (state, action: PayloadAction<{ remaining: number; elapsed: number }>) => {
+      if (state.status === 'inactive' || state.status === 'workout-completed' || !state.activeWorkout) {
+        return;
+      }
       // Create timer if it doesn't exist
       if (!state.timers.restTimer) {
         state.timers.restTimer = {
@@ -1199,13 +1204,15 @@ const workoutSlice = createSlice({
       } else {
         state.timers.restTimer.remaining = action.payload.remaining;
       }
-      if (state.activeWorkout) {
-        state.activeWorkout.timeRemaining = Math.floor(action.payload.remaining / 1000);
-      }
+      state.activeWorkout.timeRemaining = Math.floor(action.payload.remaining / 1000);
     },
 
     // Timer expiration (called by middleware)
     setTimerExpired: (state) => {
+      if (state.status === 'inactive' || !state.activeWorkout) {
+        state.timers.setTimer = null;
+        return;
+      }
       // Just clear the timer - middleware will handle dispatching completeSet
       if (state.status === 'exercising') {
         state.timers.setTimer = null;
@@ -1214,6 +1221,10 @@ const workoutSlice = createSlice({
     },
 
     restTimerExpired: (state) => {
+      if (state.status === 'inactive' || !state.activeWorkout) {
+        state.timers.restTimer = null;
+        return;
+      }
       if (state.status === 'resting') {
         // Trigger rest ending (middleware handles isLastSet logic)
         state.status = 'rest-ending';

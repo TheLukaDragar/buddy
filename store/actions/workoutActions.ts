@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { WorkoutSession } from '../../types/workout'
 import { enhancedApi } from '../api/enhancedApi'
 import type { RootState } from '../index'
+import { armLeaveStatusGuard, clearLeaveStatusGuard } from '../workoutLeaveGuard'
 import {
     adjustReps as adjustRepsReducer,
     adjustRestTime as adjustRestTimeReducer,
@@ -382,6 +383,9 @@ export const finishWorkoutEarly = createAsyncThunk(
 export const saveWorkoutForLater = createAsyncThunk(
   'workout/saveWorkoutForLater',
   async (_, { getState, dispatch }) => {
+    // Stop timers + invalidate in-flight status syncs before we write leave status
+    dispatch({ type: 'workout/cleanup' })
+
     const state = getState() as RootState
     const sessionId = state.workout.sessionId
     const activeWorkout = state.workout.activeWorkout
@@ -399,6 +403,7 @@ export const saveWorkoutForLater = createAsyncThunk(
     // Warmup uses Redux status "selected" — keep DB status "selected" so resume restores warmup,
     // not mid-set "paused" (which would skip warmup and land on sets).
     const dbStatus = state.workout.status === 'selected' ? 'selected' : 'paused'
+    armLeaveStatusGuard(sessionId, dbStatus)
 
     try {
       await dispatch(
@@ -413,6 +418,7 @@ export const saveWorkoutForLater = createAsyncThunk(
           lastActivityAt,
         })
       ).unwrap()
+      // Status last so progress sync races can't leave status as exercising
       await dispatch(
         enhancedApi.endpoints.UpdateWorkoutSessionStatus.initiate({
           id: sessionId,
@@ -425,6 +431,8 @@ export const saveWorkoutForLater = createAsyncThunk(
     }
 
     dispatch(leaveWorkoutForLaterReducer())
+    // Keep guard briefly so any in-flight sync finishing after leave can restore status
+    setTimeout(() => clearLeaveStatusGuard(), 5000)
     return { success: true }
   }
 )

@@ -787,6 +787,53 @@ export const enhancedApi = generatedApi.enhanceEndpoints({
       }
     },
 
+    // Session queries/mutations — keep resume from reading stale cached progress
+    GetActiveWorkoutSession: {
+      providesTags: [{ type: 'WorkoutSession' as const, id: 'ACTIVE' }],
+    },
+    GetWorkoutSessionByDate: {
+      providesTags: (_result: unknown, _error: unknown, arg: { date?: string }) => [
+        { type: 'WorkoutSession' as const, id: arg?.date ?? 'DATE' },
+        { type: 'WorkoutSession' as const, id: 'LIST' },
+      ],
+    },
+    GetWorkoutSessionSets: {
+      providesTags: (_result: unknown, _error: unknown, arg: { sessionId?: string }) => [
+        { type: 'WorkoutSessionSet' as const, id: arg?.sessionId ?? 'LIST' },
+      ],
+    },
+    UpdateWorkoutSessionStatus: {
+      invalidatesTags: [
+        { type: 'WorkoutSession' as const, id: 'ACTIVE' },
+        { type: 'WorkoutSession' as const, id: 'LIST' },
+      ],
+    },
+    UpdateWorkoutSessionProgress: {
+      invalidatesTags: [
+        { type: 'WorkoutSession' as const, id: 'ACTIVE' },
+        { type: 'WorkoutSession' as const, id: 'LIST' },
+      ],
+    },
+    UpdateWorkoutSessionPause: {
+      invalidatesTags: [
+        { type: 'WorkoutSession' as const, id: 'ACTIVE' },
+        { type: 'WorkoutSession' as const, id: 'LIST' },
+      ],
+    },
+    CompleteWorkoutSet: {
+      invalidatesTags: (_result: unknown, _error: unknown, arg: { sessionId?: string }) => [
+        { type: 'WorkoutSessionSet' as const, id: arg?.sessionId ?? 'LIST' },
+        { type: 'WorkoutSession' as const, id: 'ACTIVE' },
+        { type: 'WorkoutSession' as const, id: 'LIST' },
+      ],
+    },
+    CompleteWorkoutSession: {
+      invalidatesTags: [
+        { type: 'WorkoutSession' as const, id: 'ACTIVE' },
+        { type: 'WorkoutSession' as const, id: 'LIST' },
+      ],
+    },
+
   },
 })
 

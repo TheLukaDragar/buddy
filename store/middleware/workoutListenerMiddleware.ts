@@ -12,6 +12,11 @@ import { getWorkoutStatus } from '../actions/workoutActions';
 import { enhancedApi } from '../api/enhancedApi';
 import type { AppDispatch, RootState } from '../index';
 import {
+  getLeaveStatusGuard,
+  getStatusSyncGeneration,
+  invalidateWorkoutStatusSyncs,
+} from '../workoutLeaveGuard';
+import {
   addContextMessage,
   adjustReps,
   adjustRestTime,
@@ -27,6 +32,7 @@ import {
   jumpToExercise,
   jumpToExerciseAndQueueCurrent,
   jumpToSet,
+  leaveWorkoutForLater,
   nextSet,
   pauseSet,
   previousSet,
@@ -74,6 +80,23 @@ const adjustmentUpdateFunctions: Map<string, () => Promise<void>> = new Map();
 // Track which sets have been written to DB (prevents duplicate writes)
 // Key format: `${sessionId}:${workoutEntryId}:${setNumber}`
 const writtenSets = new Set<string>();
+
+async function restoreLeaveStatusIfNeeded(
+  dispatch: AppDispatch,
+  sessionId: string
+): Promise<boolean> {
+  const guard = getLeaveStatusGuard();
+  if (!guard || guard.sessionId !== sessionId) return false;
+  console.warn(`⚠️ Stale status sync after leave — restoring "${guard.status}"`);
+  await dispatch(
+    enhancedApi.endpoints.UpdateWorkoutSessionStatus.initiate({
+      id: sessionId,
+      status: guard.status,
+      lastActivityAt: new Date().toISOString(),
+    })
+  ).unwrap();
+  return true;
+}
 
 // Helper to debounce database updates for adjustments
 const debounceAdjustmentUpdate = (
@@ -154,7 +177,7 @@ const clearAllTimers = () => {
 let lastSetCompletedNotificationKey: string | null = null;
 
 const getSetCompletionNotificationKey = (state: RootState): string | null => {
-  const activeWorkout = state.workout.activeWorkout;
+  const activeWorkout = state.workout?.activeWorkout;
   if (!activeWorkout?.currentSet) return null;
   return `${activeWorkout.sessionId}:${activeWorkout.currentExercise?.id ?? 'exercise'}:${activeWorkout.currentSetIndex}`;
 };
@@ -194,6 +217,18 @@ const startTimerUpdates = (
 
   // Start countdown timer
   activeTimers[intervalKey] = setInterval(() => {
+    const currentState = getState();
+    // Stop ghost timers after save-for-later / leave / workout clear
+    if (
+      !currentState.workout?.activeWorkout ||
+      currentState.workout.status === 'inactive' ||
+      currentState.workout.status === 'workout-completed'
+    ) {
+      clearInterval(activeTimers[intervalKey]);
+      delete activeTimers[intervalKey];
+      return;
+    }
+
     const elapsedMs = Date.now() - startTime;
     const elapsedSeconds = Math.floor(elapsedMs / 1000);
     
@@ -215,8 +250,6 @@ const startTimerUpdates = (
     if (remainingSeconds <= 0) {
       // CRITICAL: Check current state to prevent race condition
       // If set was completed manually while timer was about to expire, don't dispatch expiration
-      const currentState = getState();
-      
       if (type === 'set') {
         // For set timer: check if set is already completed
         const isAlreadyCompleted = currentState.workout.activeWorkout?.currentSet?.isCompleted;
@@ -555,7 +588,8 @@ startAppListening({
     
     // Generate context message for set completion
     if (workoutState.activeWorkout) {
-      const completionKey = getSetCompletionNotificationKey(workoutState);
+      // Must pass RootState — helper reads state.workout.activeWorkout
+      const completionKey = getSetCompletionNotificationKey(state);
       if (completionKey && completionKey === lastSetCompletedNotificationKey) {
         console.log('⏭️ [Workout Middleware] set-completed already sent for this set, skipping duplicate');
         return;
@@ -1640,10 +1674,22 @@ startAppListening({
   type: 'workout/cleanup',
   effect: async (action, listenerApi) => {
     const { dispatch } = listenerApi;
+    invalidateWorkoutStatusSyncs();
     console.log('🧹 [Workout Middleware] Cleaning up all timers');
     clearAllTimers();
     stopUserActivityPing();
     dispatch(clearProcessedContextMessages());
+  },
+});
+
+// Save for later / leave — Redux is cleared but middleware intervals must stop too
+startAppListening({
+  actionCreator: leaveWorkoutForLater,
+  effect: async () => {
+    invalidateWorkoutStatusSyncs();
+    console.log('🧹 [Workout Middleware] Save for later — clearing all timers');
+    clearAllTimers();
+    stopUserActivityPing();
   },
 });
 
@@ -2375,9 +2421,21 @@ startAppListening({
       return;
     }
     
+    const syncGen = getStatusSyncGeneration();
     console.log(`🔄 Syncing status: "${status}" -> "${dbStatus}"`);
+
+    const wasSuperseded = () => syncGen !== getStatusSyncGeneration();
+    const sessionLeft = () => {
+      const s = getState() as RootState;
+      return s.workout.status === 'inactive' || s.workout.sessionId !== sessionId;
+    };
     
     try {
+      if (wasSuperseded() || sessionLeft()) {
+        console.log('⏭️ Skipping status sync (session left or superseded)');
+        return;
+      }
+
       // Update session status - use mapped dbStatus, not raw status
       await dispatch(
         enhancedApi.endpoints.UpdateWorkoutSessionStatus.initiate({
@@ -2386,6 +2444,16 @@ startAppListening({
           lastActivityAt: new Date().toISOString(),
         })
       ).unwrap();
+
+      // Save-for-later may have set leave status while we awaited — restore if we clobbered it
+      if (wasSuperseded() || sessionLeft()) {
+        try {
+          await restoreLeaveStatusIfNeeded(dispatch, sessionId);
+        } catch (restoreErr) {
+          console.error('Failed to restore leave status after stale sync:', restoreErr);
+        }
+        return;
+      }
       
       // Update progress
       await dispatch(
@@ -2400,6 +2468,15 @@ startAppListening({
           lastActivityAt: new Date().toISOString(),
         })
       ).unwrap();
+
+      if (wasSuperseded() || sessionLeft()) {
+        try {
+          await restoreLeaveStatusIfNeeded(dispatch, sessionId);
+        } catch (restoreErr) {
+          console.error('Failed to restore leave status after stale progress sync:', restoreErr);
+        }
+        return;
+      }
       
       console.log('✅ Synced workout status to database');
     } catch (error: any) {

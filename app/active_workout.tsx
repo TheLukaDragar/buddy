@@ -105,6 +105,10 @@ import SwitchExerciseModal from '../components/SwitchExerciseModal';
 import { useAuth } from '../contexts/AuthContext';
 import { useMicrophonePermission } from '../hooks/useMicrophonePermission';
 import { loadUserProfileFromDatabase } from '../services/userProfileService';
+import {
+  deriveResumeProgressFromSets,
+  resolveResumeProgress,
+} from '../utils/deriveResumeProgress';
 
 
 interface ProgressSegment {
@@ -2773,7 +2777,10 @@ export default function ActiveWorkoutScreen() {
         // Note: This will work once codegen is run and GetActiveWorkoutSession query is available
         try {
           const result = await dispatch(
-            enhancedApi.endpoints.GetActiveWorkoutSession.initiate({ userId })
+            enhancedApi.endpoints.GetActiveWorkoutSession.initiate(
+              { userId },
+              { forceRefetch: true }
+            )
           ).unwrap();
 
           const activeSession = result?.workout_sessionsCollection?.edges?.[0]?.node;
@@ -2782,7 +2789,14 @@ export default function ActiveWorkoutScreen() {
             return; // No active session found
           }
 
-          console.log('🔄 Found active workout session, resuming...', activeSession);
+          console.log('🔄 Found active workout session, resuming...', {
+            id: activeSession.id,
+            current_exercise_index: activeSession.current_exercise_index,
+            current_set_index: activeSession.current_set_index,
+            completed_sets: activeSession.completed_sets,
+            completed_exercises: activeSession.completed_exercises,
+            status: activeSession.status,
+          });
 
           // Load workout entries for this session
           const workoutData = await dispatch(
@@ -2855,7 +2869,10 @@ export default function ActiveWorkoutScreen() {
 
           try {
             const setsResult = await dispatch(
-              enhancedApi.endpoints.GetWorkoutSessionSets.initiate({ sessionId: activeSession.id })
+              enhancedApi.endpoints.GetWorkoutSessionSets.initiate(
+                { sessionId: activeSession.id },
+                { forceRefetch: true }
+              )
             ).unwrap();
 
             completedSetsData = setsResult?.workout_session_setsCollection?.edges?.map((edge: any) => ({
@@ -2878,6 +2895,42 @@ export default function ActiveWorkoutScreen() {
             console.warn('⚠️ Failed to load completed sets:', error);
             // Continue with empty sets - workout can still resume
           }
+
+          // Session row can lag behind set writes. Derive parks on last completed set
+          // (for rest resume) or next exercise when all sets are done — never skip rest.
+          const sessionProgress = {
+            currentExerciseIndex: activeSession.current_exercise_index || 0,
+            currentSetIndex: activeSession.current_set_index || 0,
+            completedExercises: activeSession.completed_exercises || 0,
+            completedSets: activeSession.completed_sets || 0,
+          };
+          const derivedProgress = deriveResumeProgressFromSets(
+            workoutEntries,
+            completedSetsData
+          );
+          const resumeProgress = resolveResumeProgress(sessionProgress, derivedProgress);
+
+          if (
+            derivedProgress &&
+            (resumeProgress.currentExerciseIndex !== sessionProgress.currentExerciseIndex ||
+              resumeProgress.currentSetIndex !== sessionProgress.currentSetIndex)
+          ) {
+            console.log('🛠️ [Resume] Resolved progress from session + completed sets:', {
+              session: sessionProgress,
+              derived: derivedProgress,
+              using: resumeProgress,
+            });
+          }
+
+          // Starting a new exercise (no sets done on it yet) → preparing, not mid-set
+          const resumeEntry = workoutEntries[resumeProgress.currentExerciseIndex];
+          const setsDoneOnResumeEntry = completedSetsData.filter(
+            (cs) => cs.workoutEntryId === resumeEntry?.id
+          ).length;
+          const resumeStatus =
+            setsDoneOnResumeEntry === 0 && resumeProgress.currentSetIndex === 0
+              ? 'preparing'
+              : activeSession.status || 'selected';
 
           // Fetch adjustments for this session
           let adjustmentsData: Array<{
@@ -2919,13 +2972,16 @@ export default function ActiveWorkoutScreen() {
               workoutEntries,
               planId: activeSession.workout_plan_id,
               dayName: activeSession.day_name,
-              currentExerciseIndex: activeSession.current_exercise_index || 0,
-              currentSetIndex: activeSession.current_set_index || 0,
-              completedExercises: activeSession.completed_exercises || 0,
-              completedSets: activeSession.completed_sets || 0,
+              currentExerciseIndex: resumeProgress.currentExerciseIndex,
+              currentSetIndex: resumeProgress.currentSetIndex,
+              completedExercises: resumeProgress.completedExercises,
+              completedSets: Math.max(
+                resumeProgress.completedSets,
+                completedSetsData.length
+              ),
               totalExercises: activeSession.total_exercises,
               totalSets: activeSession.total_sets,
-              status: activeSession.status || 'selected',
+              status: resumeStatus,
               startedAt: activeSession.started_at,
               totalTimeMs: activeSession.total_time_ms ? Number(activeSession.total_time_ms) : 0,
               totalPauseTimeMs: activeSession.total_pause_time_ms ? Number(activeSession.total_pause_time_ms) : 0,
@@ -4261,12 +4317,17 @@ export default function ActiveWorkoutScreen() {
 
   const handleSaveForLater = async () => {
     try {
+      // Stop middleware countdown intervals immediately (before async DB sync)
+      dispatch({ type: 'workout/cleanup' });
       setTimeout(() => {
         endConversation().catch(err => console.error('Error disconnecting on save for later:', err));
       }, 300);
       await dispatch(saveWorkoutForLater()).then((r: any) => unwrapResult(r));
       setShowFinishAlert(false);
-      router.replace({ pathname: '/(tabs)' });
+      // Delay navigation so the dismiss touch doesn't hit WorkoutItem underneath and auto-resume
+      setTimeout(() => {
+        router.replace({ pathname: '/(tabs)' });
+      }, 350);
     } catch (error) {
       console.error('Save for later failed:', error);
       setShowFinishAlert(false);

@@ -174,20 +174,21 @@ export default function WorkoutItem({ workout, index, onPress, planId, isPastWee
       };
     }
 
+    const isInProgress =
+      !!status && (IN_PROGRESS_STATUSES as readonly string[]).includes(status);
+
     // Checkmark: DB flag, every planned set logged, or finished early with strong set progress
     const showCheckmark =
       !!session.is_fully_completed ||
       allSetsLogged ||
       !!(session.finished_early && sessionProgress >= 80);
 
-    // Only show "Completed" status if:
-    // 1. Status is "completed" AND is_fully_completed is true, OR
-    // 2. Progress >= 80% (regardless of status for finished_early), OR
-    // 3. All planned sets logged (matches product: finishing every set = workout done)
+    // "Completed" badge — never from progress % alone (88% mid-workout was wrongly "Well done today")
     const sessionIsCompleted =
-      (status === 'completed' && !!session.is_fully_completed) ||
-      sessionProgress >= 80 ||
-      allSetsLogged;
+      status === 'completed' ||
+      status === 'finished_early' ||
+      !!session.is_fully_completed ||
+      (allSetsLogged && !isInProgress);
 
     // Show at least 1% only when real set progress exists (not warmup / pre-exercise pause)
     if (
