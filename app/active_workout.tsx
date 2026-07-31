@@ -98,6 +98,12 @@ import type { ConversationEvent, ConversationStatus, Mode, Role } from '@elevenl
 import { useConversation } from '@elevenlabs/react-native';
 import { AnimatedAIButton } from '../components/AnimatedAIButton';
 import ExerciseAdjustModal from '../components/ExerciseAdjustModal';
+import FindMachineOfferButton from '../components/FindMachineOfferButton';
+import FindMachineSheet from '../components/FindMachineSheet';
+import {
+  resolveMachineFinderTarget,
+  type MachineFinderTarget,
+} from '../constants/machineFinder';
 import MusicPlayerMini from '../components/MusicPlayerMini';
 import SetFeedbackLayer from '../components/SetFeedbackLayer';
 import PartynetAudioPlayer from '../components/PartynetAudioPlayer';
@@ -517,6 +523,14 @@ const VideoContainer: React.FC<VideoContainerProps> = ({
   const insets = useSafeAreaInsets();
   const [controlsVisible, setControlsVisible] = useState(true);
   const controlsOpacity = useSharedValue(1);
+
+  // Find-machine offer: once per exercise at preparing start
+  const [findMachineTarget, setFindMachineTarget] = useState<MachineFinderTarget | null>(null);
+  const [showFindMachineButton, setShowFindMachineButton] = useState(false);
+  const [findMachineSheetVisible, setFindMachineSheetVisible] = useState(false);
+  const offeredFindMachineEntryIdsRef = useRef<Set<string>>(new Set());
+  const findMachineOfferTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const findMachineArmedEntryIdRef = useRef<string | null>(null);
   
   // Animation for top-right button position based on music player visibility
   const topRightButtonTop = useSharedValue(insets.top + 16);
@@ -594,6 +608,121 @@ const VideoContainer: React.FC<VideoContainerProps> = ({
   const animatedOverlayStyle = useAnimatedStyle(() => ({
     opacity: controlsOpacity.value,
   }));
+
+  const exerciseIndex = activeWorkout?.currentExerciseIndex ?? -1;
+  const currentEntryId = workoutEntries?.[exerciseIndex]?.id as string | undefined;
+  // Include exercise_id so swaps on the same entry re-arm the offer
+  const currentExerciseId =
+    (workoutEntries?.[exerciseIndex]?.exercise_id as string | undefined) ||
+    (workoutEntries?.[exerciseIndex]?.exercises?.id as string | undefined);
+  const findMachineOfferKey =
+    currentEntryId && currentExerciseId
+      ? `${currentEntryId}:${currentExerciseId}`
+      : currentEntryId ?? null;
+  const sessionId = session?.id ?? null;
+
+  // Reset offer memory when starting / resuming a different session
+  useEffect(() => {
+    offeredFindMachineEntryIdsRef.current.clear();
+    findMachineArmedEntryIdRef.current = null;
+    if (findMachineOfferTimerRef.current) {
+      clearTimeout(findMachineOfferTimerRef.current);
+      findMachineOfferTimerRef.current = null;
+    }
+    setShowFindMachineButton(false);
+    setFindMachineSheetVisible(false);
+  }, [sessionId]);
+
+  // Offer find-machine once at the start of a machine exercise (preparing, before first set).
+  useEffect(() => {
+    const clearOfferTimer = () => {
+      if (findMachineOfferTimerRef.current) {
+        clearTimeout(findMachineOfferTimerRef.current);
+        findMachineOfferTimerRef.current = null;
+      }
+      findMachineArmedEntryIdRef.current = null;
+    };
+
+    const isWarmup =
+      status === 'selected' &&
+      (warmup.phase === 'ready' || warmup.phase === 'active');
+
+    // Only during preparing — not warmup, resting, mid-set, or completed
+    if (isWarmup || status !== 'preparing' || exerciseIndex < 0 || !findMachineOfferKey) {
+      clearOfferTimer();
+      setShowFindMachineButton(false);
+      return;
+    }
+
+    const entry = workoutEntries?.[exerciseIndex];
+    // Skip if this exercise already has completed sets (resume mid-exercise / later sets)
+    // setId format: `${workoutEntryId}-set-${n}`
+    const entrySetsDone = (activeWorkout?.setsCompleted ?? []).filter(
+      (s: { setId?: string }) =>
+        typeof s?.setId === 'string' &&
+        currentEntryId != null &&
+        s.setId.startsWith(`${currentEntryId}-set-`)
+    ).length;
+    if (entrySetsDone > 0) {
+      clearOfferTimer();
+      setShowFindMachineButton(false);
+      return;
+    }
+
+    if (offeredFindMachineEntryIdsRef.current.has(findMachineOfferKey)) {
+      return;
+    }
+
+    // Keep an in-flight arm for this entry+exercise (avoid reset on status sync)
+    if (
+      findMachineArmedEntryIdRef.current === findMachineOfferKey &&
+      findMachineOfferTimerRef.current
+    ) {
+      return;
+    }
+
+    const target = resolveMachineFinderTarget(
+      entry?.exercises?.equipment_groups,
+      entry?.exercises?.equipment_text,
+      entry?.exercises?.muscle_categories
+    );
+    if (!target) {
+      console.log('🔎 [FindMachine] No mapped machine for exercise', {
+        name: entry?.exercises?.name,
+        equipment_groups: entry?.exercises?.equipment_groups,
+        equipment_text: entry?.exercises?.equipment_text,
+      });
+      setFindMachineTarget(null);
+      return;
+    }
+
+    console.log('🔎 [FindMachine] Arming offer in 3s', {
+      name: entry?.exercises?.name,
+      slug: target.slug,
+      keywords: target.keywords,
+    });
+
+    setFindMachineTarget(target);
+    clearOfferTimer();
+    findMachineArmedEntryIdRef.current = findMachineOfferKey;
+    const offerKey = findMachineOfferKey;
+    findMachineOfferTimerRef.current = setTimeout(() => {
+      findMachineOfferTimerRef.current = null;
+      offeredFindMachineEntryIdsRef.current.add(offerKey);
+      setShowFindMachineButton(true);
+      console.log('🔎 [FindMachine] Showing button', { slug: target.slug });
+    }, 3000);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, exerciseIndex, findMachineOfferKey, warmup.phase, currentEntryId]);
+
+  const handleFindMachineExpire = useCallback(() => {
+    setShowFindMachineButton(false);
+  }, []);
+
+  const handleFindMachinePress = useCallback(() => {
+    setShowFindMachineButton(false);
+    setFindMachineSheetVisible(true);
+  }, []);
 
   return (
     <View style={styles.videoContainer}>
@@ -722,46 +851,56 @@ const VideoContainer: React.FC<VideoContainerProps> = ({
         </>
       )}
       
-      {/* Always visible exercise info - hide when workout completed */}
-      {status !== 'workout-completed' && (
-        <View style={styles.bottomLayout}>
-          <View style={styles.exerciseNameContainer}>
-            <Text style={styles.exerciseName}>
-              {status === 'selected' ? 'Warmup' : (currentExercise?.name || 'Exercise')}
-            </Text>
-          </View>
-          
-          <View style={styles.statusContainer}>
-            <Text style={styles.statusInfo}>
-              {status.toUpperCase().replace('-', ' ')}
-              {activeWorkout?.isPaused && ' (PAUSED)'}
-            </Text>
-          </View>
-        </View>
-      )}
-      
       {/* Simple controls overlay - hide when workout completed */}
       {status !== 'workout-completed' && (
         <ReanimatedAnimated.View 
           style={[styles.controlsOverlay, animatedOverlayStyle]} 
           pointerEvents={controlsVisible ? 'auto' : 'none'}
         >
+          <TouchableWithoutFeedback onPress={hideControls}>
+            <View style={styles.overlayBackground} />
+          </TouchableWithoutFeedback>
 
-
-        <TouchableWithoutFeedback onPress={hideControls}>
-          <View style={styles.overlayBackground} />
-        </TouchableWithoutFeedback>
-
-        {/* Spotify Player Mini removed from here - now rendered as global overlay */}
-        
-        <View style={styles.centeredControls}>
-          <WorkoutControls 
-            onShowFinishAlert={onShowFinishAlert}
-            onEndConversation={onEndConversation}
-          />
-        </View>
-      </ReanimatedAnimated.View>
+          <View style={styles.centeredControls}>
+            <WorkoutControls 
+              onShowFinishAlert={onShowFinishAlert}
+              onEndConversation={onEndConversation}
+            />
+          </View>
+        </ReanimatedAnimated.View>
       )}
+
+      {/* Exercise info + find-machine offer — above controls so the button stays tappable */}
+      {status !== 'workout-completed' && (
+        <View style={styles.bottomLayout} pointerEvents="box-none">
+          <FindMachineOfferButton
+            visible={showFindMachineButton && !!findMachineTarget}
+            onPress={handleFindMachinePress}
+            onExpire={handleFindMachineExpire}
+          />
+
+          <View style={styles.bottomTextRow}>
+            <View style={styles.exerciseNameContainer}>
+              <Text style={styles.exerciseName} numberOfLines={1}>
+                {status === 'selected' ? 'Warmup' : (currentExercise?.name || 'Exercise')}
+              </Text>
+            </View>
+            
+            <View style={styles.statusContainer}>
+              <Text style={styles.statusInfo}>
+                {status.toUpperCase().replace('-', ' ')}
+                {activeWorkout?.isPaused && ' (PAUSED)'}
+              </Text>
+            </View>
+          </View>
+        </View>
+      )}
+
+      <FindMachineSheet
+        visible={findMachineSheetVisible}
+        target={findMachineTarget}
+        onClose={() => setFindMachineSheetVisible(false)}
+      />
     </View>
   );
 };
@@ -4759,18 +4898,26 @@ const styles = StyleSheet.create({
   },
   bottomLayout: {
     position: 'absolute',
-    bottom: 10,
+    bottom: 18,
     left: 0,
     right: 0,
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    paddingHorizontal: 20,
+    gap: 12,
+    zIndex: 30,
+  },
+  bottomTextRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-end',
-    paddingHorizontal: 20,
+    width: '100%',
   },
   exerciseNameContainer: {
     flex: 1,
     alignItems: 'flex-start',
     zIndex: 15,
+    minWidth: 0,
   },
   exerciseName: {
     color: nucleus.light.global.white,
@@ -4783,7 +4930,7 @@ const styles = StyleSheet.create({
     textShadowRadius: 3,
   },
   statusContainer: {
-    flex: 1,
+    flexShrink: 0,
     alignItems: 'flex-end',
     zIndex: 15,
   },
