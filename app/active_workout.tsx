@@ -9,7 +9,7 @@ import { useKeepAwake } from 'expo-keep-awake';
 import { router, useFocusEffect } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, BackHandler, Dimensions, Modal, StyleSheet, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, BackHandler, Dimensions, LayoutChangeEvent, Modal, StyleSheet, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { SystemBars } from 'react-native-edge-to-edge';
 import { PanGestureHandler } from 'react-native-gesture-handler';
 import { Button, Text } from 'react-native-paper';
@@ -2060,8 +2060,8 @@ const CLASSIC_VIDEO_HEIGHT = SCREEN_WIDTH / 1.2;
 const CLASSIC_CHAT_HEIGHT = SCREEN_HEIGHT * 0.45;
 /** Even vertical rhythm: progress → timer and timer → chat */
 const ENHANCED_STATS_GAP = 20;
-/** Progress bar + weight/timer/reps block (padding + bar + gaps + info row) */
-const WORKOUT_STATS_HEIGHT = 8 + 32 + ENHANCED_STATS_GAP + 80 + ENHANCED_STATS_GAP;
+/** Fallback until workoutStatusContainer reports real height via onLayout */
+const WORKOUT_STATS_HEIGHT_FALLBACK = 8 + 32 + ENHANCED_STATS_GAP + 80 + ENHANCED_STATS_GAP;
 /** Vertical drag distance that maps 0→1 layout progress */
 const LAYOUT_SWIPE_DISTANCE = 180;
 const LAYOUT_STORAGE_KEY = '@buddy/workout_layout_mode';
@@ -2111,11 +2111,10 @@ const BottomModal: React.FC<BottomModalProps> = ({
   // Memoize height calculations to prevent recalculation on every render
   const modalDimensions = useMemo(() => {
     const COLLAPSED_HEIGHT = enhancedCollapsedHeight;
-    const EXPANDED_HEIGHT = SCREEN_HEIGHT;
-    
-    // Calculate positions from bottom of screen
-    const COLLAPSED_POSITION = SCREEN_HEIGHT - COLLAPSED_HEIGHT; // Near bottom
-    const EXPANDED_POSITION = SCREEN_HEIGHT - EXPANDED_HEIGHT;   // Much higher up
+    // Stay below status bar / Dynamic Island so the handle stays swipeable on iOS
+    const EXPANDED_POSITION = Math.max(insets.top, 0);
+    const EXPANDED_HEIGHT = SCREEN_HEIGHT - EXPANDED_POSITION;
+    const COLLAPSED_POSITION = SCREEN_HEIGHT - COLLAPSED_HEIGHT;
     
     return {
       COLLAPSED_HEIGHT,
@@ -2123,7 +2122,7 @@ const BottomModal: React.FC<BottomModalProps> = ({
       COLLAPSED_POSITION,
       EXPANDED_POSITION
     };
-  }, [enhancedCollapsedHeight]);
+  }, [enhancedCollapsedHeight, insets.top]);
   
   const { COLLAPSED_HEIGHT, EXPANDED_HEIGHT, COLLAPSED_POSITION, EXPANDED_POSITION } = modalDimensions;
 
@@ -2310,8 +2309,11 @@ const BottomModal: React.FC<BottomModalProps> = ({
       const currentPosition = modalTranslateY.value;
       const midPoint = (collapsedPos + EXPANDED_POSITION) / 2;
       
-      // Determine if we should expand or collapse based on position and velocity
-      const shouldExpand = currentPosition < midPoint || event.velocityY < -800;
+      // Fast swipe down always collapses (was snapping back open above midpoint)
+      const shouldCollapse =
+        event.velocityY > 700 || currentPosition > midPoint;
+      const shouldExpand =
+        !shouldCollapse && (currentPosition < midPoint || event.velocityY < -800);
       
       if (shouldExpand) {
         modalTranslateY.value = withTiming(EXPANDED_POSITION, {
@@ -2449,7 +2451,7 @@ const BottomModal: React.FC<BottomModalProps> = ({
             headerSubtitle="Ask questions, get motivation, or log your progress!"
             showNewChatButton={false}
             containerStyle={[styles.chatContainer, { height: chatContentHeight}]}
-            contentStyle={[styles.chatContent, { height: chatContentHeight, paddingBottom: isModalCollapsed ? insets.bottom - 20 : 0 }]}
+            contentStyle={[styles.chatContent, { height: chatContentHeight, paddingBottom: isModalCollapsed ? Math.max(0, insets.bottom - 20) : insets.bottom }]}
             maxHeight={chatContentHeight}
             onKeyboardToggle={handleKeyboardToggle}
             disableKeyboardAvoidance={true}
@@ -2722,12 +2724,25 @@ export default function ActiveWorkoutScreen() {
   const layoutGestureStart = useSharedValue(0);
   const classicCollapsedHeight = CLASSIC_CHAT_HEIGHT;
   const enhancedCollapsedHeight = ENHANCED_CHAT_PEEK + insets.bottom;
+  /** Measured stats block height — avoids hardcoded row estimate drifting across devices */
+  const [measuredStatsHeight, setMeasuredStatsHeight] = useState(WORKOUT_STATS_HEIGHT_FALLBACK);
   const enhancedVideoHeight = Math.max(
     CLASSIC_VIDEO_HEIGHT,
-    SCREEN_HEIGHT - insets.bottom - ENHANCED_CHAT_PEEK - WORKOUT_STATS_HEIGHT
+    SCREEN_HEIGHT - insets.bottom - ENHANCED_CHAT_PEEK - measuredStatsHeight
   );
+  const enhancedVideoHeightSV = useSharedValue(enhancedVideoHeight);
   /** null until AsyncStorage hydrate finishes — avoids flashing the wrong layout */
   const [layoutHydrated, setLayoutHydrated] = useState(false);
+
+  useEffect(() => {
+    enhancedVideoHeightSV.value = enhancedVideoHeight;
+  }, [enhancedVideoHeight, enhancedVideoHeightSV]);
+
+  const handleStatsLayout = useCallback((event: LayoutChangeEvent) => {
+    const height = Math.round(event.nativeEvent.layout.height);
+    if (height <= 0) return;
+    setMeasuredStatsHeight((prev) => (Math.abs(prev - height) > 1 ? height : prev));
+  }, []);
 
   const persistLayoutMode = useCallback(async (target: number) => {
     const mode = target >= 0.5 ? 'enhanced' : 'classic';
@@ -2816,7 +2831,7 @@ export default function ActiveWorkoutScreen() {
     height: interpolate(
       layoutProgress.value,
       [0, 1],
-      [CLASSIC_VIDEO_HEIGHT, enhancedVideoHeight],
+      [CLASSIC_VIDEO_HEIGHT, enhancedVideoHeightSV.value],
       Extrapolation.CLAMP
     ),
     flexGrow: 0,
@@ -4566,7 +4581,7 @@ export default function ActiveWorkoutScreen() {
               />
             </ReanimatedAnimated.View>
             
-            <View style={styles.workoutStatusContainer}>
+            <View style={styles.workoutStatusContainer} onLayout={handleStatsLayout}>
               <WorkoutProgress segments={progressSegments} />
             </View>
           </ReanimatedAnimated.View>

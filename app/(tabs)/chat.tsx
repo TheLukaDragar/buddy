@@ -1782,10 +1782,14 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: 'PlusJakartaSans-Regular',
     fontSize: 14,
+    lineHeight: 20,
     color: nucleus.light.semantic.fg.base,
-    paddingVertical: 0,
+    // multiline top-aligns on iOS — pad so the first line / placeholder sits centered
+    paddingTop: Platform.OS === 'ios' ? 10 : 8,
+    paddingBottom: Platform.OS === 'ios' ? 10 : 8,
+    textAlignVertical: 'center',
+    includeFontPadding: false,
     minHeight: 40,
-
   },
   sendButton: {
     paddingHorizontal: 16,

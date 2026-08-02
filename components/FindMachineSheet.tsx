@@ -18,7 +18,10 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  initialWindowMetrics,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 import { nucleus } from '../BiXo_variables';
 import {
   getMachineFinderIcon,
@@ -27,7 +30,8 @@ import {
 } from '../constants/machineFinder';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
-const SHEET_BODY_HEIGHT = Math.min(SCREEN_HEIGHT * 0.62, 520);
+/** Fallback when Modal/edge-to-edge reports 0 bottom inset */
+const WINDOW_BOTTOM_INSET = initialWindowMetrics?.insets.bottom ?? 0;
 
 type FindMachineSheetProps = {
   visible: boolean;
@@ -41,27 +45,32 @@ export default function FindMachineSheet({
   onClose,
 }: FindMachineSheetProps) {
   const insets = useSafeAreaInsets();
-  // Edge-to-edge: reserve space under the button (nav bar / home indicator)
-  const bottomPad = Math.max(insets.bottom, 12) + 8;
-  const sheetHeight = SHEET_BODY_HEIGHT + bottomPad;
+  // Modal + edge-to-edge can report 0 — fall back to window metrics / nav bar size
+  const bottomInset = Math.max(insets.bottom, WINDOW_BOTTOM_INSET, 24);
+  const bottomPad = bottomInset + 16;
+  const maxSheetHeight = SCREEN_HEIGHT * 0.92;
+  // Dismiss animation distance until onLayout reports the real sheet height
+  const [measuredSheetHeight, setMeasuredSheetHeight] = React.useState(
+    Math.min(SCREEN_HEIGHT * 0.72, 560) + bottomPad
+  );
 
-  const translateY = useSharedValue(sheetHeight);
-  const sheetHeightSV = useSharedValue(sheetHeight);
+  const translateY = useSharedValue(measuredSheetHeight);
+  const sheetHeightSV = useSharedValue(measuredSheetHeight);
   const backdropOpacity = useSharedValue(0);
 
   React.useEffect(() => {
-    sheetHeightSV.value = sheetHeight;
-  }, [sheetHeight]);
+    sheetHeightSV.value = measuredSheetHeight;
+  }, [measuredSheetHeight, sheetHeightSV]);
 
   React.useEffect(() => {
     if (visible) {
       translateY.value = withSpring(0, { damping: 25, stiffness: 150, mass: 0.8 });
       backdropOpacity.value = withTiming(0.5, { duration: 300 });
     } else {
-      translateY.value = withSpring(sheetHeight, { damping: 20, stiffness: 200 });
+      translateY.value = withSpring(measuredSheetHeight, { damping: 20, stiffness: 200 });
       backdropOpacity.value = withTiming(0, { duration: 200 });
     }
-  }, [visible, sheetHeight]);
+  }, [visible, measuredSheetHeight, translateY, backdropOpacity]);
 
   React.useEffect(() => {
     if (!visible) return;
@@ -125,7 +134,20 @@ export default function FindMachineSheet({
           activeOffsetY={10}
           failOffsetX={[-20, 20]}
         >
-          <Animated.View style={[styles.sheet, animatedSheetStyle, { height: sheetHeight }]}>
+          <Animated.View
+            style={[
+              styles.sheet,
+              animatedSheetStyle,
+              { maxHeight: maxSheetHeight, paddingBottom: bottomPad },
+            ]}
+            onLayout={(e) => {
+              const h = Math.round(e.nativeEvent.layout.height);
+              if (h > 0 && Math.abs(h - measuredSheetHeight) > 1) {
+                setMeasuredSheetHeight(h);
+                sheetHeightSV.value = h;
+              }
+            }}
+          >
             <View style={styles.handleWrap}>
               <View style={styles.handle} />
             </View>
@@ -175,7 +197,7 @@ export default function FindMachineSheet({
               </View>
             </View>
 
-            <View style={[styles.footer, { paddingBottom: bottomPad }]}>
+            <View style={styles.footer}>
               <Button
                 mode="contained"
                 onPress={onClose}
@@ -209,6 +231,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     overflow: 'hidden',
+    width: '100%',
   },
   handleWrap: {
     alignItems: 'center',
@@ -318,7 +341,6 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   footer: {
-    marginTop: 'auto',
     paddingHorizontal: 24,
     paddingTop: 12,
   },
