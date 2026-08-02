@@ -14,11 +14,17 @@ import {
   View,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  initialWindowMetrics,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { captureRef } from "react-native-view-shot";
 import ViewShot from "react-native-view-shot";
 
 import { nucleus } from "../BiXo_variables.js";
+
+/** Fallback when Modal/edge-to-edge reports 0 bottom inset */
+const WINDOW_BOTTOM_INSET = initialWindowMetrics?.insets.bottom ?? 0;
 
 /** Base layout width; capture is upscaled to Instagram-friendly 1080×1920. */
 const BASE_STORY_W = 360;
@@ -55,6 +61,7 @@ export function WorkoutShareStoryModal({
   const shotRef = React.useRef<ViewShot>(null);
   const [sharing, setSharing] = React.useState(false);
   const insets = useSafeAreaInsets();
+  const bottomPad = Math.max(insets.bottom, WINDOW_BOTTOM_INSET, 24) + 8;
 
   const screenW = Dimensions.get("window").width;
   const cardW = Math.min(BASE_STORY_W, screenW - 48);
@@ -98,7 +105,13 @@ export function WorkoutShareStoryModal({
         </Pressable>
         <View style={styles.sheetWrap} pointerEvents="box-none">
           <Pressable
-            style={[styles.sheet, { paddingTop: insets.top + 24 }]}
+            style={[
+              styles.sheet,
+              {
+                paddingTop: 24,
+                paddingBottom: bottomPad,
+              },
+            ]}
             onPress={(e) => e.stopPropagation()}
           >
           <Text style={styles.sheetTitle}>Share story</Text>
@@ -259,7 +272,6 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 24,
-    paddingBottom: 0,
     gap: 16,
     overflow: "hidden",
   },

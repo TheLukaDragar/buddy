@@ -13,7 +13,11 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  initialWindowMetrics,
+  SafeAreaView,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 import { nucleus } from '../BiXo_variables';
 import { useSpotifyAuth } from '../hooks/useSpotifyAuth';
 import { syncPlaylistToSpotify } from '../store/actions/musicActions';
@@ -25,6 +29,8 @@ import { SelectedPlaylist, setMusicOption, setSelectedAppMusic, setSelectedParty
 import SpotifyConnectModal from './SpotifyConnectModal';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
+/** Fallback when edge-to-edge reports 0 bottom inset */
+const WINDOW_BOTTOM_INSET = initialWindowMetrics?.insets.bottom ?? 0;
 
 // Predefined Partynet workout mixes
 const PARTYNET_MIXES: Array<PartynetMix & { id: string; name: string; description: string }> = [
@@ -551,17 +557,21 @@ export default function MusicModal({ visible, onClose }: MusicModalProps) {
     }
   };
 
-  // Music modal animation values
-  const SHEET_HEIGHT = SCREEN_HEIGHT;
-  const musicModalTranslateY = useSharedValue(SHEET_HEIGHT);
+  // Shorter sheet + bottom:0 → top clears status bar; open at translateY 0 so footer stays on-screen
+  const OPEN_Y = 0;
+  const TOP_INSET = Math.max(insets.top, 0);
+  const VISIBLE_SHEET_HEIGHT = SCREEN_HEIGHT - TOP_INSET;
+  const CLOSED_Y = VISIBLE_SHEET_HEIGHT;
+  const bottomPad = Math.max(insets.bottom, WINDOW_BOTTOM_INSET, 24) + 8;
+  const musicModalTranslateY = useSharedValue(CLOSED_Y);
 
   useEffect(() => {
     if (visible) {
-      musicModalTranslateY.value = withSpring(0, { damping: 25, stiffness: 150, mass: 0.8 });
+      musicModalTranslateY.value = withSpring(OPEN_Y, { damping: 25, stiffness: 150, mass: 0.8 });
     } else {
-      musicModalTranslateY.value = withSpring(SHEET_HEIGHT, { damping: 20, stiffness: 200 });
+      musicModalTranslateY.value = withSpring(CLOSED_Y, { damping: 20, stiffness: 200 });
     }
-  }, [visible, SHEET_HEIGHT]);
+  }, [visible, CLOSED_Y]);
 
   const musicGestureHandler = useAnimatedGestureHandler({
     onStart: (_, context: { startY: number }) => {
@@ -569,12 +579,12 @@ export default function MusicModal({ visible, onClose }: MusicModalProps) {
     },
     onActive: (event, context: { startY: number }) => {
       const newTranslateY = context.startY + event.translationY;
-      musicModalTranslateY.value = Math.max(0, newTranslateY);
+      musicModalTranslateY.value = Math.max(OPEN_Y, newTranslateY);
     },
     onEnd: (event) => {
-      const shouldDismiss = event.translationY > SHEET_HEIGHT * 0.3 || event.velocityY > 800;
+      const shouldDismiss = event.translationY > VISIBLE_SHEET_HEIGHT * 0.3 || event.velocityY > 800;
       if (shouldDismiss) {
-        musicModalTranslateY.value = withTiming(SHEET_HEIGHT, {
+        musicModalTranslateY.value = withTiming(CLOSED_Y, {
           duration: 250,
           easing: Easing.in(Easing.quad),
         }, (finished) => {
@@ -583,7 +593,7 @@ export default function MusicModal({ visible, onClose }: MusicModalProps) {
           }
         });
       } else {
-        musicModalTranslateY.value = withTiming(0, {
+        musicModalTranslateY.value = withTiming(OPEN_Y, {
           duration: 200,
           easing: Easing.out(Easing.quad),
         });
@@ -596,7 +606,7 @@ export default function MusicModal({ visible, onClose }: MusicModalProps) {
   }));
 
   const animatedMusicBackdropStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(musicModalTranslateY.value, [0, SHEET_HEIGHT], [0.7, 0], Extrapolate.CLAMP),
+    opacity: interpolate(musicModalTranslateY.value, [OPEN_Y, CLOSED_Y], [0.7, 0], Extrapolate.CLAMP),
   }));
 
   if (!visible) return null;
@@ -611,8 +621,8 @@ export default function MusicModal({ visible, onClose }: MusicModalProps) {
         failOffsetX={[-10, 10]}
       >
         
-        <Animated.View style={[styles.musicSheet, animatedMusicSheetStyle, { height: SHEET_HEIGHT }]}>
-          <SafeAreaView style={styles.musicSafeContainer} edges={['bottom']}>
+        <Animated.View style={[styles.musicSheet, animatedMusicSheetStyle, { height: VISIBLE_SHEET_HEIGHT }]}>
+          <SafeAreaView style={styles.musicSafeContainer} edges={[]}>
             <View style={styles.musicHeader}>
               <View style={styles.musicHandle} />
             </View>
@@ -745,7 +755,7 @@ export default function MusicModal({ visible, onClose }: MusicModalProps) {
             </View>
 
             {/* Bottom Button Container */}
-            <View style={styles.musicButtonContainer}>
+            <View style={[styles.musicButtonContainer, { paddingBottom: bottomPad }]}>
               <Pressable 
                 style={({ pressed }) => [
                   styles.musicSelectButton,
@@ -999,7 +1009,7 @@ const styles = StyleSheet.create({
   },
   musicButtonContainer: {
     paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingTop: 16,
     gap: 16,
     marginTop: 'auto', // Pushes the button to the bottom
   },

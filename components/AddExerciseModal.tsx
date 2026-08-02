@@ -32,9 +32,13 @@ interface AddExerciseModalProps {
 
 const AddExerciseModal = React.memo<AddExerciseModalProps>(function AddExerciseModal({ visible, onClose, onSelectExercise }) {
   const insets = useSafeAreaInsets();
-  const SHEET_HEIGHT = SCREEN_HEIGHT;
+  // Shorter sheet + bottom:0 clears status bar; open at 0 so footer stays on-screen
+  const OPEN_Y = 0;
+  const TOP_INSET = Math.max(insets.top, 0);
+  const VISIBLE_SHEET_HEIGHT = SCREEN_HEIGHT - TOP_INSET;
+  const CLOSED_Y = VISIBLE_SHEET_HEIGHT;
   
-  const translateY = useSharedValue(SHEET_HEIGHT);
+  const translateY = useSharedValue(CLOSED_Y);
   
   // Search and filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -168,18 +172,18 @@ const AddExerciseModal = React.memo<AddExerciseModalProps>(function AddExerciseM
   
   useEffect(() => {
     if (visible) {
-      translateY.value = withSpring(0, { damping: 25, stiffness: 150, mass: 0.8 });
+      translateY.value = withSpring(OPEN_Y, { damping: 25, stiffness: 150, mass: 0.8 });
     } else {
-      translateY.value = withSpring(SHEET_HEIGHT, { damping: 20, stiffness: 200 });
+      translateY.value = withSpring(CLOSED_Y, { damping: 20, stiffness: 200 });
     }
-  }, [visible, SHEET_HEIGHT]);
+  }, [visible, CLOSED_Y]);
   
   // Handle hardware back button
   useEffect(() => {
     if (!visible) return;
     
     const handleBackPress = () => {
-      translateY.value = withTiming(SHEET_HEIGHT, {
+      translateY.value = withTiming(CLOSED_Y, {
         duration: 250,
         easing: Easing.in(Easing.quad),
       }, (finished) => {
@@ -192,14 +196,14 @@ const AddExerciseModal = React.memo<AddExerciseModalProps>(function AddExerciseM
     
     const backHandler = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
     return () => backHandler.remove();
-  }, [visible, translateY, onClose, SHEET_HEIGHT]);
+  }, [visible, translateY, onClose, CLOSED_Y]);
   
   const animatedSheetStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
   }));
   
   const animatedBackdropStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(translateY.value, [0, SHEET_HEIGHT], [0.7, 0], Extrapolate.CLAMP),
+    opacity: interpolate(translateY.value, [OPEN_Y, CLOSED_Y], [0.7, 0], Extrapolate.CLAMP),
   }));
   
   const handleSelectExercise = useCallback((exercise: any) => {
@@ -419,8 +423,8 @@ const AddExerciseModal = React.memo<AddExerciseModalProps>(function AddExerciseM
     <View style={styles.overlay}>
       <Animated.View style={[styles.backdrop, animatedBackdropStyle]} />
       
-      <Animated.View style={[styles.sheet, animatedSheetStyle, { height: SHEET_HEIGHT }]}>
-        <SafeAreaView style={styles.safeContainer} edges={['top', 'bottom']}>
+      <Animated.View style={[styles.sheet, animatedSheetStyle, { height: VISIBLE_SHEET_HEIGHT }]}>
+        <SafeAreaView style={styles.safeContainer} edges={['bottom']}>
           {/* Drag Handle */}
           <View style={styles.header}>
             <View style={styles.handle} />
@@ -428,9 +432,9 @@ const AddExerciseModal = React.memo<AddExerciseModalProps>(function AddExerciseM
           
           {/* Close button */}
           <Pressable
-            style={[styles.overlayCloseButton, { top: 16 + insets.top }]}
+            style={[styles.overlayCloseButton, { top: 16 }]}
             onPress={() => {
-              translateY.value = withTiming(SHEET_HEIGHT, {
+              translateY.value = withTiming(CLOSED_Y, {
                 duration: 250,
                 easing: Easing.in(Easing.quad),
               }, (finished) => {
@@ -448,7 +452,7 @@ const AddExerciseModal = React.memo<AddExerciseModalProps>(function AddExerciseM
           </Pressable>
           
           {/* Fixed Header - Title, Search, and Filters */}
-          <View style={[styles.fixedHeader, { paddingTop: insets.top }]}>
+          <View style={styles.fixedHeader}>
             {/* Title Section */}
             <View style={styles.titleSection}>
               <Text style={styles.titleText}>Add Exercise</Text>

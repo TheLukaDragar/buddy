@@ -1,25 +1,59 @@
 import Constants from 'expo-constants';
+import { NativeModules } from 'react-native';
 
-/** Metro / dev-client URL as http origin (exp://, custom scheme like bixo://, etc.). */
+/**
+ * Resolve the Metro / Expo API origin for native + web.
+ * Physical iOS devices cannot reach `localhost` (that is the phone itself).
+ */
 function getDevServerOrigin(): string {
-  const url = Constants.experienceUrl;
-  if (!url) {
-    return 'http://localhost:8081';
+  // 1) expoConfig.hostUri — e.g. "192.168.1.12:8081" (best for devices)
+  const hostUri =
+    Constants.expoConfig?.hostUri ??
+    Constants.manifest2?.extra?.expoClient?.hostUri ??
+    (Constants.manifest as { debuggerHost?: string } | null | undefined)?.debuggerHost;
+
+  if (hostUri) {
+    const host = String(hostUri).split('/')[0];
+    if (host) {
+      return `http://${host}`;
+    }
   }
-  if (url.startsWith('exp://')) {
-    return url.replace('exp://', 'http://');
+
+  // 2) Bundle script URL — always points at the packager the app loaded from
+  const scriptURL = NativeModules.SourceCode?.scriptURL as string | undefined;
+  if (scriptURL && /^https?:\/\//i.test(scriptURL)) {
+    const match = scriptURL.match(/^(https?):\/\/([^/:]+)(?::(\d+))?/i);
+    if (match) {
+      const protocol = match[1];
+      const hostname = match[2];
+      const port = match[3] || '8081';
+      if (hostname && hostname !== 'file') {
+        return `${protocol}://${hostname}:${port}`;
+      }
+    }
   }
-  const sep = url.indexOf('://');
-  if (sep !== -1) {
-    return `http://${url.slice(sep + 3)}`;
+
+  // 3) experienceUrl — exp://host:port or custom scheme (bixo://host:port/...)
+  const experienceUrl = Constants.experienceUrl;
+  if (experienceUrl) {
+    const withoutScheme = experienceUrl.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '');
+    const host = withoutScheme.split('/')[0];
+    if (host && host !== 'localhost' && host !== '127.0.0.1') {
+      return `http://${host}`;
+    }
+    if (host) {
+      return `http://${host}`;
+    }
   }
+
   return 'http://localhost:8081';
 }
 
 export const generateAPIUrl = (relativePath: string) => {
   const path = relativePath.startsWith('/') ? relativePath : `/${relativePath}`;
 
-  if (process.env.NODE_ENV === 'development') {
+  // __DEV__ is reliable in RN; NODE_ENV can be wrong in some native builds
+  if (typeof __DEV__ !== 'undefined' ? __DEV__ : process.env.NODE_ENV === 'development') {
     return getDevServerOrigin().concat(path);
   }
 

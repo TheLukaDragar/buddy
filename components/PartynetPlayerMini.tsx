@@ -20,10 +20,13 @@ import {
 
 interface PartynetPlayerMiniProps {
   onPress?: () => void; // For navigating to full player
+  /** Extra left inset so a leading control can sit beside the player */
+  leadingInset?: number;
 }
 
 export default function PartynetPlayerMini({
   onPress,
+  leadingInset = 0,
 }: PartynetPlayerMiniProps) {
   const theme = useBiXoTheme();
   const dispatch = useAppDispatch();
@@ -149,6 +152,7 @@ export default function PartynetPlayerMini({
       style={[
         styles.container,
         {
+          left: 16 + leadingInset,
           opacity: fadeAnim,
           transform: [{ translateY: slideDownAnim }],
         },

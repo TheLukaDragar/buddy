@@ -20,10 +20,13 @@ import { selectIsAuthenticated, selectSpotifyAuth } from '../store/slices/spotif
 
 interface SpotifyPlayerMiniProps {
   onPress?: () => void; // Only keep onPress for navigating to full player
+  /** Extra left inset so a leading control can sit beside the player */
+  leadingInset?: number;
 }
 
 export default function SpotifyPlayerMini({
   onPress,
+  leadingInset = 0,
 }: SpotifyPlayerMiniProps) {
   const theme = useBiXoTheme();
   
@@ -171,6 +174,7 @@ export default function SpotifyPlayerMini({
       style={[
         styles.container,
         {
+          left: 16 + leadingInset,
           opacity: fadeAnim,
           transform: [{ translateY: slideDownAnim }],
         },

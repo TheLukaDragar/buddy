@@ -87,33 +87,48 @@ export const store = configureStore({
   devTools: false, // Disable built-in devTools
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
-      // Disable SerializableStateInvariantMiddleware in development to prevent slowdowns
-      serializableCheck: __DEV__ ? false : {
-        ignoredActions: [
-          enhancedApi.util.resetApiState.type, 
-          'persist/PERSIST', 
-          'persist/REHYDRATE',
-          'user/generateProfileFromAnswers/pending',
-          'user/generateProfileFromAnswers/fulfilled',
-          'user/generateProfileFromAnswers/rejected',
-          // Workout slice actions with non-serializable data
-          'workout/selectWorkout',
-          'workout/completeSet',
-        ],
-        ignoredActionsPaths: ['payload.timestamp'],
-        ignoredPaths: [
-          'workout.session.createdAt', 
-          'workout.activeWorkout.startTime', 
-          'workout.activeWorkout.currentPhaseStartTime',
-          'workout.activeWorkout.pauseStartTime',
-          'workout.activeWorkout.adjustmentsMade',
-          'workout.activeWorkout.lastFeedback.timestamp',
-          'workout.session.exercises',
-          'workout.activeWorkout.currentExercise',
-          'workout.activeWorkout.currentSet',
-          'workout.activeWorkout.setsCompleted'
-        ],
-      },
+      // Dev invariant checks deep-walk the whole tree (workout + RTK Query caches) and
+      // routinely exceed 300ms here. Both are off in production builds already.
+      serializableCheck: __DEV__
+        ? false
+        : {
+            ignoredActions: [
+              enhancedApi.util.resetApiState.type,
+              'persist/PERSIST',
+              'persist/REHYDRATE',
+              'user/generateProfileFromAnswers/pending',
+              'user/generateProfileFromAnswers/fulfilled',
+              'user/generateProfileFromAnswers/rejected',
+              'workout/selectWorkout',
+              'workout/completeSet',
+            ],
+            ignoredActionsPaths: ['payload.timestamp'],
+            ignoredPaths: [
+              'workout.session.createdAt',
+              'workout.activeWorkout.startTime',
+              'workout.activeWorkout.currentPhaseStartTime',
+              'workout.activeWorkout.pauseStartTime',
+              'workout.activeWorkout.adjustmentsMade',
+              'workout.activeWorkout.lastFeedback.timestamp',
+              'workout.session.exercises',
+              'workout.activeWorkout.currentExercise',
+              'workout.activeWorkout.currentSet',
+              'workout.activeWorkout.setsCompleted',
+              enhancedApi.reducerPath,
+              fitnessApi.reducerPath,
+              spotifyApi.reducerPath,
+            ],
+          },
+      immutableCheck: __DEV__
+        ? false
+        : {
+            ignoredPaths: [
+              enhancedApi.reducerPath,
+              fitnessApi.reducerPath,
+              spotifyApi.reducerPath,
+              'workout',
+            ],
+          },
     })
     .concat(enhancedApi.middleware)
     .concat(fitnessApi.middleware)
@@ -123,10 +138,10 @@ export const store = configureStore({
     getDefaultEnhancers().concat(
       devToolsEnhancer({
         name: 'BiXo App Redux Store',
-        maxAge: 50, // Keep more actions for workout debugging
-        trace: true, // Enable trace for better debugging
+        maxAge: 30,
+        // Stack traces per action are expensive with a large store
+        trace: false,
         actionsDenylist: [
-          // Hide noisy actions from devtools
           'persist/PERSIST',
           'persist/REHYDRATE',
         ],

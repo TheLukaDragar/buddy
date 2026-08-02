@@ -1,12 +1,18 @@
 import { useBiXoTheme } from '@/constants/BiXoTheme';
 import { Image } from "expo-image";
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Modal, StyleSheet, View } from 'react-native';
 import { SystemBars } from 'react-native-edge-to-edge';
-import { Button, Modal, Text } from 'react-native-paper';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Button, Text } from 'react-native-paper';
+import {
+  initialWindowMetrics,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 import { nucleus } from '../BiXo_variables.js';
 import { useSpotifyAuth } from '../hooks/useSpotifyAuth';
+
+/** Fallback when Modal/edge-to-edge reports 0 bottom inset */
+const WINDOW_BOTTOM_INSET = initialWindowMetrics?.insets.bottom ?? 0;
 
 interface SpotifyConnectModalProps {
   visible: boolean;
@@ -19,12 +25,14 @@ export default function SpotifyConnectModal({
   onDismiss, 
   onNotNow 
 }: SpotifyConnectModalProps) {
-  const theme = useBiXoTheme();
+  useBiXoTheme();
+  const insets = useSafeAreaInsets();
+  const topPad = Math.max(insets.top, initialWindowMetrics?.insets.top ?? 0);
+  const bottomPad = Math.max(insets.bottom, WINDOW_BOTTOM_INSET, 24) + 16;
   const { login, loading, error } = useSpotifyAuth();
 
   const handleConnectSpotify = () => {
     login();
-    // Close modal after initiating auth
     onDismiss();
   };
 
@@ -38,18 +46,25 @@ export default function SpotifyConnectModal({
   return (
     <Modal
       visible={visible}
-      onDismiss={onDismiss}
-      contentContainerStyle={[
-        styles.modalContainer,
-        { backgroundColor: nucleus.light.semantic.bg.canvas }
-      ]}
+      transparent={false}
+      animationType="slide"
+      presentationStyle="fullScreen"
+      onRequestClose={onDismiss}
+      statusBarTranslucent
     >
-      <SafeAreaView style={styles.safeArea}>
+      <View
+        style={[
+          styles.root,
+          {
+            paddingTop: topPad,
+            paddingBottom: bottomPad,
+            backgroundColor: nucleus.light.semantic.bg.canvas,
+          },
+        ]}
+      >
         <SystemBars style="dark" />
-        
-        {/* Content Container */}
+
         <View style={styles.contentContainer}>
-          {/* Spotify Logo */}
           <View style={styles.logoContainer}>
             <Image
               source={require("../assets/icons/spotify.svg")}
@@ -58,24 +73,17 @@ export default function SpotifyConnectModal({
             />
           </View>
 
-          {/* Text Content */}
           <View style={styles.textContainer}>
-            <Text 
-              variant="headlineMedium" 
-              style={[
-                styles.title, 
-                { color: nucleus.light.semantic.fg.base }
-              ]}
+            <Text
+              variant="headlineMedium"
+              style={[styles.title, { color: nucleus.light.semantic.fg.base }]}
             >
               Let's set your workout vibe
             </Text>
-            
-            <Text 
-              variant="bodyLarge" 
-              style={[
-                styles.description, 
-                { color: nucleus.light.semantic.fg.base }
-              ]}
+
+            <Text
+              variant="bodyLarge"
+              style={[styles.description, { color: nucleus.light.semantic.fg.base }]}
             >
               Training hits differently with the right music.{'\n'}
               Connect Spotify so BiXo can play mood-matching tunes while you work out.
@@ -83,18 +91,16 @@ export default function SpotifyConnectModal({
           </View>
         </View>
 
-        {/* Button Container */}
         <View style={styles.buttonContainer}>
-          {/* Connect Spotify Button */}
           <Button
             mode="contained"
             style={[
               styles.connectButton,
-              { backgroundColor: nucleus.light.global.blue["70"] }
+              { backgroundColor: nucleus.light.global.blue["70"] },
             ]}
             labelStyle={[
               styles.connectButtonLabel,
-              { color: nucleus.light.global.blue["10"] }
+              { color: nucleus.light.global.blue["10"] },
             ]}
             contentStyle={styles.buttonContent}
             compact={false}
@@ -105,16 +111,15 @@ export default function SpotifyConnectModal({
             Connect Spotify
           </Button>
 
-          {/* Not Now Button */}
           <Button
             mode="outlined"
             style={[
               styles.notNowButton,
-              { borderColor: nucleus.light.global.blue["70"] }
+              { borderColor: nucleus.light.global.blue["70"] },
             ]}
             labelStyle={[
               styles.notNowButtonLabel,
-              { color: nucleus.light.global.blue["70"] }
+              { color: nucleus.light.global.blue["70"] },
             ]}
             contentStyle={styles.buttonContent}
             compact={false}
@@ -125,28 +130,23 @@ export default function SpotifyConnectModal({
           </Button>
         </View>
 
-        {/* Error Message */}
         {error && (
           <View style={styles.errorContainer}>
-            <Text 
-              variant="bodySmall" 
+            <Text
+              variant="bodySmall"
               style={[styles.errorText, { color: '#FF6B35' }]}
             >
               {error}
             </Text>
           </View>
         )}
-      </SafeAreaView>
+      </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  modalContainer: {
-    flex: 1,
-    margin: 0,
-  },
-  safeArea: {
+  root: {
     flex: 1,
   },
   contentContainer: {
@@ -154,8 +154,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 16,
-    paddingTop: 104,
-    paddingBottom: 24,
     gap: 24,
   },
   logoContainer: {
@@ -166,7 +164,6 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
   },
-
   textContainer: {
     alignItems: 'center',
     gap: 16,
@@ -175,7 +172,7 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 24,
-    lineHeight: 29, // 24 * 1.2
+    lineHeight: 29,
     textAlign: 'center',
     letterSpacing: -1,
     includeFontPadding: false,
@@ -183,13 +180,12 @@ const styles = StyleSheet.create({
   description: {
     fontFamily: 'PlusJakartaSans-Regular',
     fontSize: 16,
-    lineHeight: 24, // 16 * 1.5
+    lineHeight: 24,
     textAlign: 'center',
     includeFontPadding: false,
   },
   buttonContainer: {
     paddingHorizontal: 16,
-    paddingBottom: 16,
     gap: 16,
   },
   connectButton: {
@@ -224,7 +220,7 @@ const styles = StyleSheet.create({
   },
   errorContainer: {
     paddingHorizontal: 16,
-    paddingBottom: 8,
+    paddingTop: 8,
     alignItems: 'center',
   },
   errorText: {

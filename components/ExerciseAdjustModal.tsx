@@ -250,9 +250,13 @@ interface ExerciseInfoModalProps {
 
 const ExerciseInfoModal = React.memo<ExerciseInfoModalProps>(function ExerciseInfoModal({ visible, onClose, onAdjustmentComplete, workoutEntryId, currentExerciseId }) {
   const insets = useSafeAreaInsets();
-  const SHEET_HEIGHT = SCREEN_HEIGHT;
+  // Shorter sheet + bottom:0 clears status bar; open at 0 so footer stays on-screen
+  const OPEN_Y = 0;
+  const TOP_INSET = Math.max(insets.top, 0);
+  const VISIBLE_SHEET_HEIGHT = SCREEN_HEIGHT - TOP_INSET;
+  const CLOSED_Y = VISIBLE_SHEET_HEIGHT;
   
-  const translateY = useSharedValue(SHEET_HEIGHT);
+  const translateY = useSharedValue(CLOSED_Y);
   
   // Fetch workout entry data WITHOUT nested exercises (avoids stale data)
   // Force refetch when modal opens to ensure fresh data after exercise jumps/swaps
@@ -682,18 +686,18 @@ const ExerciseInfoModal = React.memo<ExerciseInfoModalProps>(function ExerciseIn
 
   useEffect(() => {
     if (visible) {
-      translateY.value = withSpring(0, { damping: 25, stiffness: 150, mass: 0.8 });
+      translateY.value = withSpring(OPEN_Y, { damping: 25, stiffness: 150, mass: 0.8 });
     } else {
-      translateY.value = withSpring(SHEET_HEIGHT, { damping: 20, stiffness: 200 });
+      translateY.value = withSpring(CLOSED_Y, { damping: 20, stiffness: 200 });
     }
-  }, [visible, SHEET_HEIGHT]);
+  }, [visible, CLOSED_Y]);
 
   // Handle hardware back button
   useEffect(() => {
     if (!visible) return;
 
     const handleBackPress = () => {
-      translateY.value = withTiming(SHEET_HEIGHT, {
+      translateY.value = withTiming(CLOSED_Y, {
         duration: 250,
         easing: Easing.in(Easing.quad),
       }, (finished) => {
@@ -707,7 +711,7 @@ const ExerciseInfoModal = React.memo<ExerciseInfoModalProps>(function ExerciseIn
     const backHandler = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
 
     return () => backHandler.remove();
-  }, [visible, translateY, onClose, SHEET_HEIGHT]);
+  }, [visible, translateY, onClose, CLOSED_Y]);
 
   const gestureHandler = useAnimatedGestureHandler({
     onStart: (_, context: { startY: number }) => {
@@ -715,12 +719,12 @@ const ExerciseInfoModal = React.memo<ExerciseInfoModalProps>(function ExerciseIn
     },
     onActive: (event, context: { startY: number }) => {
       const newTranslateY = context.startY + event.translationY;
-      translateY.value = Math.max(0, newTranslateY);
+      translateY.value = Math.max(OPEN_Y, newTranslateY);
     },
     onEnd: (event) => {
-      const shouldDismiss = event.translationY > SHEET_HEIGHT * 0.3 || event.velocityY > 800;
+      const shouldDismiss = event.translationY > VISIBLE_SHEET_HEIGHT * 0.3 || event.velocityY > 800;
       if (shouldDismiss) {
-        translateY.value = withTiming(SHEET_HEIGHT, {
+        translateY.value = withTiming(CLOSED_Y, {
           duration: 250,
           easing: Easing.in(Easing.quad),
         }, (finished) => {
@@ -729,7 +733,7 @@ const ExerciseInfoModal = React.memo<ExerciseInfoModalProps>(function ExerciseIn
           }
         });
       } else {
-        translateY.value = withTiming(0, {
+        translateY.value = withTiming(OPEN_Y, {
           duration: 200,
           easing: Easing.out(Easing.quad),
         });
@@ -742,7 +746,7 @@ const ExerciseInfoModal = React.memo<ExerciseInfoModalProps>(function ExerciseIn
   }));
 
   const animatedBackdropStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(translateY.value, [0, SHEET_HEIGHT], [0.7, 0], Extrapolate.CLAMP),
+    opacity: interpolate(translateY.value, [OPEN_Y, CLOSED_Y], [0.7, 0], Extrapolate.CLAMP),
   }));
 
   // Reset swap state when modal closes
@@ -783,7 +787,7 @@ const ExerciseInfoModal = React.memo<ExerciseInfoModalProps>(function ExerciseIn
         activeOffsetY={20}
         failOffsetX={[-10, 10]}
       >
-        <Animated.View style={[styles.sheet, animatedSheetStyle, { height: SHEET_HEIGHT }]}>
+        <Animated.View style={[styles.sheet, animatedSheetStyle, { height: VISIBLE_SHEET_HEIGHT }]}>
           <SafeAreaView style={styles.safeContainer} edges={['bottom']}>
             {/* Drag Handle */}
             <View style={styles.header}>

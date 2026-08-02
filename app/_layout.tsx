@@ -222,6 +222,9 @@ function RootNavigator() {
             headerShown: false,
             presentation: 'card',
             animation: 'fade',
+            // No iOS edge-swipe — usePreventRemove still cancels mid-animation; disable instead
+            gestureEnabled: false,
+            fullScreenGestureEnabled: false,
           }}
         />
         <Stack.Screen

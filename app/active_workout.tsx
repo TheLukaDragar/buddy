@@ -1,18 +1,22 @@
-import { inferPrescriptionType, normalizePrescriptionType } from '@/lib/workoutEntryParsing';
 import { supabase } from '@/lib/supabase';
+import { inferPrescriptionType, normalizePrescriptionType } from '@/lib/workoutEntryParsing';
 import { enhancedApi } from '@/store/api/enhancedApi';
+import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { usePreventRemove } from '@react-navigation/native';
 import { unwrapResult } from '@reduxjs/toolkit';
+import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { useKeepAwake } from 'expo-keep-awake';
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useNavigation } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, BackHandler, Dimensions, LayoutChangeEvent, Modal, StyleSheet, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { SystemBars } from 'react-native-edge-to-edge';
 import { PanGestureHandler } from 'react-native-gesture-handler';
 import { Button, Text } from 'react-native-paper';
+import type { SharedValue } from 'react-native-reanimated';
 import ReanimatedAnimated, {
   Easing,
   Extrapolation,
@@ -26,11 +30,9 @@ import ReanimatedAnimated, {
   withSpring,
   withTiming
 } from 'react-native-reanimated';
-import type { SharedValue } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
 import { nucleus } from '../BiXo_variables.js';
-import { generateAPIUrl } from '../utils';
 import ChatComponent from '../components/ChatComponent';
 import MusicModal from '../components/MusicModal';
 import { useBiXoTheme } from '../constants/BiXoTheme';
@@ -60,8 +62,6 @@ import {
   completeWarmup,
   completeWorkout,
   confirmReadyAndStartSet,
-  finishWorkoutEarly,
-  saveWorkoutForLater,
   getExerciseInstructions,
   getWorkoutStatus,
   jumpToExercise,
@@ -69,6 +69,7 @@ import {
   pauseSet,
   resumeSet,
   resumeWorkoutFromSession,
+  saveWorkoutForLater,
   skipWarmup,
   startExercisePreparation,
   startRest,
@@ -79,6 +80,7 @@ import { useAppDispatch } from '../store/hooks';
 import { hideMiniPlayer, selectMiniPlayerVisible, showMiniPlayer } from '../store/slices/musicSlice';
 import {
   extendRest,
+  recordSetFeedback,
   selectActiveWorkout,
   selectCurrentExercise,
   selectCurrentSet,
@@ -89,10 +91,10 @@ import {
   selectWarmup,
   selectWorkoutSession,
   selectWorkoutStatus,
-  recordSetFeedback,
   setVoiceAgentStatus,
   trackConversation,
 } from '../store/slices/workoutSlice';
+import { generateAPIUrl } from '../utils';
 
 import type { ConversationEvent, ConversationStatus, Mode, Role } from '@elevenlabs/react-native';
 import { useConversation } from '@elevenlabs/react-native';
@@ -100,14 +102,14 @@ import { AnimatedAIButton } from '../components/AnimatedAIButton';
 import ExerciseAdjustModal from '../components/ExerciseAdjustModal';
 import FindMachineOfferButton from '../components/FindMachineOfferButton';
 import FindMachineSheet from '../components/FindMachineSheet';
+import MusicPlayerMini from '../components/MusicPlayerMini';
+import PartynetAudioPlayer from '../components/PartynetAudioPlayer';
+import SetFeedbackLayer from '../components/SetFeedbackLayer';
+import SwitchExerciseModal from '../components/SwitchExerciseModal';
 import {
   resolveMachineFinderTarget,
   type MachineFinderTarget,
 } from '../constants/machineFinder';
-import MusicPlayerMini from '../components/MusicPlayerMini';
-import SetFeedbackLayer from '../components/SetFeedbackLayer';
-import PartynetAudioPlayer from '../components/PartynetAudioPlayer';
-import SwitchExerciseModal from '../components/SwitchExerciseModal';
 import { useAuth } from '../contexts/AuthContext';
 import { useMicrophonePermission } from '../hooks/useMicrophonePermission';
 import { loadUserProfileFromDatabase } from '../services/userProfileService';
@@ -806,6 +808,40 @@ const VideoContainer: React.FC<VideoContainerProps> = ({
             </TouchableWithoutFeedback>
           )}
           
+          {/* Leave control — chevron sits left of Spotify/Partynet mini player, same top baseline */}
+          {status !== 'inactive' && status !== 'workout-completed' && (
+            <ReanimatedAnimated.View
+              pointerEvents={controlsVisible ? 'auto' : 'none'}
+              style={[
+                styles.topLeftOverlay,
+                animatedOverlayStyle,
+                {
+                  // Fixed position — never tied to mini-player visibility (avoids jump on show/hide)
+                  top: insets.top + 8,
+                  left: 16 + insets.left,
+                  zIndex: 1100,
+                },
+              ]}
+            >
+              <TouchableOpacity
+                onPress={onShowFinishAlert}
+                activeOpacity={0.75}
+                accessibilityLabel="Leave workout"
+                accessibilityRole="button"
+                style={styles.backGlassTouch}
+              >
+                <BlurView intensity={100} tint="light" style={styles.backGlassButton}>
+                  <Ionicons
+                    name="chevron-back"
+                    size={26}
+                    color={nucleus.light.global.grey["70"]}
+                    style={styles.backChevronIcon}
+                  />
+                </BlurView>
+              </TouchableOpacity>
+            </ReanimatedAnimated.View>
+          )}
+
           {/* Top Right Overlay - Always visible over video when exercise is active */}
           {currentExercise && status !== 'inactive' && status !== 'workout-completed' && status !== 'selected' && (
             <ReanimatedAnimated.View style={[styles.topRightOverlay, animatedTopRightStyle, { 
@@ -2715,6 +2751,8 @@ export default function ActiveWorkoutScreen() {
   const theme = useBiXoTheme();
   const insets = useSafeAreaInsets();
   const [showFinishAlert, setShowFinishAlert] = useState(false);
+  /** After Save/Finish — allow stack removal / router.replace past usePreventRemove */
+  const [allowLeave, setAllowLeave] = useState(false);
   const [showMusicModal, setShowMusicModal] = useState(false);
   const [showAdjustModal, setShowAdjustModal] = useState(false);
   const [showSwitchModal, setShowSwitchModal] = useState(false);
@@ -2854,6 +2892,34 @@ export default function ActiveWorkoutScreen() {
   const voiceAgent = useSelector(selectVoiceAgentStatus);
   const workoutEntries = useSelector((state: any) => state.workout.workoutEntries);
   const dispatch = useAppDispatch();
+
+  const navigation = useNavigation();
+  // Block route removal (programmatic back, nested pops). Swipe is disabled on this screen.
+  const shouldPreventLeave =
+    !allowLeave && status !== 'workout-completed' && status !== 'inactive';
+  usePreventRemove(shouldPreventLeave, () => {
+    setShowFinishAlert(true);
+  });
+
+  // Keep gesture off while an active workout must confirm leave (covers parent navigators too)
+  useEffect(() => {
+    const applyGesture = (enabled: boolean) => {
+      navigation.setOptions({
+        gestureEnabled: enabled,
+        fullScreenGestureEnabled: false,
+      });
+      let parent = navigation.getParent();
+      while (parent) {
+        parent.setOptions({
+          gestureEnabled: enabled,
+          fullScreenGestureEnabled: false,
+        });
+        parent = parent.getParent();
+      }
+    };
+    applyGesture(!shouldPreventLeave);
+    return () => applyGesture(true);
+  }, [navigation, shouldPreventLeave]);
   
   // Get current workout entry ID - use the entry at current index (this is the source of truth)
   // After jumping exercises, workoutEntries is reordered, so currentExerciseIndex points to the correct entry
@@ -4198,8 +4264,10 @@ export default function ActiveWorkoutScreen() {
 
   // Function to fetch conversation token
   const fetchConversationToken = async () => {
+    const tokenUrl = generateAPIUrl('/api/elevenlabs-token');
     try {
-      const response = await fetch(generateAPIUrl('/api/elevenlabs-token'), {
+      console.log('🎤 Fetching conversation token from:', tokenUrl);
+      const response = await fetch(tokenUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -4232,7 +4300,7 @@ export default function ActiveWorkoutScreen() {
       setConversationToken(token);
       return token;
     } catch (error) {
-      console.error('Error fetching conversation token:', error);
+      console.error('Error fetching conversation token:', error, 'url:', tokenUrl);
       return null;
     }
   };
@@ -4401,13 +4469,16 @@ export default function ActiveWorkoutScreen() {
           // Capture sessionId before completeWorkout clears Redux state
           const currentSessionId = sessionId;
           dispatch(completeWorkout());
-          router.replace({
-            pathname: '/workout-completed',
-            params: { sessionId: currentSessionId || '' }
-          });
+          setAllowLeave(true);
+          setTimeout(() => {
+            router.replace({
+              pathname: '/workout-completed',
+              params: { sessionId: currentSessionId || '' }
+            });
+          }, 0);
           return true;
         } else {
-          // Show finish early alert for other states
+          // Show finish early alert for other states (same sheet as iOS swipe prevent)
           setShowFinishAlert(true);
           return true;
         }
@@ -4477,8 +4548,10 @@ export default function ActiveWorkoutScreen() {
         endConversation().catch(err => console.error('Error disconnecting on save for later:', err));
       }, 300);
       await dispatch(saveWorkoutForLater()).then((r: any) => unwrapResult(r));
+      setAllowLeave(true);
       setShowFinishAlert(false);
       // Delay navigation so the dismiss touch doesn't hit WorkoutItem underneath and auto-resume
+      // (also lets usePreventRemove clear before replace)
       setTimeout(() => {
         router.replace({ pathname: '/(tabs)' });
       }, 350);
@@ -4496,11 +4569,14 @@ export default function ActiveWorkoutScreen() {
       const currentSessionId = selectSessionId(store.getState());
       const finishResult = await dispatch(completeWorkout());
       unwrapResult(finishResult);
+      setAllowLeave(true);
       setShowFinishAlert(false);
-      router.replace({
-        pathname: '/workout-completed',
-        params: { sessionId: currentSessionId || '' }
-      });
+      setTimeout(() => {
+        router.replace({
+          pathname: '/workout-completed',
+          params: { sessionId: currentSessionId || '' }
+        });
+      }, 0);
     } catch (error) {
       console.error('Finish workout failed:', error);
       setShowFinishAlert(false);
@@ -4665,9 +4741,11 @@ export default function ActiveWorkoutScreen() {
       <PartynetAudioPlayer />
 
       {/* Music Player Mini - Global Overlay (Spotify or Partynet) */}
+      {/* Always reserve chevron width while leave control is shown, so inset doesn't snap on hide */}
       {status !== 'workout-completed' && (
         <MusicPlayerMini
           onPress={() => setShowMusicModal(true)}
+          leadingInset={status !== 'inactive' ? 50 + 8 : 0}
         />
       )}
 
@@ -4846,6 +4924,36 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     zIndex: 5,
+  },
+  topLeftOverlay: {
+    position: 'absolute',
+    zIndex: 20,
+    pointerEvents: 'box-none',
+  },
+  // Match mini player minHeight (50) so X and player share one vertical line
+  backGlassTouch: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    shadowColor: 'rgba(185, 230, 255, 0.40)',
+    shadowOffset: { width: 0, height: 0 },
+    shadowRadius: 25,
+    shadowOpacity: 1,
+    elevation: 25,
+  },
+  backGlassButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.50)',
+    borderWidth: 1,
+    borderColor: 'rgba(208, 221, 23, 0.16)',
+  },
+  backChevronIcon: {
+    marginLeft: -2,
   },
   topRightOverlay: {
     position: 'absolute',

@@ -215,9 +215,13 @@ const SwitchExerciseModal: React.FC<SwitchExerciseModalProps> = React.memo(({
 }) => {
   const insets = useSafeAreaInsets();
   const dispatch = useAppDispatch();
-  const SHEET_HEIGHT = SCREEN_HEIGHT;
+  // Shorter sheet + bottom:0 clears status bar; open at 0 so footer stays on-screen
+  const OPEN_Y = 0;
+  const TOP_INSET = Math.max(insets.top, 0);
+  const VISIBLE_SHEET_HEIGHT = SCREEN_HEIGHT - TOP_INSET;
+  const CLOSED_Y = VISIBLE_SHEET_HEIGHT;
   
-  const translateY = useSharedValue(SHEET_HEIGHT);
+  const translateY = useSharedValue(CLOSED_Y);
   const backdropOpacity = useSharedValue(0);
   const [selectedExerciseSlug, setSelectedExerciseSlug] = React.useState<string | null>(null);
   const [previewEntries, setPreviewEntries] = React.useState(workoutEntries);
@@ -276,13 +280,13 @@ const SwitchExerciseModal: React.FC<SwitchExerciseModalProps> = React.memo(({
   // Handle sheet animation
   useEffect(() => {
     if (visible) {
-      translateY.value = withSpring(0, { damping: 25, stiffness: 150, mass: 0.8 });
+      translateY.value = withSpring(OPEN_Y, { damping: 25, stiffness: 150, mass: 0.8 });
       backdropOpacity.value = withTiming(0.5, { duration: 300 });
     } else {
-      translateY.value = withSpring(SHEET_HEIGHT, { damping: 20, stiffness: 200 });
+      translateY.value = withSpring(CLOSED_Y, { damping: 20, stiffness: 200 });
       backdropOpacity.value = withTiming(0, { duration: 200 });
     }
-  }, [visible]);
+  }, [visible, CLOSED_Y]);
 
   // Handle hardware back button
   useEffect(() => {
@@ -303,17 +307,17 @@ const SwitchExerciseModal: React.FC<SwitchExerciseModalProps> = React.memo(({
     },
     onActive: (event, ctx) => {
       const newY = ctx.startY + event.translationY;
-      translateY.value = Math.max(0, newY);
+      translateY.value = Math.max(OPEN_Y, newY);
     },
     onEnd: (event) => {
-      const shouldDismiss = event.translationY > SHEET_HEIGHT * 0.3 || event.velocityY > 500;
+      const shouldDismiss = event.translationY > VISIBLE_SHEET_HEIGHT * 0.3 || event.velocityY > 500;
       
       if (shouldDismiss) {
-        translateY.value = withSpring(SHEET_HEIGHT, { damping: 20, stiffness: 200 });
+        translateY.value = withSpring(CLOSED_Y, { damping: 20, stiffness: 200 });
         backdropOpacity.value = withTiming(0, { duration: 200 });
         runOnJS(onClose)();
       } else {
-        translateY.value = withSpring(0, { damping: 25, stiffness: 150, mass: 0.8 });
+        translateY.value = withSpring(OPEN_Y, { damping: 25, stiffness: 150, mass: 0.8 });
       }
     },
   });
@@ -413,7 +417,7 @@ const SwitchExerciseModal: React.FC<SwitchExerciseModalProps> = React.memo(({
         activeOffsetY={20}
         failOffsetX={[-10, 10]}
       >
-        <Animated.View style={[styles.sheet, animatedSheetStyle, { height: SHEET_HEIGHT }]}>
+        <Animated.View style={[styles.sheet, animatedSheetStyle, { height: VISIBLE_SHEET_HEIGHT }]}>
           <SafeAreaView style={styles.safeContainer} edges={['bottom']}>
             {/* Drag Handle */}
             <View style={styles.header}>
