@@ -377,7 +377,7 @@ export default function OnboardingScreen() {
       router.replace('/workout-plan-progress');
     } catch (error) {
       console.error('Error completing onboarding:', error);
-      router.replace('/(tabs)');
+      router.dismissTo('/(tabs)');
     }
   };
 
@@ -539,7 +539,7 @@ export default function OnboardingScreen() {
           <IconButton
             icon={require('../assets/back.png')}
             size={32}
-            onPress={() => router.replace('/(tabs)')}
+            onPress={() => router.dismissTo('/(tabs)')}
             style={styles.backButton}
           />
           

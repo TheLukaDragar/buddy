@@ -275,7 +275,7 @@ export default function WorkoutPlanProgress() {
   const { currentStep, stepProgress, isComplete, showButton, stepDescription, hasError } = getProgressInfo();
 
   const handleContinue = () => {
-    router.push("/(tabs)");
+    router.dismissTo('/(tabs)');
   };
 
   const handleCancel = async () => {
@@ -293,7 +293,7 @@ export default function WorkoutPlanProgress() {
       if (error) throw error;
 
       console.log('✅ Cancelled workout plan generation');
-      router.push("/(tabs)");
+      router.dismissTo('/(tabs)');
     } catch (error) {
       console.error('❌ Failed to cancel workout plan generation:', error);
       setIsCancelling(false);

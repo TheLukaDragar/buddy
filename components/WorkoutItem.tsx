@@ -369,20 +369,23 @@ export default function WorkoutItem({ workout, index, onPress, planId, isPastWee
     const yesterdayOnly = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
 
     // Handle completed workouts
+    // Keep emoji out of the label Text — iOS mis-centers custom fonts when emoji shares the line
     if (isCompleted) {
       if (workoutDateOnly.getTime() === todayOnly.getTime()) {
         return {
-          text: "Well done today! 🔥",
+          text: "Well done today!",
+          emoji: "🔥",
           backgroundColor: nucleus.light.semantic.accent.moderate,
           textColor: nucleus.light.global.green["80"],
-          icon: "check"
+          icon: "check" as const,
         };
       } else {
         return {
-          text: "Completed ✅",
+          text: "Completed",
+          emoji: "✅",
           backgroundColor: nucleus.light.semantic.accent.moderate,
           textColor: nucleus.light.global.green["80"],
-          icon: "check"
+          icon: "check" as const,
         };
       }
     }
@@ -401,9 +404,10 @@ export default function WorkoutItem({ workout, index, onPress, planId, isPastWee
 
       return {
         text,
+        emoji: undefined as string | undefined,
         backgroundColor: nucleus.light.global.blue["20"],
         textColor: nucleus.light.global.blue["80"],
-        icon: "partial"
+        icon: "partial" as const,
       };
     }
 
@@ -416,9 +420,10 @@ export default function WorkoutItem({ workout, index, onPress, planId, isPastWee
 
       return {
         text,
+        emoji: undefined as string | undefined,
         backgroundColor: nucleus.light.global.blue["20"],
         textColor: nucleus.light.global.blue["80"],
-        icon: "partial"
+        icon: "partial" as const,
       };
     }
 
@@ -426,27 +431,30 @@ export default function WorkoutItem({ workout, index, onPress, planId, isPastWee
     if (workoutDateOnly.getTime() === yesterdayOnly.getTime()) {
       return {
         text: "Yesterday",
+        emoji: undefined as string | undefined,
         backgroundColor: nucleus.light.global.orange["30"],
         textColor: nucleus.light.global.orange["90"],
-        icon: "warning"
+        icon: "warning" as const,
       };
     }
 
     if (workoutDateOnly.getTime() < todayOnly.getTime()) {
       return {
         text: "Missed",
+        emoji: undefined as string | undefined,
         backgroundColor: nucleus.light.global.orange["30"],
         textColor: nucleus.light.global.orange["90"],
-        icon: "warning"
+        icon: "warning" as const,
       };
     }
 
     if (workoutDateOnly.getTime() === todayOnly.getTime()) {
       return {
-        text: "Today 💪",
+        text: "Today",
+        emoji: "💪",
         backgroundColor: nucleus.light.global.brand["40"],
         textColor: nucleus.light.global.brand["90"],
-        icon: "today"
+        icon: "today" as const,
       };
     }
 
@@ -456,9 +464,10 @@ export default function WorkoutItem({ workout, index, onPress, planId, isPastWee
     if (daysDiff === 1) {
       return {
         text: "Tomorrow",
+        emoji: undefined as string | undefined,
         backgroundColor: nucleus.light.global.blue["20"],
         textColor: nucleus.light.global.blue["80"],
-        icon: "upcoming"
+        icon: "upcoming" as const,
       };
     }
 
@@ -467,17 +476,19 @@ export default function WorkoutItem({ workout, index, onPress, planId, isPastWee
       const weeksDiff = Math.ceil(daysDiff / 7);
       return {
         text: `In ${weeksDiff} week${weeksDiff > 1 ? 's' : ''}`,
+        emoji: undefined as string | undefined,
         backgroundColor: nucleus.light.global.blue["20"],
         textColor: nucleus.light.global.blue["80"],
-        icon: "upcoming"
+        icon: "upcoming" as const,
       };
     }
 
     return {
       text: `In ${daysDiff} Days`,
+      emoji: undefined as string | undefined,
       backgroundColor: nucleus.light.global.blue["20"],
       textColor: nucleus.light.global.blue["80"],
-      icon: "upcoming"
+      icon: "upcoming" as const,
     };
   };
 
@@ -553,6 +564,9 @@ export default function WorkoutItem({ workout, index, onPress, planId, isPastWee
                 <Text style={[styles.statusText, { color: statusInfo.textColor }]}>
                   {statusInfo.text}
                 </Text>
+                {!!statusInfo.emoji && (
+                  <Text style={styles.statusEmoji}>{statusInfo.emoji}</Text>
+                )}
               </Animated.View>
             )}
             {!isLoading && isTrainNow && (
@@ -726,28 +740,42 @@ const styles = {
     minHeight: 22, // Reserve space for badge (paddingVertical: 4 + lineHeight: 14 = 22)
   },
   statusBadge: {
+    flexDirection: 'row' as const,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 32,
     alignSelf: 'flex-start' as const,
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+    gap: 4,
   },
   trainNowBadge: {
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 32,
     alignSelf: 'flex-start' as const,
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
   },
   trainNowText: {
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 12,
-    fontWeight: '700' as const,
-    lineHeight: 14,
+    lineHeight: 16,
+    includeFontPadding: false,
+    textAlignVertical: 'center' as const,
   },
   statusText: {
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 12,
-    fontWeight: '700' as const,
-    lineHeight: 14,
+    lineHeight: 16,
+    includeFontPadding: false,
+    textAlignVertical: 'center' as const,
+  },
+  statusEmoji: {
+    fontSize: 12,
+    lineHeight: 16,
+    includeFontPadding: false,
+    textAlignVertical: 'center' as const,
   },
   workoutDetails: {
     gap: 16,

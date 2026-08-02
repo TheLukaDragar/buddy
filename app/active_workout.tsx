@@ -4551,9 +4551,10 @@ export default function ActiveWorkoutScreen() {
       setAllowLeave(true);
       setShowFinishAlert(false);
       // Delay navigation so the dismiss touch doesn't hit WorkoutItem underneath and auto-resume
-      // (also lets usePreventRemove clear before replace)
+      // (also lets usePreventRemove clear). dismissTo pops workout + active_workout so swipe-back
+      // cannot return to the pre-workout stack.
       setTimeout(() => {
-        router.replace({ pathname: '/(tabs)' });
+        router.dismissTo('/(tabs)');
       }, 350);
     } catch (error) {
       console.error('Save for later failed:', error);
